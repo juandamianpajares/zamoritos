@@ -16,6 +16,7 @@ Route::get('dashboard/top-productos',  [DashboardController::class, 'topProducto
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 Route::apiResource('productos', ProductoController::class);
+Route::post('productos/{producto}/fraccionar', [ProductoController::class, 'fraccionar']);
 Route::apiResource('proveedores', ProveedorController::class);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 

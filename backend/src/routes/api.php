@@ -16,6 +16,7 @@ Route::get('dashboard/top-productos',  [DashboardController::class, 'topProducto
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 Route::apiResource('productos', ProductoController::class);
+Route::post('productos/{producto}/fraccionar', [ProductoController::class, 'fraccionar']);
 Route::apiResource('proveedores', ProveedorController::class);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 
@@ -25,7 +26,7 @@ Route::get('stock/bajo', [StockController::class, 'bajo']);
 
 Route::get('lotes', [LoteController::class, 'index']);
 
-Route::get('ventas',              [VentaController::class, 'index']);
-Route::post('ventas',             [VentaController::class, 'store']);
-Route::get('ventas/{venta}',      [VentaController::class, 'show']);
+Route::get('ventas',                  [VentaController::class, 'index']);
+Route::post('ventas',                 [VentaController::class, 'store']);
+Route::get('ventas/{venta}',          [VentaController::class, 'show']);
 Route::patch('ventas/{venta}/anular', [VentaController::class, 'anular']);

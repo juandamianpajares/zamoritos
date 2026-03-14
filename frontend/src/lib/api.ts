@@ -49,6 +49,14 @@ export interface Producto {
   precio_venta: number;
   stock: number;
   activo: boolean;
+  fraccionado_de?: number;
+}
+
+export interface FraccionarResult {
+  original:           Producto;
+  fraccionado:        Producto;
+  unidades_generadas: number;
+  codigo_fraccionado: string;
 }
 
 export interface Proveedor {

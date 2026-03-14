@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MovimientoStock;
 use App\Models\Producto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ProductoController extends Controller
 {
@@ -74,5 +77,80 @@ class ProductoController extends Controller
     {
         $producto->update(['activo' => false]);
         return response()->json(null, 204);
+    }
+
+    /**
+     * Fracciona una bolsa/unidad grande en unidades menores.
+     *
+     * Da de baja N bolsas del producto original y da de alta
+     * (N × peso_kg) unidades del producto fraccionado (código anexo: original + "-F").
+     */
+    public function fraccionar(Request $request, Producto $producto): JsonResponse
+    {
+        $data = $request->validate([
+            'cantidad_bolsas'    => 'required|numeric|min:0.001',
+            'precio_fraccionado' => 'required|numeric|min:0',
+        ]);
+
+        if ($producto->stock < $data['cantidad_bolsas']) {
+            throw ValidationException::withMessages([
+                'cantidad_bolsas' => "Stock insuficiente. Disponible: {$producto->stock} {$producto->unidad_medida}.",
+            ]);
+        }
+
+        $pesoKg         = $producto->peso ?? 1;
+        $unidadesAlta   = round($data['cantidad_bolsas'] * $pesoKg, 3);
+        $codigoFrac     = rtrim($producto->codigo_barras, '*') . '-F';
+
+        return DB::transaction(function () use ($producto, $data, $codigoFrac, $unidadesAlta) {
+            // Obtener o crear el producto fraccionado
+            $fraccionado = Producto::firstOrCreate(
+                ['codigo_barras' => $codigoFrac],
+                [
+                    'nombre'         => $producto->nombre . ' [Fraccionado]',
+                    'marca'          => $producto->marca,
+                    'categoria_id'   => $producto->categoria_id,
+                    'peso'           => 1,
+                    'unidad_medida'  => 'kg',
+                    'precio_venta'   => $data['precio_fraccionado'],
+                    'stock'          => 0,
+                    'activo'         => true,
+                    'fraccionado_de' => $producto->id,
+                ]
+            );
+
+            // Actualiza precio sugerido si cambió
+            $fraccionado->update([
+                'precio_venta'   => $data['precio_fraccionado'],
+                'fraccionado_de' => $producto->id,
+            ]);
+
+            // Baja de la bolsa original
+            $producto->decrement('stock', $data['cantidad_bolsas']);
+            MovimientoStock::create([
+                'producto_id' => $producto->id,
+                'tipo'        => 'ajuste',
+                'cantidad'    => -$data['cantidad_bolsas'],
+                'referencia'  => 'fraccionado → ' . $codigoFrac,
+                'observacion' => "Se fraccionaron {$data['cantidad_bolsas']} bolsa(s) → {$unidadesAlta} kg",
+            ]);
+
+            // Alta de unidades fraccionadas
+            $fraccionado->increment('stock', $unidadesAlta);
+            MovimientoStock::create([
+                'producto_id' => $fraccionado->id,
+                'tipo'        => 'ingreso',
+                'cantidad'    => $unidadesAlta,
+                'referencia'  => 'fraccionado de ' . $producto->codigo_barras,
+                'observacion' => "Fraccionado desde {$producto->nombre}",
+            ]);
+
+            return response()->json([
+                'original'           => $producto->fresh('categoria'),
+                'fraccionado'        => $fraccionado->fresh('categoria'),
+                'unidades_generadas' => $unidadesAlta,
+                'codigo_fraccionado' => $codigoFrac,
+            ]);
+        });
     }
 }

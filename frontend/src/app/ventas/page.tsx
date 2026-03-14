@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { api, type Categoria, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
+import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
@@ -104,15 +104,20 @@ function POSPanel() {
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState('');
   const [submitting, setSubmitting]   = useState(false);
-  const [cartOpen, setCartOpen]       = useState(false);
-  const [addedId, setAddedId]         = useState<number | null>(null);
+  const [cartOpen, setCartOpen]         = useState(false);
+  const [addedId, setAddedId]           = useState<number | null>(null);
+  const [fraccionando, setFraccionando] = useState<Producto | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  const recargarProductos = useCallback(() => {
     api.get<Producto[]>('/productos').then(setProductos);
+  }, []);
+
+  useEffect(() => {
+    recargarProductos();
     api.get<Categoria[]>('/categorias').then(setCategorias);
     searchRef.current?.focus();
-  }, []);
+  }, [recargarProductos]);
 
   // Productos filtrados
   const productosFiltrados = (() => {
@@ -182,7 +187,7 @@ function POSPanel() {
       setSuccess(`Venta registrada · ${fmt(total)}`);
       setCarrito([]);
       setCartOpen(false);
-      api.get<Producto[]>('/productos').then(setProductos);
+      recargarProductos();
       setTimeout(() => setSuccess(''), 4000);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -296,48 +301,76 @@ function POSPanel() {
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {productosFiltrados.map(p => {
-                  const agotado   = p.stock <= 0;
-                  const stockBajo = !agotado && p.stock <= 5;
-                  const added     = addedId === p.id;
+                  const agotado        = p.stock <= 0;
+                  const stockBajo      = !agotado && p.stock <= 5;
+                  const added          = addedId === p.id;
+                  const esFraccionado  = !!p.fraccionado_de;
+                  const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado;
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      onClick={() => !agotado && agregarAlCarrito(p)}
-                      disabled={agotado}
-                      className={`relative text-left rounded-2xl border transition-all duration-150 p-3.5 ${
+                      className={`relative flex flex-col rounded-2xl border transition-all duration-150 ${
                         agotado
-                          ? 'opacity-40 cursor-not-allowed bg-white border-zinc-100'
+                          ? 'opacity-40 bg-white border-zinc-100'
+                          : esFraccionado
+                          ? 'bg-amber-50/50 border-amber-200'
                           : added
-                          ? 'border-[var(--brand-teal)] bg-[var(--brand-teal)]/5 scale-95'
-                          : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md active:scale-95'
+                          ? 'border-[var(--brand-teal)] bg-[var(--brand-teal)]/5'
+                          : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md'
                       }`}
                     >
-                      {/* Badge añadido */}
-                      {added && (
-                        <span className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                          style={{ background: 'var(--brand-teal)' }}>
-                          ✓
+                      {/* Badge fraccionado */}
+                      {esFraccionado && (
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
+                          FRAC.
                         </span>
                       )}
-                      {/* Stock bajo badge */}
-                      {stockBajo && (
+                      {added && (
+                        <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ background: 'var(--brand-teal)' }}>✓</span>
+                      )}
+                      {stockBajo && !added && (
                         <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
                       )}
-                      <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
-                        {p.nombre}
-                      </p>
-                      {p.marca && (
-                        <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
+
+                      {/* Cuerpo: toca para agregar al carrito */}
+                      <button
+                        onClick={() => !agotado && agregarAlCarrito(p)}
+                        disabled={agotado}
+                        className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
+                      >
+                        <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
+                          {p.nombre}
+                        </p>
+                        {p.marca && (
+                          <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
+                        )}
+                        <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
+                          {fmt(p.precio_venta)}
+                          {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
+                        </p>
+                        <p className={`text-[10px] mt-0.5 font-medium ${
+                          agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-400'
+                        }`}>
+                          {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
+                          {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
+                        </p>
+                      </button>
+
+                      {/* Botón fraccionar */}
+                      {puedeFraccionar && (
+                        <button
+                          onClick={() => setFraccionando(p)}
+                          title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
+                          className="flex items-center justify-center gap-1 py-1.5 border-t border-zinc-100 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-b-2xl transition-colors"
+                        >
+                          <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M7 1L1 7M1 1l6 6"/><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+                          </svg>
+                          Fraccionar
+                        </button>
                       )}
-                      <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
-                        {fmt(p.precio_venta)}
-                      </p>
-                      <p className={`text-[10px] mt-0.5 font-medium ${
-                        agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-400'
-                      }`}>
-                        {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
-                      </p>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -381,8 +414,22 @@ function POSPanel() {
         Ver carrito · {fmt(total)}
       </button>
 
+      {/* ── Modal fraccionamiento ── */}
+      {fraccionando && (
+        <FraccionarModal
+          producto={fraccionando}
+          onClose={() => setFraccionando(null)}
+          onDone={(resultado) => {
+            setFraccionando(null);
+            recargarProductos();
+            setSuccess(`✓ ${resultado.unidades_generadas} kg generados · código ${resultado.codigo_fraccionado}`);
+            setTimeout(() => setSuccess(''), 5000);
+          }}
+        />
+      )}
+
       {/* ── Mobile: modal carrito ── */}
-      <Modal isOpen={cartOpen} onClose={() => setCartOpen(false)} title="Carrito" size="md">
+      <Modal isOpen={cartOpen} onClose={() => setCartOpen(false)} title="Carrito" size="md" noPadding>
         <CarritoPanel
           carrito={carrito}
           total={total}
@@ -582,6 +629,155 @@ function CarritoPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── Modal Fraccionamiento ────────────────────────────────────────────────────
+
+function FraccionarModal({
+  producto,
+  onClose,
+  onDone,
+}: {
+  producto: Producto;
+  onClose: () => void;
+  onDone: (r: FraccionarResult) => void;
+}) {
+  const pesoKg          = producto.peso ?? 1;
+  const precioSugerido  = Math.ceil(producto.precio_venta / pesoKg);
+  const codigoAnexo     = (producto.codigo_barras ?? '').replace(/\*$/, '') + '-F';
+
+  const [bolsas,   setBolsas]   = useState(1);
+  const [precio,   setPrecio]   = useState(precioSugerido);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+
+  const kgGenerados = bolsas * pesoKg;
+
+  const confirmar = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const r = await api.post<FraccionarResult>(
+        `/productos/${producto.id}/fraccionar`,
+        { cantidad_bolsas: bolsas, precio_fraccionado: precio }
+      );
+      onDone(r);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Fraccionar bolsa" size="sm">
+      <div className="space-y-5">
+        {/* Info producto */}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-0.5">Producto origen</p>
+          <p className="text-sm font-semibold text-zinc-900 leading-snug">{producto.nombre}</p>
+          <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
+            <span>Stock: <strong className="text-zinc-800">{producto.stock} bolsas</strong></span>
+            <span>·</span>
+            <span>Peso: <strong className="text-zinc-800">{pesoKg} kg/bolsa</strong></span>
+          </div>
+        </div>
+
+        {/* Cantidad de bolsas */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
+            Cantidad de bolsas a fraccionar
+          </label>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setBolsas(b => Math.max(1, b - 1))}
+              className="w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 text-lg transition-colors"
+            >−</button>
+            <input
+              type="number"
+              min={1}
+              max={producto.stock}
+              value={bolsas}
+              onChange={e => setBolsas(Math.min(producto.stock, Math.max(1, Number(e.target.value))))}
+              className="w-20 text-center text-base font-bold border border-zinc-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-amber-400"
+            />
+            <button
+              onClick={() => setBolsas(b => Math.min(producto.stock, b + 1))}
+              className="w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 text-lg transition-colors"
+            >+</button>
+            <span className="text-xs text-zinc-400">de {producto.stock} disponibles</span>
+          </div>
+        </div>
+
+        {/* Preview generación */}
+        <div className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-zinc-400">Generará</p>
+            <p className="text-2xl font-bold text-zinc-900">{kgGenerados} <span className="text-sm font-normal">kg</span></p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-zinc-400">Código anexo</p>
+            <p className="text-sm font-mono font-bold text-amber-600">{codigoAnexo}</p>
+          </div>
+        </div>
+
+        {/* Precio fraccionado */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-semibold text-zinc-600">Precio por kg</label>
+            <button
+              onClick={() => setPrecio(precioSugerido)}
+              className="text-[10px] text-amber-600 hover:underline"
+            >
+              Sugerido: {fmt(precioSugerido)}/kg
+            </button>
+          </div>
+          <div className="flex items-center gap-2 border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-amber-400 transition-colors">
+            <span className="text-sm text-zinc-400 font-medium">$</span>
+            <input
+              type="number"
+              min={0}
+              value={precio}
+              onChange={e => setPrecio(Number(e.target.value))}
+              className="flex-1 text-base font-bold focus:outline-none bg-transparent"
+            />
+            <span className="text-xs text-zinc-400">/kg</span>
+          </div>
+          <p className="text-[10px] text-zinc-400 mt-1">
+            Total a generar: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong> en inventario
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</div>
+        )}
+
+        {/* Acciones */}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmar}
+            disabled={loading || bolsas < 1 || precio <= 0}
+            className="flex-1 py-3 text-sm font-semibold rounded-xl text-white transition-colors disabled:opacity-50"
+            style={{ background: 'var(--brand-teal)' }}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
+                Fraccionando…
+              </span>
+            ) : (
+              `Fraccionar ${bolsas} bolsa${bolsas > 1 ? 's' : ''}`
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

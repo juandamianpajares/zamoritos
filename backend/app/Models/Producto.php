@@ -14,6 +14,7 @@ class Producto extends Model
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'categoria_id',
         'peso', 'unidad_medida', 'precio_venta', 'stock', 'activo',
+        'fraccionado_de',
     ];
 
     protected $casts = [
@@ -22,6 +23,16 @@ class Producto extends Model
         'peso'         => 'float',
         'activo'       => 'boolean',
     ];
+
+    public function fraccionadoDe(): BelongsTo
+    {
+        return $this->belongsTo(Producto::class, 'fraccionado_de');
+    }
+
+    public function fraccionados(): HasMany
+    {
+        return $this->hasMany(Producto::class, 'fraccionado_de');
+    }
 
     public function categoria(): BelongsTo
     {

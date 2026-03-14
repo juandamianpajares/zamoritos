@@ -8,6 +8,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  noPadding?: boolean;
 }
 
 const sizes = {
@@ -17,7 +18,7 @@ const sizes = {
   xl: 'max-w-2xl',
 };
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', noPadding = false }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -42,7 +43,9 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
             </svg>
           </button>
         </div>
-        <div className="overflow-y-auto p-6 flex-1">{children}</div>
+        <div className={noPadding ? 'flex-1 flex flex-col overflow-hidden' : 'overflow-y-auto p-6 flex-1'}>
+          {children}
+        </div>
       </div>
     </div>
   );
