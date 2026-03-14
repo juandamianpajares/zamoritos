@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 
@@ -14,7 +14,7 @@ interface LineaCarrito {
 
 type Vista = 'pos' | 'historial';
 
-type MedioPago = 'efectivo' | 'tarjeta' | 'oca' | 'transferencia' | 'otro';
+type MedioPago = 'efectivo' | 'tarjeta' | 'oca' | 'master' | 'anda' | 'cabal' | 'transferencia' | 'otro';
 
 const MEDIOS_PAGO: { value: MedioPago; label: string; icon: React.ReactNode }[] = [
   {
@@ -22,12 +22,24 @@ const MEDIOS_PAGO: { value: MedioPago; label: string; icon: React.ReactNode }[] 
     icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><circle cx="9" cy="9" r="2.5"/></svg>,
   },
   {
-    value: 'tarjeta', label: 'Tarjeta',
+    value: 'oca', label: 'OCA',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="7"/><path d="M6 9h6M9 6v6"/></svg>,
+  },
+  {
+    value: 'tarjeta', label: 'VISA',
     icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><line x1="1" y1="8" x2="17" y2="8"/></svg>,
   },
   {
-    value: 'oca', label: 'OCA',
-    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="7"/><path d="M6 9h6M9 6v6"/></svg>,
+    value: 'master', label: 'MASTER',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6.5" cy="9" r="5.5"/><circle cx="11.5" cy="9" r="5.5"/></svg>,
+  },
+  {
+    value: 'anda', label: 'ANDA',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><path d="M5 9h8M9 6v6"/></svg>,
+  },
+  {
+    value: 'cabal', label: 'CABAL',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><line x1="1" y1="8" x2="17" y2="8"/><line x1="5" y1="8" x2="5" y2="14"/></svg>,
   },
   {
     value: 'transferencia', label: 'Transf.',
@@ -123,7 +135,7 @@ function POSPanel() {
   }, [recargarProductos]);
 
   // Productos filtrados
-  const productosFiltrados = (() => {
+  const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
     if (catActiva === -1) lista = lista.filter(p => p.en_promo);
     else if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
@@ -137,7 +149,7 @@ function POSPanel() {
       );
     }
     return lista;
-  })();
+  }, [productos, catActiva, busqueda]);
 
   const agregarAlCarrito = useCallback((p: Producto) => {
     setCarrito(prev => {
@@ -529,7 +541,7 @@ interface CarritoPanelProps {
   onConfirmar:       () => void;
 }
 
-function CarritoPanel({
+const CarritoPanel = memo(function CarritoPanel({
   carrito, total, tipoPago, medioPago, submitting,
   onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar, onTipoPago, onMedioPago, onConfirmar,
 }: CarritoPanelProps) {
@@ -597,12 +609,12 @@ function CarritoPanel({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onCambiarCantidad(l.producto.id, -1)}
-                      className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold transition-colors flex items-center justify-center text-base leading-none"
+                      className="w-7 h-7 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-600 font-bold transition-colors flex items-center justify-center text-base leading-none"
                     >−</button>
                     <span className="w-7 text-center text-sm font-bold tabular-nums text-zinc-900">{l.cantidad}</span>
                     <button
                       onClick={() => onCambiarCantidad(l.producto.id, 1)}
-                      className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold transition-colors flex items-center justify-center text-base leading-none"
+                      className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-600 font-bold transition-colors flex items-center justify-center text-base leading-none"
                     >+</button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -663,7 +675,7 @@ function CarritoPanel({
         {/* Medio de pago */}
         <div>
           <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
-          <div className="grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             {MEDIOS_PAGO.map(m => (
               <button
                 key={m.value}
@@ -696,7 +708,7 @@ function CarritoPanel({
           onClick={onConfirmar}
           disabled={carrito.length === 0 || submitting}
           className="w-full py-4 font-bold text-base rounded-2xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed text-white"
-          style={{ background: carrito.length > 0 && !submitting ? 'var(--brand-teal)' : undefined, backgroundColor: carrito.length === 0 || submitting ? '#d1d5db' : undefined }}
+          style={{ background: carrito.length > 0 && !submitting ? 'var(--brand-teal)' : '#9ca3af' }}
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2">
@@ -715,7 +727,7 @@ function CarritoPanel({
       </div>
     </div>
   );
-}
+});
 
 // ─── Modal Fraccionamiento ────────────────────────────────────────────────────
 
@@ -904,6 +916,9 @@ function HistorialPanel() {
     efectivo:      'bg-emerald-50 text-emerald-700',
     tarjeta:       'bg-blue-50 text-blue-700',
     oca:           'bg-orange-50 text-orange-700',
+    master:        'bg-red-50 text-red-700',
+    anda:          'bg-sky-50 text-sky-700',
+    cabal:         'bg-purple-50 text-purple-700',
     transferencia: 'bg-violet-50 text-violet-700',
     otro:          'bg-zinc-100 text-zinc-600',
   };
