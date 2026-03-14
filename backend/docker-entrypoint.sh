@@ -22,6 +22,10 @@ if [ ! -f "artisan" ]; then
     mkdir -p /var/www/html/app/Http/Controllers/Api
     cp /src/Http/Controllers/Api/*.php /var/www/html/app/Http/Controllers/Api/
 
+    # Copiar services
+    mkdir -p /var/www/html/app/Services
+    cp /src/Services/*.php /var/www/html/app/Services/
+
     # Copiar rutas
     cp /src/routes/api.php /var/www/html/routes/api.php
 
