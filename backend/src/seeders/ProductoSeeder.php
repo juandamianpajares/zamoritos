@@ -49,6 +49,17 @@ class ProductoSeeder extends Seeder
             ['codigo_barras' => '6970216830620', 'marca' => 'Cat Litter', 'nombre' => 'CAT LITTER Bentonita Rosas 4kg',               'cat' => 'Arena Sanitaria',        'peso' => 4.0,   'um' => 'unid', 'pv' => 480,   'stock' => 5],
             ['codigo_barras' => '7898224827021', 'marca' => 'Vittamax',   'nombre' => 'VITTAMAX Natural Adulto 15kg',                 'cat' => 'Alimento Perros',        'peso' => 15.0,  'um' => 'kg',   'pv' => 1598,  'stock' => 5],
 
+            // ── Productos del catálogo fotográfico ───────────────────────────────
+            ['codigo_barras' => 'ND14222',        'marca' => 'Nutrapet',   'nombre' => 'NATURAL DOG Adulto 22kg',                      'cat' => 'Alimento Perros',        'peso' => 22.0,  'um' => 'kg',   'pv' => 3200,  'stock' => 0],
+            ['codigo_barras' => '7898939952940',  'marca' => 'Matisse',   'nombre' => 'MATISSE Salmão & Arroz 7.5kg',                  'cat' => 'Alimento Gatos',         'peso' => 7.5,   'um' => 'kg',   'pv' => 1100,  'stock' => 0],
+            ['codigo_barras' => '7898939952933',  'marca' => 'Matisse',   'nombre' => 'MATISSE Filhotes Salmon 7.5kg',                 'cat' => 'Alimento Gatos',         'peso' => 7.5,   'um' => 'kg',   'pv' => 980,   'stock' => 0],
+            ['codigo_barras' => '7898939952964',  'marca' => 'Matisse',   'nombre' => 'MATISSE Castrados Salmão 7.5kg',                'cat' => 'Alimento Gatos',         'peso' => 7.5,   'um' => 'kg',   'pv' => 910,   'stock' => 0],
+            ['codigo_barras' => 'LAG22',          'marca' => 'Lager',     'nombre' => 'LAGER Premium Adultos A 22kg',                  'cat' => 'Alimento Perros',        'peso' => 22.0,  'um' => 'kg',   'pv' => 1650,  'stock' => 0],
+            ['codigo_barras' => 'LAG10',          'marca' => 'Lager',     'nombre' => 'LAGER Premium Adultos A 10kg',                  'cat' => 'Alimento Perros',        'peso' => 10.0,  'um' => 'kg',   'pv' => 820,   'stock' => 0],
+            ['codigo_barras' => 'LAG25',          'marca' => 'Lager',     'nombre' => 'LAGER Premium Adultos A 25+3kg',                'cat' => 'Alimento Perros',        'peso' => 25.0,  'um' => 'kg',   'pv' => 1890,  'stock' => 0],
+            ['codigo_barras' => '7730918031126',  'marca' => 'Connie',    'nombre' => 'CONNIE Perro Adulto 25kg',                      'cat' => 'Alimento Perros',        'peso' => 25.0,  'um' => 'kg',   'pv' => 2100,  'stock' => 0],
+            ['codigo_barras' => '7896588942862',  'marca' => 'Equilibrio','nombre' => 'EQUILIBRIO Medium Puppies Chicken 10kg',        'cat' => 'Alimento Perros',        'peso' => 10.0,  'um' => 'kg',   'pv' => 1400,  'stock' => 0],
+
             // ── Demo: catálogo adicional ──────────────────────────────────────────
             ['codigo_barras' => '7790430370011', 'marca' => 'Dog Chow',   'nombre' => 'DOG CHOW Adultos Med. y Grandes 21+3kg',       'cat' => 'Alimento Perros',        'peso' => 21.0,  'um' => 'kg',   'pv' => 3200,  'stock' => 8],
             ['codigo_barras' => '7797453000666', 'marca' => 'Pedigree',   'nombre' => 'PEDIGREE Carne y Vegetales 21kg',              'cat' => 'Alimento Perros',        'peso' => 21.0,  'um' => 'kg',   'pv' => 2800,  'stock' => 5],

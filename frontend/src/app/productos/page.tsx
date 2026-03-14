@@ -13,6 +13,8 @@ const emptyForm = {
   unidad_medida: 'unidad', peso: '', precio_venta: '', stock: '',
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
 
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
@@ -30,7 +32,10 @@ export default function ProductosPage() {
   const [error, setError] = useState('');
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const scanRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -48,7 +53,42 @@ export default function ProductosPage() {
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); };
 
   const openCreate = () => {
-    setEditId(null); setForm({ ...emptyForm }); setError(''); resetFoto(); setModalOpen(true);
+    setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError(''); resetFoto(); setModalOpen(true);
+  };
+
+  const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanning(true);
+    setScanError('');
+    // Show scanned image as foto preview
+    setFotoFile(file);
+    setFotoPreview(URL.createObjectURL(file));
+    try {
+      const fd = new FormData();
+      fd.append('imagen', file);
+      const res = await fetch('/api/scan-producto', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Error');
+      // Pre-fill form fields
+      setForm(prev => ({
+        ...prev,
+        nombre: data.nombre ?? prev.nombre,
+        marca: data.marca ?? prev.marca,
+        codigo_barras: data.codigo_barras ?? prev.codigo_barras,
+        peso: data.peso != null ? String(data.peso) : prev.peso,
+        unidad_medida: data.unidad_medida ?? prev.unidad_medida,
+        // Map categoria_sugerida to actual categoria_id
+        ...(data.categoria_sugerida
+          ? { categoria_id: String(categorias.find(c => c.nombre === data.categoria_sugerida)?.id ?? prev.categoria_id) }
+          : {}),
+      }));
+    } catch (err: unknown) {
+      setScanError((err as Error).message);
+    } finally {
+      setScanning(false);
+      if (scanRef.current) scanRef.current.value = '';
+    }
   };
 
   const openEdit = (p: Producto) => {
@@ -209,9 +249,28 @@ export default function ProductosPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-rose-600 text-xs bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
 
-          {/* Foto */}
+          {/* Foto + Escanear */}
           <div>
-            <label className={label}>Foto del producto</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={label} style={{ margin: 0 }}>Foto del producto</label>
+              <button
+                type="button"
+                onClick={() => scanRef.current?.click()}
+                disabled={scanning}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 disabled:opacity-50 transition-colors font-medium"
+              >
+                {scanning ? (
+                  <span className="w-3 h-3 border-2 border-violet-300 border-t-violet-700 rounded-full animate-spin" />
+                ) : (
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                )}
+                {scanning ? 'Analizando…' : 'Escanear producto con IA'}
+              </button>
+            </div>
+            {scanError && <p className="text-xs text-rose-500 mb-2">{scanError}</p>}
             <div className="flex items-center gap-4">
               <button
                 type="button"
@@ -244,13 +303,8 @@ export default function ProductosPage() {
                 )}
               </div>
             </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFotoChange}
-            />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+            <input ref={scanRef} type="file" accept="image/*" className="hidden" onChange={handleScan} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
