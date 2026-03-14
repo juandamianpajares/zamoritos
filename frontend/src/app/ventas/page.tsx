@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { api, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
+import { api, type Categoria, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
@@ -16,15 +16,34 @@ type Vista = 'pos' | 'historial';
 
 type MedioPago = 'efectivo' | 'tarjeta' | 'oca' | 'transferencia' | 'otro';
 
-const MEDIOS_PAGO: { value: MedioPago; label: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'tarjeta',       label: 'Tarjeta' },
-  { value: 'oca',           label: 'OCA' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'otro',          label: 'Otro' },
+const MEDIOS_PAGO: { value: MedioPago; label: string; icon: React.ReactNode }[] = [
+  {
+    value: 'efectivo', label: 'Efectivo',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><circle cx="9" cy="9" r="2.5"/></svg>,
+  },
+  {
+    value: 'tarjeta', label: 'Tarjeta',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><line x1="1" y1="8" x2="17" y2="8"/></svg>,
+  },
+  {
+    value: 'oca', label: 'OCA',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="7"/><path d="M6 9h6M9 6v6"/></svg>,
+  },
+  {
+    value: 'transferencia', label: 'Transf.',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h12M11 5l4 4-4 4"/></svg>,
+  },
+  {
+    value: 'otro', label: 'Otro',
+    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="1"/><circle cx="4" cy="9" r="1"/><circle cx="14" cy="9" r="1"/></svg>,
+  },
 ];
 
-// ─── Componente ───────────────────────────────────────────────────────────────
+function fmt(n: number) {
+  return `$${n.toLocaleString('es-CL', { minimumFractionDigits: 0 })}`;
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VentasPage() {
   const [vista, setVista] = useState<Vista>('pos');
@@ -32,23 +51,40 @@ export default function VentasPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-5 pt-5 pb-0 border-b border-zinc-100 bg-white">
+      <div className="flex items-center px-4 pt-4 gap-1 bg-white border-b border-zinc-100 shrink-0">
         {(['pos', 'historial'] as Vista[]).map(v => (
           <button
             key={v}
             onClick={() => setVista(v)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            className={`relative px-5 py-2.5 text-sm font-medium rounded-t-xl transition-colors ${
               vista === v
-                ? 'bg-zinc-900 text-white'
+                ? 'text-white'
                 : 'text-zinc-500 hover:text-zinc-800'
             }`}
+            style={vista === v ? { background: 'var(--brand-purple)' } : {}}
           >
-            {v === 'pos' ? 'Nueva venta' : 'Historial'}
+            {v === 'pos' ? (
+              <span className="flex items-center gap-1.5">
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2H2v4M6 12H2v-4M18 2h-4v4M18 12h-4v-4M2 7h16"/>
+                </svg>
+                Nueva venta
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3h18v18H3zM8 3v18M3 9h18M3 15h18"/>
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="8" y1="3" x2="8" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/>
+                </svg>
+                Historial
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <div className="flex-1 overflow-auto bg-slate-50">
+      <div className="flex-1 overflow-hidden bg-slate-50">
         {vista === 'pos' ? <POSPanel /> : <HistorialPanel />}
       </div>
     </div>
@@ -58,60 +94,64 @@ export default function VentasPage() {
 // ─── Panel POS ────────────────────────────────────────────────────────────────
 
 function POSPanel() {
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [busqueda, setBusqueda] = useState('');
-  const [resultados, setResultados] = useState<Producto[]>([]);
-  const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
-  const [tipoPago, setTipoPago] = useState<'contado' | 'credito'>('contado');
-  const [medioPago, setMedioPago] = useState<MedioPago>('efectivo');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);   // mobile: cart drawer
+  const [productos, setProductos]     = useState<Producto[]>([]);
+  const [categorias, setCategorias]   = useState<Categoria[]>([]);
+  const [catActiva, setCatActiva]     = useState<number | null>(null);
+  const [busqueda, setBusqueda]       = useState('');
+  const [carrito, setCarrito]         = useState<LineaCarrito[]>([]);
+  const [tipoPago, setTipoPago]       = useState<'contado' | 'credito'>('contado');
+  const [medioPago, setMedioPago]     = useState<MedioPago>('efectivo');
+  const [error, setError]             = useState('');
+  const [success, setSuccess]         = useState('');
+  const [submitting, setSubmitting]   = useState(false);
+  const [cartOpen, setCartOpen]       = useState(false);
+  const [addedId, setAddedId]         = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get<Producto[]>('/productos').then(setProductos);
+    api.get<Categoria[]>('/categorias').then(setCategorias);
     searchRef.current?.focus();
   }, []);
 
-  // Filtrado en tiempo real (sin llamada al servidor)
-  useEffect(() => {
+  // Productos filtrados
+  const productosFiltrados = (() => {
+    let lista = productos.filter(p => p.activo);
+    if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
     const q = busqueda.trim().toLowerCase();
-    if (!q) { setResultados([]); return; }
-    const matches = productos.filter(p =>
-      p.nombre.toLowerCase().includes(q) ||
-      (p.codigo_barras ?? '').toLowerCase().includes(q) ||
-      (p.marca ?? '').toLowerCase().includes(q) ||
-      String(p.precio_venta).includes(q)
-    ).slice(0, 12);
-    setResultados(matches);
-  }, [busqueda, productos]);
+    if (q) {
+      lista = lista.filter(p =>
+        p.nombre.toLowerCase().includes(q) ||
+        (p.codigo_barras ?? '').toLowerCase().includes(q) ||
+        (p.marca ?? '').toLowerCase().includes(q) ||
+        String(p.precio_venta).includes(q)
+      );
+    }
+    return lista;
+  })();
 
   const agregarAlCarrito = useCallback((p: Producto) => {
     setCarrito(prev => {
       const existente = prev.find(l => l.producto.id === p.id);
       if (existente) {
-        return prev.map(l =>
-          l.producto.id === p.id
-            ? { ...l, cantidad: l.cantidad + 1 }
-            : l
-        );
+        return prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l);
       }
       return [...prev, { producto: p, cantidad: 1, precio_unitario: p.precio_venta }];
     });
+    setAddedId(p.id);
+    setTimeout(() => setAddedId(null), 600);
     setBusqueda('');
-    setResultados([]);
     searchRef.current?.focus();
   }, []);
 
   const cambiarCantidad = (id: number, delta: number) => {
     setCarrito(prev =>
-      prev
-        .map(l => l.producto.id === id ? { ...l, cantidad: l.cantidad + delta } : l)
-        .filter(l => l.cantidad > 0)
+      prev.map(l => l.producto.id === id ? { ...l, cantidad: l.cantidad + delta } : l)
+          .filter(l => l.cantidad > 0)
     );
   };
+
+  const quitarItem = (id: number) => setCarrito(prev => prev.filter(l => l.producto.id !== id));
 
   const cambiarPrecio = (id: number, precio: string) => {
     const val = parseFloat(precio);
@@ -121,7 +161,8 @@ function POSPanel() {
 
   const vaciarCarrito = () => { setCarrito([]); setError(''); };
 
-  const total = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
+  const total     = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
+  const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
 
   const confirmarVenta = async () => {
     if (carrito.length === 0) return;
@@ -129,19 +170,18 @@ function POSPanel() {
     setError('');
     try {
       await api.post<Venta>('/ventas', {
-        fecha: new Date().toISOString().slice(0, 10),
-        tipo_pago: tipoPago,
+        fecha:      new Date().toISOString().slice(0, 10),
+        tipo_pago:  tipoPago,
         medio_pago: medioPago,
-        detalles: carrito.map(l => ({
+        detalles:   carrito.map(l => ({
           producto_id:     l.producto.id,
           cantidad:        l.cantidad,
           precio_unitario: l.precio_unitario,
         })),
       });
-      setSuccess(`Venta de $${total.toLocaleString('es-CL')} registrada correctamente.`);
+      setSuccess(`Venta registrada · ${fmt(total)}`);
       setCarrito([]);
       setCartOpen(false);
-      // Actualizar stock en los productos cargados
       api.get<Producto[]>('/productos').then(setProductos);
       setTimeout(() => setSuccess(''), 4000);
     } catch (e: unknown) {
@@ -151,113 +191,162 @@ function POSPanel() {
     }
   };
 
-  const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
-
   return (
-    <div className="flex h-full min-h-screen">
-      {/* ── Left: búsqueda y resultados ── */}
-      <div className="flex-1 flex flex-col p-4 lg:p-6 min-w-0">
+    <div className="flex h-full overflow-hidden">
 
-        {/* Notificaciones */}
-        {success && (
-          <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-2xl flex items-center gap-2">
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 8 5 12 15 4" />
-            </svg>
-            {success}
-          </div>
-        )}
-        {error && (
-          <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-600 text-sm px-4 py-3 rounded-2xl">
-            {error}
-          </div>
-        )}
+      {/* ── Left: productos ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Barra de búsqueda */}
-        <div className="relative mb-4">
+        {/* Búsqueda + filtros */}
+        <div className="px-4 pt-4 pb-3 bg-white border-b border-zinc-100 space-y-3 shrink-0">
+
+          {/* Toasts */}
+          {success && (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-2.5 rounded-xl">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 8 6 13 15 4"/></svg>
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</div>
+          )}
+
+          {/* Barra de búsqueda */}
           <div className="flex gap-2">
             <div className="flex-1 relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" width="16" height="16"
-                fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6.5" cy="6.5" r="5.5" />
-                <line x1="11" y1="11" x2="15" y2="15" />
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6.5" cy="6.5" r="5.5"/><line x1="11" y1="11" x2="15" y2="15"/>
               </svg>
               <input
                 ref={searchRef}
                 value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                placeholder="Buscar producto por nombre o código…"
-                className="w-full pl-9 pr-4 py-3 text-sm border border-zinc-200 rounded-2xl bg-white focus:outline-none focus:border-zinc-400 shadow-sm"
+                onChange={e => { setBusqueda(e.target.value); setCatActiva(null); }}
+                placeholder="Buscar por nombre, código, precio…"
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl bg-slate-50 focus:outline-none focus:border-[var(--brand-purple)] focus:bg-white transition-colors"
               />
+              {busqueda && (
+                <button
+                  onClick={() => setBusqueda('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                >
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                </button>
+              )}
             </div>
-
-            {/* Botón cámara — placeholder para escáner futuro */}
             <button
               title="Escanear código de barras (próximamente)"
-              onClick={() => alert('Escáner de código de barras: próximamente disponible en versión móvil.')}
-              className="w-12 h-12 flex items-center justify-center bg-white border border-zinc-200 rounded-2xl text-zinc-400 hover:text-zinc-700 hover:border-zinc-400 transition-colors shadow-sm"
+              onClick={() => alert('Escáner: próximamente disponible.')}
+              className="w-10 h-10 flex items-center justify-center bg-slate-50 border border-zinc-200 rounded-xl text-zinc-400 hover:text-[var(--brand-purple)] hover:border-[var(--brand-purple)] transition-colors shrink-0"
             >
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 7V4a1 1 0 0 1 1-1h3M18 7V4a1 1 0 0 0-1-1h-3M2 13v3a1 1 0 0 0 1 1h3M18 13v3a1 1 0 0 1-1 1h-3" />
-                <rect x="6" y="7" width="8" height="6" rx="1" />
+              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 7V4a1 1 0 0 1 1-1h3M18 7V4a1 1 0 0 0-1-1h-3M2 13v3a1 1 0 0 0 1 1h3M18 13v3a1 1 0 0 1-1 1h-3"/>
+                <rect x="6" y="7" width="8" height="6" rx="1"/>
               </svg>
             </button>
           </div>
 
-          {/* Dropdown resultados */}
-          {resultados.length > 0 && (
-            <div className="absolute top-full left-0 right-14 mt-1 bg-white border border-zinc-100 rounded-2xl shadow-lg z-10 overflow-hidden">
-              {resultados.map(p => (
+          {/* Categorías */}
+          {!busqueda && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                onClick={() => setCatActiva(null)}
+                className={`shrink-0 px-3 py-1 text-xs font-medium rounded-lg border transition-colors ${
+                  catActiva === null
+                    ? 'text-white border-transparent'
+                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
+                }`}
+                style={catActiva === null ? { background: 'var(--brand-purple)' } : {}}
+              >
+                Todos
+              </button>
+              {categorias.map(c => (
                 <button
-                  key={p.id}
-                  onClick={() => agregarAlCarrito(p)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50 text-left transition-colors border-b border-zinc-50 last:border-0"
+                  key={c.id}
+                  onClick={() => setCatActiva(catActiva === c.id ? null : c.id)}
+                  className={`shrink-0 px-3 py-1 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                    catActiva === c.id
+                      ? 'text-white border-transparent'
+                      : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
+                  }`}
+                  style={catActiva === c.id ? { background: 'var(--brand-purple)' } : {}}
                 >
-                  <div>
-                    <p className="text-sm font-medium text-zinc-800">{p.nombre}</p>
-                    <p className="text-xs text-zinc-400">{p.marca ?? ''} {p.codigo_barras ? `· ${p.codigo_barras}` : ''}</p>
-                  </div>
-                  <div className="text-right shrink-0 ml-4">
-                    <p className="text-sm font-semibold text-zinc-900">${p.precio_venta.toLocaleString('es-CL')}</p>
-                    <p className={`text-xs ${p.stock <= 0 ? 'text-rose-500' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                      stock: {p.stock} {p.unidad_medida}
-                    </p>
-                  </div>
+                  {c.nombre}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Grid de productos recientes (cuando no hay búsqueda activa) */}
-        {busqueda === '' && (
-          <div>
-            <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-3">Productos</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {productos.slice(0, 20).map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => agregarAlCarrito(p)}
-                  disabled={p.stock <= 0}
-                  className={`text-left p-3 bg-white border rounded-2xl transition-all ${
-                    p.stock <= 0
-                      ? 'opacity-40 cursor-not-allowed border-zinc-100'
-                      : 'border-zinc-100 hover:border-zinc-300 hover:shadow-sm active:scale-95'
-                  }`}
-                >
-                  <p className="text-xs font-medium text-zinc-800 leading-snug line-clamp-2 mb-2">{p.nombre}</p>
-                  <p className="text-sm font-bold text-zinc-900">${p.precio_venta.toLocaleString('es-CL')}</p>
-                  <p className={`text-[10px] mt-0.5 ${p.stock <= 0 ? 'text-rose-500' : p.stock <= 5 ? 'text-amber-500' : 'text-zinc-400'}`}>
-                    {p.stock <= 0 ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
-                  </p>
-                </button>
-              ))}
+        {/* Grid de productos */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {productosFiltrados.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-center">
+              <svg className="text-zinc-300 mb-2" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="18" r="14"/><line x1="10" y1="10" x2="26" y2="26"/>
+              </svg>
+              <p className="text-sm text-zinc-400">Sin resultados para &ldquo;{busqueda || 'esta categoría'}&rdquo;</p>
             </div>
-          </div>
-        )}
+          ) : (
+            <>
+              <p className="text-xs text-zinc-400 mb-3">
+                {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}
+                {catActiva && ` · ${categorias.find(c => c.id === catActiva)?.nombre}`}
+                {busqueda && ` · "${busqueda}"`}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                {productosFiltrados.map(p => {
+                  const agotado   = p.stock <= 0;
+                  const stockBajo = !agotado && p.stock <= 5;
+                  const added     = addedId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => !agotado && agregarAlCarrito(p)}
+                      disabled={agotado}
+                      className={`relative text-left rounded-2xl border transition-all duration-150 p-3.5 ${
+                        agotado
+                          ? 'opacity-40 cursor-not-allowed bg-white border-zinc-100'
+                          : added
+                          ? 'border-[var(--brand-teal)] bg-[var(--brand-teal)]/5 scale-95'
+                          : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md active:scale-95'
+                      }`}
+                    >
+                      {/* Badge añadido */}
+                      {added && (
+                        <span className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ background: 'var(--brand-teal)' }}>
+                          ✓
+                        </span>
+                      )}
+                      {/* Stock bajo badge */}
+                      {stockBajo && (
+                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
+                      )}
+                      <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
+                        {p.nombre}
+                      </p>
+                      {p.marca && (
+                        <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
+                      )}
+                      <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
+                        {fmt(p.precio_venta)}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 font-medium ${
+                        agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-400'
+                      }`}>
+                        {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* ── Right: Carrito (desktop) ── */}
+      {/* ── Right: Carrito desktop ── */}
       <div className="hidden lg:flex w-80 xl:w-96 flex-col bg-white border-l border-zinc-100 shrink-0">
         <CarritoPanel
           carrito={carrito}
@@ -267,6 +356,7 @@ function POSPanel() {
           submitting={submitting}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
+          onQuitarItem={quitarItem}
           onVaciar={vaciarCarrito}
           onTipoPago={setTipoPago}
           onMedioPago={(v) => setMedioPago(v as MedioPago)}
@@ -274,18 +364,22 @@ function POSPanel() {
         />
       </div>
 
-      {/* ── Mobile: botón flotante del carrito ── */}
-      {carrito.length > 0 && (
-        <button
-          onClick={() => setCartOpen(true)}
-          className="lg:hidden fixed bottom-5 right-5 z-20 bg-zinc-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-medium"
-        >
-          <span className="bg-emerald-400 text-zinc-900 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-            {totalItems}
-          </span>
-          Ver carrito · ${total.toLocaleString('es-CL')}
-        </button>
-      )}
+      {/* ── Mobile: botón flotante ── */}
+      <button
+        onClick={() => setCartOpen(true)}
+        className={`lg:hidden fixed bottom-5 right-5 z-20 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-semibold transition-all duration-200 ${
+          carrito.length === 0
+            ? 'opacity-0 pointer-events-none translate-y-2'
+            : 'opacity-100 translate-y-0'
+        }`}
+        style={{ background: 'var(--brand-purple)' }}
+      >
+        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+          style={{ background: 'var(--brand-teal)', color: '#fff' }}>
+          {totalItems}
+        </span>
+        Ver carrito · {fmt(total)}
+      </button>
 
       {/* ── Mobile: modal carrito ── */}
       <Modal isOpen={cartOpen} onClose={() => setCartOpen(false)} title="Carrito" size="md">
@@ -297,40 +391,58 @@ function POSPanel() {
           submitting={submitting}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
+          onQuitarItem={quitarItem}
           onVaciar={vaciarCarrito}
           onTipoPago={setTipoPago}
           onMedioPago={(v) => setMedioPago(v as MedioPago)}
-          onConfirmar={() => { confirmarVenta(); setCartOpen(false); }}
+          onConfirmar={() => { confirmarVenta(); }}
         />
       </Modal>
     </div>
   );
 }
 
-// ─── Carrito ──────────────────────────────────────────────────────────────────
+// ─── Carrito Panel ─────────────────────────────────────────────────────────────
 
 interface CarritoPanelProps {
-  carrito: LineaCarrito[];
-  total: number;
-  tipoPago: 'contado' | 'credito';
-  medioPago: string;
-  submitting: boolean;
+  carrito:           LineaCarrito[];
+  total:             number;
+  tipoPago:          'contado' | 'credito';
+  medioPago:         string;
+  submitting:        boolean;
   onCambiarCantidad: (id: number, delta: number) => void;
-  onCambiarPrecio: (id: number, precio: string) => void;
-  onVaciar: () => void;
-  onTipoPago: (v: 'contado' | 'credito') => void;
-  onMedioPago: (v: string) => void;
-  onConfirmar: () => void;
+  onCambiarPrecio:   (id: number, precio: string) => void;
+  onQuitarItem:      (id: number) => void;
+  onVaciar:          () => void;
+  onTipoPago:        (v: 'contado' | 'credito') => void;
+  onMedioPago:       (v: string) => void;
+  onConfirmar:       () => void;
 }
 
 function CarritoPanel({
   carrito, total, tipoPago, medioPago, submitting,
-  onCambiarCantidad, onCambiarPrecio, onVaciar, onTipoPago, onMedioPago, onConfirmar,
+  onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar, onTipoPago, onMedioPago, onConfirmar,
 }: CarritoPanelProps) {
+  const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
+
   return (
     <div className="flex flex-col h-full">
+
+      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-        <span className="text-sm font-semibold text-zinc-900">Carrito</span>
+        <div className="flex items-center gap-2">
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+          </svg>
+          <span className="text-sm font-semibold text-zinc-900">Carrito</span>
+          {totalItems > 0 && (
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white"
+              style={{ background: 'var(--brand-purple)' }}>
+              {totalItems}
+            </span>
+          )}
+        </div>
         {carrito.length > 0 && (
           <button onClick={onVaciar} className="text-xs text-zinc-400 hover:text-rose-500 transition-colors">
             Vaciar
@@ -339,64 +451,81 @@ function CarritoPanel({
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto px-4 py-2">
+      <div className="flex-1 overflow-y-auto">
         {carrito.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-center">
-            <p className="text-zinc-300 text-3xl mb-2">—</p>
-            <p className="text-sm text-zinc-400">Buscá un producto para agregarlo</p>
+          <div className="flex flex-col items-center justify-center h-40 px-6 text-center">
+            <svg className="text-zinc-200 mb-3" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="21" r="1.5"/><circle cx="29" cy="21" r="1.5"/>
+              <path d="M2 3h5l3.68 15.39a2 2 0 0 0 2 1.61h11.72a2 2 0 0 0 2-1.61L34 9H9"/>
+            </svg>
+            <p className="text-sm text-zinc-400">Seleccioná productos para agregar al carrito</p>
           </div>
         ) : (
-          <div className="space-y-3 py-2">
+          <div className="divide-y divide-zinc-50">
             {carrito.map(l => (
-              <div key={l.producto.id} className="flex items-start gap-3">
+              <div key={l.producto.id} className="px-4 py-3 flex items-start gap-3 group hover:bg-zinc-50/50 transition-colors">
+                {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-800 leading-tight">{l.producto.nombre}</p>
+                  <p className="text-sm font-medium text-zinc-800 leading-snug line-clamp-2">{l.producto.nombre}</p>
                   {/* Precio editable */}
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1 mt-1.5">
                     <span className="text-xs text-zinc-400">$</span>
                     <input
                       type="number"
                       value={l.precio_unitario}
                       onChange={e => onCambiarPrecio(l.producto.id, e.target.value)}
-                      className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-zinc-400"
+                      className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-[var(--brand-purple)] tabular-nums"
                     />
                     <span className="text-xs text-zinc-400">c/u</span>
                   </div>
                 </div>
                 {/* Controles cantidad */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => onCambiarCantidad(l.producto.id, -1)}
-                    className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium transition-colors"
-                  >−</button>
-                  <span className="w-7 text-center text-sm font-semibold tabular-nums">{l.cantidad}</span>
-                  <button
-                    onClick={() => onCambiarCantidad(l.producto.id, 1)}
-                    className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium transition-colors"
-                  >+</button>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onCambiarCantidad(l.producto.id, -1)}
+                      className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold transition-colors flex items-center justify-center text-base leading-none"
+                    >−</button>
+                    <span className="w-7 text-center text-sm font-bold tabular-nums text-zinc-900">{l.cantidad}</span>
+                    <button
+                      onClick={() => onCambiarCantidad(l.producto.id, 1)}
+                      className="w-7 h-7 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold transition-colors flex items-center justify-center text-base leading-none"
+                    >+</button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold tabular-nums text-zinc-700">
+                      {fmt(l.cantidad * l.precio_unitario)}
+                    </span>
+                    <button
+                      onClick={() => onQuitarItem(l.producto.id)}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-rose-400 transition-all"
+                      title="Quitar"
+                    >
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <line x1="1" y1="1" x2="12" y2="12"/><line x1="12" y1="1" x2="1" y2="12"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                {/* Subtotal */}
-                <span className="text-sm font-semibold text-zinc-800 tabular-nums w-20 text-right shrink-0">
-                  ${(l.cantidad * l.precio_unitario).toLocaleString('es-CL')}
-                </span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Footer: pago + confirmar */}
-      <div className="px-4 py-4 border-t border-zinc-100 space-y-3">
-        {/* Tipo de pago */}
-        <div className="flex gap-2">
+      {/* Footer */}
+      <div className="px-4 pb-5 pt-4 border-t border-zinc-100 space-y-3 shrink-0">
+
+        {/* Tipo pago (toggle) */}
+        <div className="flex bg-zinc-100 p-0.5 rounded-xl">
           {(['contado', 'credito'] as const).map(t => (
             <button
               key={t}
               onClick={() => onTipoPago(t)}
-              className={`flex-1 py-2 text-xs font-medium rounded-xl border transition-colors ${
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-[10px] transition-colors ${
                 tipoPago === t
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
               {t === 'contado' ? 'Contado' : 'Crédito'}
@@ -405,37 +534,51 @@ function CarritoPanel({
         </div>
 
         {/* Medio de pago */}
-        <div className="grid grid-cols-3 gap-1.5">
-          {MEDIOS_PAGO.map(m => (
-            <button
-              key={m.value}
-              onClick={() => onMedioPago(m.value)}
-              className={`py-1.5 text-xs font-medium rounded-xl border transition-colors ${
-                medioPago === m.value
-                  ? 'bg-emerald-500 text-white border-emerald-500'
-                  : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+        <div>
+          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
+          <div className="grid grid-cols-5 gap-1">
+            {MEDIOS_PAGO.map(m => (
+              <button
+                key={m.value}
+                onClick={() => onMedioPago(m.value)}
+                title={m.label}
+                className={`flex flex-col items-center gap-0.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
+                  medioPago === m.value
+                    ? 'text-white border-transparent'
+                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
+                }`}
+                style={medioPago === m.value ? { background: 'var(--brand-teal)', borderColor: 'var(--brand-teal)' } : {}}
+              >
+                {m.icon}
+                <span className="text-[9px] leading-none">{m.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Total */}
-        <div className="flex items-baseline justify-between py-1">
-          <span className="text-sm text-zinc-500">Total</span>
-          <span className="text-2xl font-bold text-zinc-900 tabular-nums">
-            ${total.toLocaleString('es-CL')}
+        <div className="flex items-baseline justify-between py-1 px-1">
+          <span className="text-sm text-zinc-500 font-medium">Total</span>
+          <span className="text-2xl font-bold tabular-nums text-zinc-900">
+            {fmt(total)}
           </span>
         </div>
 
-        {/* Confirmar */}
+        {/* Botón confirmar */}
         <button
           onClick={onConfirmar}
           disabled={carrito.length === 0 || submitting}
-          className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base rounded-2xl transition-colors shadow-sm"
+          className="w-full py-4 font-bold text-base rounded-2xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed text-white"
+          style={{ background: carrito.length > 0 && !submitting ? 'var(--brand-teal)' : undefined, backgroundColor: carrito.length === 0 || submitting ? '#d1d5db' : undefined }}
         >
-          {submitting ? 'Procesando…' : 'Confirmar venta'}
+          {submitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
+              Procesando…
+            </span>
+          ) : (
+            `Confirmar venta${carrito.length > 0 ? ' · ' + fmt(total) : ''}`
+          )}
         </button>
       </div>
     </div>
@@ -445,14 +588,15 @@ function CarritoPanel({
 // ─── Historial ────────────────────────────────────────────────────────────────
 
 function HistorialPanel() {
-  const [ventas, setVentas] = useState<Venta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [detalle, setDetalle] = useState<Venta | null>(null);
+  const [ventas, setVentas]     = useState<Venta[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [detalle, setDetalle]   = useState<Venta | null>(null);
   const [anulando, setAnulando] = useState<number | null>(null);
 
   const load = () => {
     setLoading(true);
-    api.get<VentasPaginado>('/ventas').then(r => { setVentas(r.data); setLoading(false); });
+    api.get<VentasPaginado>('/ventas')
+      .then(r => { setVentas(r.data); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
@@ -475,68 +619,147 @@ function HistorialPanel() {
     }
   };
 
+  const MEDIO_COLOR: Record<string, string> = {
+    efectivo:      'bg-emerald-50 text-emerald-700',
+    tarjeta:       'bg-blue-50 text-blue-700',
+    oca:           'bg-orange-50 text-orange-700',
+    transferencia: 'bg-violet-50 text-violet-700',
+    otro:          'bg-zinc-100 text-zinc-600',
+  };
+
   return (
-    <div className="p-5 lg:p-8 max-w-5xl">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-zinc-900">Historial de ventas</h2>
-        <p className="text-sm text-zinc-400 mt-0.5">{ventas.length} ventas registradas</p>
+    <div className="p-4 lg:p-8 max-w-5xl h-full overflow-y-auto">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900">Historial de ventas</h2>
+          <p className="text-sm text-zinc-400 mt-0.5">{ventas.length} ventas registradas</p>
+        </div>
+        <button
+          onClick={load}
+          className="text-xs text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors"
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          Actualizar
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
           <div className="p-12 flex items-center justify-center gap-2 text-sm text-zinc-400">
-            <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-zinc-200 border-t-[var(--brand-purple)] rounded-full animate-spin" />
             Cargando...
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100">
-                  {['#', 'Fecha', 'Tipo pago', 'Medio', 'Total', 'Estado', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ventas.map(v => (
-                  <tr key={v.id} className={`border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors ${v.estado === 'anulada' ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{v.id}</td>
-                    <td className="px-4 py-3 text-zinc-600 tabular-nums">{new Date(v.fecha).toLocaleDateString('es-CL')}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${v.tipo_pago === 'contado' ? 'bg-zinc-100 text-zinc-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {v.tipo_pago}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-500 capitalize text-xs">{v.medio_pago ?? '—'}</td>
-                    <td className="px-4 py-3 font-semibold tabular-nums">${v.total.toLocaleString('es-CL')}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${v.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
-                        {v.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right space-x-3">
-                      <button onClick={() => verDetalle(v.id)} className="text-zinc-500 hover:text-zinc-800 text-xs transition-colors">
-                        Detalle
-                      </button>
-                      {v.estado === 'confirmada' && (
-                        <button
-                          onClick={() => anularVenta(v.id)}
-                          disabled={anulando === v.id}
-                          className="text-rose-400 hover:text-rose-600 text-xs transition-colors disabled:opacity-50"
-                        >
-                          {anulando === v.id ? '…' : 'Anular'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {ventas.length === 0 && (
-                  <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-zinc-400">Sin ventas registradas</td></tr>
-                )}
-              </tbody>
-            </table>
+        ) : ventas.length === 0 ? (
+          <div className="py-16 text-center">
+            <svg className="text-zinc-200 mx-auto mb-3" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v36a2 2 0 0 0 2 2h28a2 2 0 0 0 2-2V14z"/><polyline points="14 2 14 14 26 14"/>
+            </svg>
+            <p className="text-sm text-zinc-400">Sin ventas registradas</p>
           </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                    {['#', 'Fecha', 'Pago', 'Medio', 'Total', 'Estado', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventas.map(v => (
+                    <tr key={v.id} className={`border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
+                      <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{v.id}</td>
+                      <td className="px-4 py-3 text-zinc-600 tabular-nums text-xs">
+                        {new Date(v.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${v.tipo_pago === 'contado' ? 'bg-zinc-100 text-zinc-600' : 'bg-blue-50 text-blue-600'}`}>
+                          {v.tipo_pago}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {v.medio_pago ? (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {v.medio_pago}
+                          </span>
+                        ) : <span className="text-zinc-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
+                        {fmt(v.total)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${v.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                          {v.estado}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right space-x-3">
+                        <button onClick={() => verDetalle(v.id)} className="text-zinc-400 hover:text-zinc-800 text-xs transition-colors">
+                          Ver
+                        </button>
+                        {v.estado === 'confirmada' && (
+                          <button
+                            onClick={() => anularVenta(v.id)}
+                            disabled={anulando === v.id}
+                            className="text-rose-400 hover:text-rose-600 text-xs transition-colors disabled:opacity-50"
+                          >
+                            {anulando === v.id ? '…' : 'Anular'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="sm:hidden divide-y divide-zinc-50">
+              {ventas.map(v => (
+                <div key={v.id} className={`px-4 py-3 ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-zinc-400 font-mono">#{v.id}</span>
+                        <span className="text-xs text-zinc-500 tabular-nums">
+                          {new Date(v.fecha).toLocaleDateString('es-CL')}
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${v.estado === 'confirmada' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                          {v.estado}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {v.medio_pago && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {v.medio_pago}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(v.total)}</p>
+                      <div className="flex gap-2 mt-1 justify-end">
+                        <button onClick={() => verDetalle(v.id)} className="text-xs text-zinc-400 hover:text-zinc-700">Ver</button>
+                        {v.estado === 'confirmada' && (
+                          <button
+                            onClick={() => anularVenta(v.id)}
+                            disabled={anulando === v.id}
+                            className="text-xs text-rose-400 hover:text-rose-600 disabled:opacity-50"
+                          >
+                            {anulando === v.id ? '…' : 'Anular'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -544,38 +767,38 @@ function HistorialPanel() {
       {detalle && (
         <Modal isOpen={!!detalle} onClose={() => setDetalle(null)} title={`Venta #${detalle.id}`} size="lg">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
               {[
                 ['Fecha',     new Date(detalle.fecha).toLocaleDateString('es-CL')],
-                ['Total',     `$${detalle.total.toLocaleString('es-CL')}`],
+                ['Total',     fmt(detalle.total)],
                 ['Tipo pago', detalle.tipo_pago],
                 ['Medio',     detalle.medio_pago ?? '—'],
                 ['Estado',    detalle.estado],
                 ['Moneda',    detalle.moneda],
               ].map(([k, v]) => (
                 <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
-                  <p className="text-xs text-zinc-400 mb-0.5">{k}</p>
-                  <p className="text-zinc-800 font-medium capitalize">{v}</p>
+                  <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">{k}</p>
+                  <p className="text-zinc-800 font-semibold capitalize">{v}</p>
                 </div>
               ))}
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-zinc-100">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-100">
+                  <tr className="border-b border-zinc-100 bg-zinc-50">
                     {['Producto', 'Cant.', 'Precio', 'Subtotal'].map(h => (
-                      <th key={h} className="text-left px-3 py-2 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="text-left px-4 py-2.5 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {detalle.detalles?.map(d => (
-                    <tr key={d.id} className="border-b border-zinc-50 last:border-0">
-                      <td className="px-3 py-2.5 text-zinc-800">{d.producto?.nombre}</td>
-                      <td className="px-3 py-2.5 tabular-nums">{d.cantidad}</td>
-                      <td className="px-3 py-2.5 tabular-nums">${d.precio_unitario.toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-medium">${d.subtotal.toLocaleString('es-CL')}</td>
+                    <tr key={d.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60">
+                      <td className="px-4 py-3 text-zinc-800 font-medium">{d.producto?.nombre}</td>
+                      <td className="px-4 py-3 tabular-nums text-zinc-600">{d.cantidad}</td>
+                      <td className="px-4 py-3 tabular-nums text-zinc-600">{fmt(d.precio_unitario)}</td>
+                      <td className="px-4 py-3 tabular-nums font-semibold" style={{ color: 'var(--brand-purple)' }}>{fmt(d.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -583,7 +806,8 @@ function HistorialPanel() {
             </div>
 
             {detalle.kitfe_id && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2 text-xs text-emerald-700">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2 text-xs text-emerald-700 flex items-center gap-2">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 6 5 10 11 2"/></svg>
                 Sincronizado con Kitfe · ID: {detalle.kitfe_id}
               </div>
             )}
