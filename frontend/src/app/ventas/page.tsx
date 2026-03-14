@@ -422,7 +422,8 @@ function POSPanel() {
       </div>
 
       {/* ── Right: Carrito desktop ── */}
-      <div className="hidden lg:flex w-80 xl:w-96 flex-col overflow-hidden bg-white border-l border-zinc-100 shrink-0">
+      <div className="hidden lg:block relative w-80 xl:w-96 shrink-0 bg-white border-l border-zinc-100">
+        <div className="absolute inset-0 flex flex-col overflow-hidden">
         <CarritoPanel
           carrito={carrito}
           total={total}
@@ -437,6 +438,7 @@ function POSPanel() {
           onMedioPago={(v) => setMedioPago(v as MedioPago)}
           onConfirmar={confirmarVenta}
         />
+        </div>
       </div>
 
       {/* ── Mobile: barra inferior ── */}
