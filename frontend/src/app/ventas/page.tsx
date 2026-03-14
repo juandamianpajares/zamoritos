@@ -43,6 +43,9 @@ function fmt(n: number) {
   return `$${n.toLocaleString('es-CL', { minimumFractionDigits: 0 })}`;
 }
 
+const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
+function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VentasPage() {
@@ -365,6 +368,12 @@ function POSPanel() {
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
+                        {p.foto && (
+                          <div className="w-full h-20 rounded-xl overflow-hidden mb-2 -mx-0">
+                            <img src={fotoUrl(p.foto)} alt={p.nombre}
+                              className="w-full h-full object-cover" />
+                          </div>
+                        )}
                         <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
                           {p.nombre}
                         </p>

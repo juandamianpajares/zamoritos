@@ -71,6 +71,7 @@ echo "==> Base de datos lista."
 # ── Migraciones y seeders (solo primera vez) ───────────────────────────────
 SEEDED_FLAG="/var/www/html/storage/.seeded"
 php artisan migrate --force --no-interaction
+php artisan storage:link --force 2>/dev/null || true
 if [ ! -f "$SEEDED_FLAG" ]; then
     php artisan db:seed --force --no-interaction && touch "$SEEDED_FLAG"
 fi

@@ -52,6 +52,7 @@ export interface Producto {
   fraccionado_de?: number;
   en_promo?: boolean;
   precio_promo?: number;
+  foto?: string;
 }
 
 export interface FraccionarResult {

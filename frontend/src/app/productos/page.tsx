@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type Producto, type Categoria } from '@/lib/api';
 import Modal from '@/components/Modal';
+
+const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
+
+function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
@@ -24,6 +28,9 @@ export default function ProductosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [error, setError] = useState('');
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -38,7 +45,11 @@ export default function ProductosPage() {
 
   useEffect(() => { load(); }, [search, catFilter]);
 
-  const openCreate = () => { setEditId(null); setForm({ ...emptyForm }); setError(''); setModalOpen(true); };
+  const resetFoto = () => { setFotoFile(null); setFotoPreview(null); };
+
+  const openCreate = () => {
+    setEditId(null); setForm({ ...emptyForm }); setError(''); resetFoto(); setModalOpen(true);
+  };
 
   const openEdit = (p: Producto) => {
     setEditId(p.id);
@@ -48,7 +59,16 @@ export default function ProductosPage() {
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta), stock: String(p.stock),
     });
     setError('');
+    setFotoFile(null);
+    setFotoPreview(p.foto ? fotoUrl(p.foto) : null);
     setModalOpen(true);
+  };
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFotoFile(file);
+    setFotoPreview(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,9 +84,22 @@ export default function ProductosPage() {
       stock: form.stock ? Number(form.stock) : undefined,
     };
     try {
-      if (editId) { await api.put(`/productos/${editId}`, body); }
-      else         { await api.post('/productos', body); }
+      let saved: Producto;
+      if (editId) { saved = await api.put<Producto>(`/productos/${editId}`, body); }
+      else         { saved = await api.post<Producto>('/productos', body); }
+
+      // Subir foto si se seleccionó una
+      if (fotoFile) {
+        const fd = new FormData();
+        fd.append('foto', fotoFile);
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'}/productos/${saved.id}/foto`,
+          { method: 'POST', headers: { Accept: 'application/json' }, body: fd }
+        );
+      }
+
       setModalOpen(false);
+      resetFoto();
       load();
     } catch (e: unknown) { setError((e as Error).message); }
   };
@@ -118,14 +151,28 @@ export default function ProductosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['Código', 'Nombre', 'Marca', 'Categoría', 'Precio', 'Stock', 'Unidad', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'Precio', 'Stock', 'Unidad', ''].map((h, i) => (
+                    <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {productos.map(p => (
                   <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
+                    <td className="pl-4 py-2">
+                      {p.foto ? (
+                        <img src={fotoUrl(p.foto)} alt={p.nombre}
+                          className="w-10 h-10 rounded-lg object-cover border border-zinc-100" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-300">
+                          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                          </svg>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-zinc-400 text-xs font-mono">{p.codigo_barras ?? '—'}</td>
                     <td className="px-4 py-3 font-medium text-zinc-800">{p.nombre}</td>
                     <td className="px-4 py-3 text-zinc-500">{p.marca ?? '—'}</td>
@@ -150,7 +197,7 @@ export default function ProductosPage() {
                   </tr>
                 ))}
                 {productos.length === 0 && (
-                  <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos registrados</td></tr>
+                  <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos registrados</td></tr>
                 )}
               </tbody>
             </table>
@@ -161,6 +208,50 @@ export default function ProductosPage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Editar producto' : 'Nuevo producto'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-rose-600 text-xs bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
+
+          {/* Foto */}
+          <div>
+            <label className={label}>Foto del producto</label>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="relative w-24 h-24 rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 hover:border-zinc-400 hover:bg-zinc-100 transition-colors overflow-hidden flex items-center justify-center shrink-0"
+              >
+                {fotoPreview ? (
+                  <img src={fotoPreview} alt="preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-zinc-400">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span className="text-[10px]">Subir foto</span>
+                  </div>
+                )}
+              </button>
+              <div className="text-xs text-zinc-400 space-y-1">
+                <p>JPG, PNG o WebP · máx. 4 MB</p>
+                {fotoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => { resetFoto(); if (fileRef.current) fileRef.current.value = ''; }}
+                    className="text-rose-400 hover:text-rose-600 transition-colors"
+                  >
+                    Quitar foto
+                  </button>
+                )}
+              </div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFotoChange}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">

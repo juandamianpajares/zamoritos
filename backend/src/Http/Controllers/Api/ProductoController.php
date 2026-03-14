@@ -87,6 +87,21 @@ class ProductoController extends Controller
         return response()->json(null, 204);
     }
 
+    public function uploadFoto(Request $request, Producto $producto): JsonResponse
+    {
+        $request->validate(['foto' => 'required|image|max:4096']);
+
+        // Eliminar foto anterior si existe
+        if ($producto->foto) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($producto->foto);
+        }
+
+        $path = $request->file('foto')->store('productos', 'public');
+        $producto->update(['foto' => $path]);
+
+        return response()->json($producto->fresh('categoria'));
+    }
+
     /**
      * Fracciona una bolsa/unidad grande en unidades menores.
      *
