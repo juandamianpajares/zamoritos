@@ -224,17 +224,29 @@ export default function DashboardPage() {
             {new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <button
-          onClick={() => setCierreOpen(true)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
-          style={{ background: 'var(--brand-purple)' }}
-        >
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <rect x="1" y="4" width="22" height="16" rx="2"/><circle cx="12" cy="12" r="3"/>
-            <line x1="5" y1="12" x2="5.01" y2="12" strokeWidth="3"/><line x1="19" y1="12" x2="19.01" y2="12" strokeWidth="3"/>
-          </svg>
-          Cierre de caja
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="/ventas"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-zinc-200 text-zinc-700 bg-white hover:bg-zinc-50 transition-all active:scale-95"
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+            Nueva venta
+          </a>
+          <button
+            onClick={() => setCierreOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'var(--brand-purple)' }}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <rect x="1" y="4" width="22" height="16" rx="2"/><circle cx="12" cy="12" r="3"/>
+              <line x1="5" y1="12" x2="5.01" y2="12" strokeWidth="3"/><line x1="19" y1="12" x2="19.01" y2="12" strokeWidth="3"/>
+            </svg>
+            Cierre de caja
+          </button>
+        </div>
       </div>
 
       {/* ── Panel 1: KPIs + Gráfico ── */}

@@ -84,7 +84,7 @@ export default function VentasPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-hidden bg-slate-50">
+      <div className="flex-1 overflow-hidden bg-slate-50 flex flex-col">
         {vista === 'pos' ? <POSPanel /> : <HistorialPanel />}
       </div>
     </div>
@@ -122,7 +122,8 @@ function POSPanel() {
   // Productos filtrados
   const productosFiltrados = (() => {
     let lista = productos.filter(p => p.activo);
-    if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
+    if (catActiva === -1) lista = lista.filter(p => p.en_promo);
+    else if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
     const q = busqueda.trim().toLowerCase();
     if (q) {
       lista = lista.filter(p =>
@@ -141,7 +142,7 @@ function POSPanel() {
       if (existente) {
         return prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l);
       }
-      return [...prev, { producto: p, cantidad: 1, precio_unitario: p.precio_venta }];
+      return [...prev, { producto: p, cantidad: 1, precio_unitario: (p.en_promo && p.precio_promo) ? p.precio_promo : p.precio_venta }];
     });
     setAddedId(p.id);
     setTimeout(() => setAddedId(null), 600);
@@ -197,7 +198,7 @@ function POSPanel() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
 
       {/* ── Left: productos ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -265,6 +266,21 @@ function POSPanel() {
               >
                 Todos
               </button>
+              {/* Categoría virtual: Promos */}
+              <button
+                onClick={() => setCatActiva(catActiva === -1 ? null : -1)}
+                className={`shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                  catActiva === -1
+                    ? 'text-white border-transparent'
+                    : 'bg-white text-rose-500 border-rose-200 hover:border-rose-400'
+                }`}
+                style={catActiva === -1 ? { background: '#e11d48' } : {}}
+              >
+                <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/>
+                </svg>
+                Promos
+              </button>
               {categorias.map(c => (
                 <button
                   key={c.id}
@@ -296,7 +312,7 @@ function POSPanel() {
             <>
               <p className="text-xs text-zinc-400 mb-3">
                 {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}
-                {catActiva && ` · ${categorias.find(c => c.id === catActiva)?.nombre}`}
+                {catActiva === -1 ? ' · Promos' : catActiva ? ` · ${categorias.find(c => c.id === catActiva)?.nombre}` : ''}
                 {busqueda && ` · "${busqueda}"`}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
@@ -305,6 +321,7 @@ function POSPanel() {
                   const stockBajo      = !agotado && p.stock <= 5;
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
+                  const esPromo        = !!p.en_promo && !!p.precio_promo;
                   const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado;
                   return (
                     <div
@@ -312,6 +329,8 @@ function POSPanel() {
                       className={`relative flex flex-col rounded-2xl border transition-all duration-150 ${
                         agotado
                           ? 'opacity-40 bg-white border-zinc-100'
+                          : esPromo
+                          ? 'bg-rose-50/40 border-rose-200 hover:border-rose-400 hover:shadow-md'
                           : esFraccionado
                           ? 'bg-amber-50/50 border-amber-200'
                           : added
@@ -323,6 +342,13 @@ function POSPanel() {
                       {esFraccionado && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
                           FRAC.
+                        </span>
+                      )}
+                      {/* Badge promo */}
+                      {esPromo && !esFraccionado && (
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-0.5">
+                          <svg width="7" height="7" fill="currentColor" viewBox="0 0 24 24"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
+                          PROMO
                         </span>
                       )}
                       {added && (
@@ -345,10 +371,17 @@ function POSPanel() {
                         {p.marca && (
                           <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
                         )}
-                        <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
-                          {fmt(p.precio_venta)}
-                          {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
-                        </p>
+                        {esPromo ? (
+                          <div>
+                            <p className="text-base font-bold tabular-nums text-rose-600">{fmt(p.precio_promo!)}</p>
+                            <p className="text-[10px] line-through text-zinc-400 tabular-nums">{fmt(p.precio_venta)}</p>
+                          </div>
+                        ) : (
+                          <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
+                            {fmt(p.precio_venta)}
+                            {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
+                          </p>
+                        )}
                         <p className={`text-[10px] mt-0.5 font-medium ${
                           agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-400'
                         }`}>
@@ -380,7 +413,7 @@ function POSPanel() {
       </div>
 
       {/* ── Right: Carrito desktop ── */}
-      <div className="hidden lg:flex w-80 xl:w-96 flex-col bg-white border-l border-zinc-100 shrink-0">
+      <div className="hidden lg:flex w-80 xl:w-96 flex-col overflow-hidden bg-white border-l border-zinc-100 shrink-0">
         <CarritoPanel
           carrito={carrito}
           total={total}

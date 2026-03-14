@@ -14,7 +14,7 @@ class Producto extends Model
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'categoria_id',
         'peso', 'unidad_medida', 'precio_venta', 'stock', 'activo',
-        'fraccionado_de',
+        'fraccionado_de', 'en_promo', 'precio_promo',
     ];
 
     protected $casts = [
@@ -22,6 +22,8 @@ class Producto extends Model
         'stock'        => 'float',
         'peso'         => 'float',
         'activo'       => 'boolean',
+        'en_promo'     => 'boolean',
+        'precio_promo' => 'float',
     ];
 
     public function fraccionadoDe(): BelongsTo

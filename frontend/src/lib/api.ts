@@ -50,6 +50,8 @@ export interface Producto {
   stock: number;
   activo: boolean;
   fraccionado_de?: number;
+  en_promo?: boolean;
+  precio_promo?: number;
 }
 
 export interface FraccionarResult {

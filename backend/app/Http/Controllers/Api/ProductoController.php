@@ -33,6 +33,10 @@ class ProductoController extends Controller
             $query->where('stock', '<=', 5);
         }
 
+        if ($request->boolean('en_promo')) {
+            $query->where('en_promo', true);
+        }
+
         return response()->json($query->orderBy('nombre')->get());
     }
 
@@ -52,6 +56,8 @@ class ProductoController extends Controller
             'unidad_medida' => 'required|string',
             'precio_venta'  => 'required|numeric|min:0',
             'stock'         => 'nullable|numeric|min:0',
+            'en_promo'      => 'nullable|boolean',
+            'precio_promo'  => 'nullable|numeric|min:0',
         ]);
 
         return response()->json(Producto::create($data), 201);
@@ -67,6 +73,8 @@ class ProductoController extends Controller
             'peso'          => 'nullable|numeric|min:0',
             'unidad_medida' => 'required|string',
             'precio_venta'  => 'required|numeric|min:0',
+            'en_promo'      => 'nullable|boolean',
+            'precio_promo'  => 'nullable|numeric|min:0',
         ]);
 
         $producto->update($data);
