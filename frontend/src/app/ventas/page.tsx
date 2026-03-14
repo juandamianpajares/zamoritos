@@ -284,7 +284,7 @@ function POSPanel() {
         </div>
 
         {/* Grid de productos */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-28 lg:pb-4">
           {productosFiltrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-center">
               <svg className="text-zinc-300 mb-2" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -397,22 +397,41 @@ function POSPanel() {
         />
       </div>
 
-      {/* ── Mobile: botón flotante ── */}
-      <button
-        onClick={() => setCartOpen(true)}
-        className={`lg:hidden fixed bottom-5 right-5 z-20 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-semibold transition-all duration-200 ${
-          carrito.length === 0
-            ? 'opacity-0 pointer-events-none translate-y-2'
-            : 'opacity-100 translate-y-0'
-        }`}
-        style={{ background: 'var(--brand-purple)' }}
-      >
-        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
-          style={{ background: 'var(--brand-teal)', color: '#fff' }}>
-          {totalItems}
-        </span>
-        Ver carrito · {fmt(total)}
-      </button>
+      {/* ── Mobile: barra inferior ── */}
+      <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-zinc-200 px-3 py-3 flex gap-2 transition-all duration-200 ${
+        carrito.length === 0 ? 'translate-y-full pointer-events-none' : 'translate-y-0'
+      }`}>
+        <button
+          onClick={() => setCartOpen(true)}
+          className="flex items-center justify-center gap-2 px-4 py-3 border border-zinc-200 rounded-2xl text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shrink-0"
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+          </svg>
+          <span className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+            style={{ background: 'var(--brand-purple)' }}>
+            {totalItems}
+          </span>
+        </button>
+        <button
+          onClick={confirmarVenta}
+          disabled={submitting}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-40 transition-all active:scale-95"
+          style={{ background: 'var(--brand-teal)' }}
+        >
+          {submitting ? (
+            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Confirmar · {fmt(total)}
+            </>
+          )}
+        </button>
+      </div>
 
       {/* ── Modal fraccionamiento ── */}
       {fraccionando && (
@@ -491,7 +510,10 @@ function CarritoPanel({
           )}
         </div>
         {carrito.length > 0 && (
-          <button onClick={onVaciar} className="text-xs text-zinc-400 hover:text-rose-500 transition-colors">
+          <button onClick={onVaciar} className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-500 transition-colors">
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
             Vaciar
           </button>
         )}
@@ -575,7 +597,21 @@ function CarritoPanel({
                   : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
-              {t === 'contado' ? 'Contado' : 'Crédito'}
+              {t === 'contado' ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  Contado
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-1.5">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+                  </svg>
+                  Crédito
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -624,7 +660,12 @@ function CarritoPanel({
               Procesando…
             </span>
           ) : (
-            `Confirmar venta${carrito.length > 0 ? ' · ' + fmt(total) : ''}`
+            <span className="flex items-center justify-center gap-2">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              {`Confirmar venta${carrito.length > 0 ? ' · ' + fmt(total) : ''}`}
+            </span>
           )}
         </button>
       </div>

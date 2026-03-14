@@ -188,3 +188,9 @@ export interface TopProductos {
   desde: string;
   top: TopProductoItem[];
 }
+
+export interface VentasSemanaItem {
+  fecha: string;
+  total: number;
+  cantidad: number;
+}

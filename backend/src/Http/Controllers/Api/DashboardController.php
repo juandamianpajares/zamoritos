@@ -75,6 +75,33 @@ class DashboardController extends Controller
         ]);
     }
 
+    public function ventasSemana(): JsonResponse
+    {
+        $inicio = now()->subDays(6)->startOfDay();
+
+        $ventasPorDia = Venta::select(
+                DB::raw('DATE(fecha) as dia'),
+                DB::raw('SUM(total) as total'),
+                DB::raw('COUNT(*) as cantidad')
+            )
+            ->where('estado', 'confirmada')
+            ->where('fecha', '>=', $inicio)
+            ->groupBy('dia')
+            ->get()
+            ->keyBy('dia');
+
+        $dias = collect(range(6, 0))->map(function ($i) use ($ventasPorDia) {
+            $fecha = now()->subDays($i)->toDateString();
+            return [
+                'fecha'    => $fecha,
+                'total'    => (float) ($ventasPorDia[$fecha]->total ?? 0),
+                'cantidad' => (int) ($ventasPorDia[$fecha]->cantidad ?? 0),
+            ];
+        });
+
+        return response()->json($dias);
+    }
+
     public function topProductos(Request $request): JsonResponse
     {
         $periodo = $request->get('periodo', 'mes');

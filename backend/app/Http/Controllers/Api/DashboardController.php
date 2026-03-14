@@ -52,9 +52,9 @@ class DashboardController extends Controller
             ->orderByDesc('fecha')
             ->get();
 
-        $total       = $ventas->sum('total');
-        $cantidad    = $ventas->count();
-        $ticketProm  = $cantidad > 0 ? round($total / $cantidad, 2) : 0;
+        $total      = $ventas->sum('total');
+        $cantidad   = $ventas->count();
+        $ticketProm = $cantidad > 0 ? round($total / $cantidad, 2) : 0;
 
         $porMedioPago = $ventas
             ->groupBy(fn($v) => $v->medio_pago ?? 'sin especificar')
@@ -66,13 +66,40 @@ class DashboardController extends Controller
             ->values();
 
         return response()->json([
-            'fecha'               => $hoy,
-            'total'               => $total,
-            'cantidad'            => $cantidad,
-            'ticket_promedio'     => $ticketProm,
-            'por_medio_pago'      => $porMedioPago,
-            'ventas'              => $ventas,
+            'fecha'           => $hoy,
+            'total'           => $total,
+            'cantidad'        => $cantidad,
+            'ticket_promedio' => $ticketProm,
+            'por_medio_pago'  => $porMedioPago,
+            'ventas'          => $ventas,
         ]);
+    }
+
+    public function ventasSemana(): JsonResponse
+    {
+        $inicio = now()->subDays(6)->startOfDay();
+
+        $ventasPorDia = Venta::select(
+                DB::raw('DATE(fecha) as dia'),
+                DB::raw('SUM(total) as total'),
+                DB::raw('COUNT(*) as cantidad')
+            )
+            ->where('estado', 'confirmada')
+            ->where('fecha', '>=', $inicio)
+            ->groupBy('dia')
+            ->get()
+            ->keyBy('dia');
+
+        $dias = collect(range(6, 0))->map(function ($i) use ($ventasPorDia) {
+            $fecha = now()->subDays($i)->toDateString();
+            return [
+                'fecha'    => $fecha,
+                'total'    => (float) ($ventasPorDia[$fecha]->total ?? 0),
+                'cantidad' => (int) ($ventasPorDia[$fecha]->cantidad ?? 0),
+            ];
+        });
+
+        return response()->json($dias);
     }
 
     public function topProductos(Request $request): JsonResponse
