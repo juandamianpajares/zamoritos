@@ -6,6 +6,9 @@ import Modal from '@/components/Modal';
 
 const emptyForm = { nombre: '', rut: '', telefono: '', email: '', direccion: '', contacto: '' };
 
+const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
+const label = 'block text-xs font-medium text-zinc-500 mb-1.5';
+
 export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,10 +58,13 @@ export default function ProveedoresPage() {
     setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Proveedores</h1>
-        <button onClick={openCreate} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+    <div className="p-6 lg:p-8 max-w-6xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900">Proveedores</h1>
+          <p className="text-sm text-zinc-400 mt-0.5">{proveedores.length} registrados</p>
+        </div>
+        <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
           + Nuevo proveedor
         </button>
       </div>
@@ -66,85 +72,88 @@ export default function ProveedoresPage() {
       <input
         value={search} onChange={e => setSearch(e.target.value)}
         placeholder="Buscar por nombre, RUT, email..."
-        className="w-full mb-4 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className={`w-full mb-4 ${input}`}
       />
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-400">Cargando...</div>
+          <div className="p-12 flex items-center justify-center gap-2 text-sm text-zinc-400">
+            <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" />
+            Cargando...
+          </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                {['Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-medium text-gray-600">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {proveedores.map(p => (
-                <tr key={p.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{p.nombre}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.rut ?? '-'}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.telefono ?? '-'}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.email ?? '-'}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.contacto ?? '-'}</td>
-                  <td className="px-4 py-3 text-right space-x-3">
-                    <button onClick={() => openEdit(p)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                    <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:underline text-xs">Eliminar</button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100">
+                  {['Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
-              ))}
-              {proveedores.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-400">Sin proveedores</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {proveedores.map(p => (
+                  <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
+                    <td className="px-4 py-3 font-medium text-zinc-800">{p.nombre}</td>
+                    <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{p.rut ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-500">{p.telefono ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-500">{p.email ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-500">{p.contacto ?? '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => openEdit(p)} className="text-zinc-500 hover:text-zinc-800 text-xs mr-3 transition-colors">Editar</button>
+                      <button onClick={() => handleDelete(p.id)} className="text-rose-400 hover:text-rose-600 text-xs transition-colors">Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+                {proveedores.length === 0 && (
+                  <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-400">Sin proveedores</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Editar proveedor' : 'Nuevo proveedor'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</p>}
+          {error && <p className="text-rose-600 text-xs bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={f('nombre')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>Nombre *</label>
+              <input required value={form.nombre} onChange={f('nombre')} className={input} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
-              <input value={form.rut} onChange={f('rut')} placeholder="12.345.678-9"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>RUT</label>
+              <input value={form.rut} onChange={f('rut')} placeholder="12.345.678-9" className={input} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-              <input value={form.telefono} onChange={f('telefono')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>Teléfono</label>
+              <input value={form.telefono} onChange={f('telefono')} className={input} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" value={form.email} onChange={f('email')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>Email</label>
+              <input type="email" value={form.email} onChange={f('email')} className={input} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contacto</label>
-              <input value={form.contacto} onChange={f('contacto')} placeholder="Nombre del contacto"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>Contacto</label>
+              <input value={form.contacto} onChange={f('contacto')} placeholder="Nombre del contacto" className={input} />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-              <input value={form.direccion} onChange={f('direccion')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className={label}>Dirección</label>
+              <input value={form.direccion} onChange={f('direccion')} className={input} />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex justify-end gap-2 pt-4 border-t border-zinc-100">
             <button type="button" onClick={() => setModalOpen(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">Cancelar</button>
+              className="px-4 py-2 text-sm text-zinc-600 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">
+              Cancelar
+            </button>
             <button type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">Guardar</button>
+              className="px-4 py-2 text-sm bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 transition-colors">
+              Guardar
+            </button>
           </div>
         </form>
       </Modal>

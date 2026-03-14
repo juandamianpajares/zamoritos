@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
+import ClientLayout from '@/components/ClientLayout';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Zamoritos – Gestión',
@@ -10,9 +13,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className="flex bg-gray-50 min-h-screen text-gray-900 antialiased">
-        <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+      <body className={`${inter.className} bg-slate-50 min-h-screen text-zinc-900 antialiased`}>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
