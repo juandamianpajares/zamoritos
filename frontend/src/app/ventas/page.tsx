@@ -82,7 +82,8 @@ function POSPanel() {
     const matches = productos.filter(p =>
       p.nombre.toLowerCase().includes(q) ||
       (p.codigo_barras ?? '').toLowerCase().includes(q) ||
-      (p.marca ?? '').toLowerCase().includes(q)
+      (p.marca ?? '').toLowerCase().includes(q) ||
+      String(p.precio_venta).includes(q)
     ).slice(0, 12);
     setResultados(matches);
   }, [busqueda, productos]);

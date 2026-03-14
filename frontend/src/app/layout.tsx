@@ -7,7 +7,11 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Zamoritos – Gestión',
-  description: 'Sistema de gestión comercial y stock',
+  description: 'Sistema de gestión comercial y stock · Agroveterinaria Zamoritos',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

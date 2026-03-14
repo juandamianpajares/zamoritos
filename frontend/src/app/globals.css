@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --brand-purple:       #7B2D8B;
+    --brand-purple-dark:  #5E1F6C;
+    --brand-purple-light: #9B4DAB;
+    --brand-teal:         #00B5A0;
+    --brand-teal-dark:    #009688;
+    --brand-teal-light:   #33C9B5;
+  }
+
   ::-webkit-scrollbar {
     width: 4px;
     height: 4px;
@@ -11,9 +20,11 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-300 rounded-full;
+    background: var(--brand-purple-light);
+    border-radius: 9999px;
+    opacity: 0.4;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-zinc-400;
+    background: var(--brand-purple);
   }
 }

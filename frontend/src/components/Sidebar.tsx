@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 
 const DashboardIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
@@ -69,7 +70,14 @@ const CashIcon = () => (
   </svg>
 );
 
-const links = [
+interface NavLink {
+  href: string;
+  label: string;
+  Icon: () => JSX.Element;
+  highlight?: boolean;
+}
+
+const links: NavLink[] = [
   { href: '/',            label: 'Dashboard',   Icon: DashboardIcon },
   { href: '/ventas',      label: 'Ventas',      Icon: CashIcon,     highlight: true },
   { href: '/productos',   label: 'Productos',   Icon: BoxIcon },
@@ -79,13 +87,6 @@ const links = [
   { href: '/stock',       label: 'Stock',       Icon: ChartIcon },
   { href: '/lotes',       label: 'Lotes',       Icon: CalendarIcon },
 ];
-
-interface NavLink {
-  href: string;
-  label: string;
-  Icon: () => JSX.Element;
-  highlight?: boolean;
-}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -97,40 +98,59 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed lg:static inset-y-0 left-0 z-30 w-56 bg-zinc-950 flex flex-col shrink-0 transition-transform duration-200 ${
+      style={{ background: 'linear-gradient(180deg, #7B2D8B 0%, #5E1F6C 100%)' }}
+      className={`fixed lg:static inset-y-0 left-0 z-30 w-56 flex flex-col shrink-0 transition-transform duration-200 ${
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}
     >
-      <div className="px-5 py-5 border-b border-zinc-800/60">
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Agroveterinaria</p>
-        <h1 className="text-base font-semibold text-white tracking-tight">Zamoritos</h1>
+      {/* Logo / brand */}
+      <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
+          <Image
+            src="/logo.png"
+            alt="Zamoritos"
+            width={40}
+            height={40}
+            className="object-cover"
+            onError={() => {}}
+          />
+        </div>
+        <div>
+          <h1 className="text-base font-bold text-white tracking-tight leading-tight">Zamoritos</h1>
+          <p className="text-[10px] text-white/50 leading-tight">Agroveterinaria</p>
+        </div>
       </div>
 
       <nav className="flex-1 py-3 space-y-0.5 px-2">
-        {(links as NavLink[]).map(({ href, label, Icon, highlight }) => {
+        {links.map(({ href, label, Icon, highlight }) => {
           const active = path === href || (href !== '/' && path.startsWith(href));
           return (
             <Link
               key={href}
               href={href}
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 active
-                  ? 'bg-white/10 text-white'
+                  ? 'bg-white/20 text-white font-medium shadow-sm'
                   : highlight
-                  ? 'text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  ? 'text-[#33C9B5] hover:bg-white/10 hover:text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon />
-              <span className={active ? 'font-medium' : ''}>{label}</span>
+              <span className={active ? 'opacity-100' : 'opacity-70'}>
+                <Icon />
+              </span>
+              {label}
+              {highlight && !active && (
+                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00B5A0]" />
+              )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="px-5 py-4 border-t border-zinc-800/60">
-        <p className="text-[11px] text-zinc-600">v1.0</p>
+      <div className="px-4 py-3 border-t border-white/10">
+        <p className="text-[11px] text-white/30">v1.0 · Sistema de Gestión</p>
       </div>
     </aside>
   );

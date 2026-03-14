@@ -150,3 +150,33 @@ export interface DashboardStats {
   productos_stock_bajo: Producto[];
   proximos_vencer: Lote[];
 }
+
+export interface MedioPagoStat {
+  medio: string;
+  total: number;
+  cantidad: number;
+}
+
+export interface VentasDia {
+  fecha: string;
+  total: number;
+  cantidad: number;
+  ticket_promedio: number;
+  por_medio_pago: MedioPagoStat[];
+  ventas: Venta[];
+}
+
+export interface TopProductoItem {
+  producto_id: number;
+  nombre: string;
+  categoria?: string;
+  unidad_medida: string;
+  total_unidades: number;
+  total_ingresos: number;
+}
+
+export interface TopProductos {
+  periodo: 'hoy' | 'semana' | 'mes';
+  desde: string;
+  top: TopProductoItem[];
+}

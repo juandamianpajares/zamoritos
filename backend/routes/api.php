@@ -10,7 +10,9 @@ use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\VentaController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('dashboard/stats', [DashboardController::class, 'stats']);
+Route::get('dashboard/stats',          [DashboardController::class, 'stats']);
+Route::get('dashboard/ventas-dia',     [DashboardController::class, 'ventasDia']);
+Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 Route::apiResource('productos', ProductoController::class);
