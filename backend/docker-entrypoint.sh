@@ -32,6 +32,10 @@ if [ ! -f "artisan" ]; then
     # Copiar config CORS
     cp /src/config/cors.php /var/www/html/config/cors.php
 
+    # Copiar seeders
+    mkdir -p /var/www/html/database/seeders
+    cp /src/seeders/*.php /var/www/html/database/seeders/
+
     # .env
     cp .env.example .env
 fi
@@ -64,8 +68,12 @@ until php artisan db:monitor --databases=mysql 2>/dev/null | grep -q "OK" || \
 done
 echo "==> Base de datos lista."
 
-# ── Migraciones ────────────────────────────────────────────────────────────
+# ── Migraciones y seeders (solo primera vez) ───────────────────────────────
+SEEDED_FLAG="/var/www/html/storage/.seeded"
 php artisan migrate --force --no-interaction
+if [ ! -f "$SEEDED_FLAG" ]; then
+    php artisan db:seed --force --no-interaction && touch "$SEEDED_FLAG"
+fi
 
 echo "==> Iniciando servidor Laravel en 0.0.0.0:8000"
 exec "$@"
