@@ -60,8 +60,18 @@ const CalendarIcon = () => (
   </svg>
 );
 
+const CashIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <rect x="1" y="4" width="14" height="8" rx="1.5" />
+    <circle cx="8" cy="8" r="2" />
+    <line x1="4" y1="8" x2="4" y2="8.01" strokeWidth="2" />
+    <line x1="12" y1="8" x2="12" y2="8.01" strokeWidth="2" />
+  </svg>
+);
+
 const links = [
   { href: '/',            label: 'Dashboard',   Icon: DashboardIcon },
+  { href: '/ventas',      label: 'Ventas',      Icon: CashIcon,     highlight: true },
   { href: '/productos',   label: 'Productos',   Icon: BoxIcon },
   { href: '/categorias',  label: 'Categorías',  Icon: TagIcon },
   { href: '/proveedores', label: 'Proveedores', Icon: TruckIcon },
@@ -69,6 +79,13 @@ const links = [
   { href: '/stock',       label: 'Stock',       Icon: ChartIcon },
   { href: '/lotes',       label: 'Lotes',       Icon: CalendarIcon },
 ];
+
+interface NavLink {
+  href: string;
+  label: string;
+  Icon: () => JSX.Element;
+  highlight?: boolean;
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -90,8 +107,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       <nav className="flex-1 py-3 space-y-0.5 px-2">
-        {links.map(({ href, label, Icon }) => {
-          const active = path === href;
+        {(links as NavLink[]).map(({ href, label, Icon, highlight }) => {
+          const active = path === href || (href !== '/' && path.startsWith(href));
           return (
             <Link
               key={href}
@@ -100,6 +117,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 active
                   ? 'bg-white/10 text-white'
+                  : highlight
+                  ? 'text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300'
                   : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
               }`}
             >

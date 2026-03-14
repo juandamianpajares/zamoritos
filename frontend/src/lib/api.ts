@@ -26,6 +26,7 @@ export const api = {
   get:    <T>(path: string)                  => req<T>('GET',    path),
   post:   <T>(path: string, body: unknown)   => req<T>('POST',   path, body),
   put:    <T>(path: string, body: unknown)   => req<T>('PUT',    path, body),
+  patch:  <T>(path: string, body: unknown)   => req<T>('PATCH',  path, body),
   delete: <T>(path: string)                  => req<T>('DELETE', path),
 };
 
@@ -102,6 +103,42 @@ export interface Lote {
   fecha_vencimiento?: string;
   cantidad: number;
   cantidad_restante: number;
+}
+
+export interface DetalleVenta {
+  id: number;
+  venta_id: number;
+  producto_id: number;
+  producto?: Producto;
+  cantidad: number;
+  precio_unitario: number;
+  descuento: number;
+  subtotal: number;
+}
+
+export interface Venta {
+  id: number;
+  fecha: string;
+  tipo_pago: 'contado' | 'credito';
+  medio_pago?: string;
+  receptor_nombre?: string;
+  moneda: string;
+  subtotal: number;
+  descuento: number;
+  total: number;
+  estado: 'confirmada' | 'anulada';
+  tipo_comprobante?: string;  // Kitfe v2
+  kitfe_id?: string;          // Kitfe v2
+  usuario?: string;
+  observacion?: string;
+  detalles?: DetalleVenta[];
+}
+
+export interface VentasPaginado {
+  data: Venta[];
+  current_page: number;
+  last_page: number;
+  total: number;
 }
 
 export interface DashboardStats {
