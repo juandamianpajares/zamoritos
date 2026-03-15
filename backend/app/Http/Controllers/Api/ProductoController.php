@@ -48,16 +48,18 @@ class ProductoController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nombre'        => 'required|string',
-            'codigo_barras' => 'nullable|string|unique:productos,codigo_barras',
-            'marca'         => 'nullable|string',
-            'categoria_id'  => 'nullable|exists:categorias,id',
-            'peso'          => 'nullable|numeric|min:0',
-            'unidad_medida' => 'required|string',
-            'precio_venta'  => 'required|numeric|min:0',
-            'stock'         => 'nullable|numeric|min:0',
-            'en_promo'      => 'nullable|boolean',
-            'precio_promo'  => 'nullable|numeric|min:0',
+            'nombre'               => 'required|string',
+            'codigo_barras'        => 'nullable|string|unique:productos,codigo_barras',
+            'marca'                => 'nullable|string',
+            'categoria_id'         => 'nullable|exists:categorias,id',
+            'peso'                 => 'nullable|numeric|min:0',
+            'unidad_medida'        => 'required|string',
+            'precio_venta'         => 'required|numeric|min:0',
+            'precio_compra'        => 'nullable|numeric|min:0',
+            'stock'                => 'nullable|numeric|min:0',
+            'notificar_stock_bajo' => 'nullable|boolean',
+            'en_promo'             => 'nullable|boolean',
+            'precio_promo'         => 'nullable|numeric|min:0',
         ]);
 
         return response()->json(Producto::create($data), 201);
@@ -66,15 +68,17 @@ class ProductoController extends Controller
     public function update(Request $request, Producto $producto): JsonResponse
     {
         $data = $request->validate([
-            'nombre'        => 'required|string',
-            'codigo_barras' => 'nullable|string|unique:productos,codigo_barras,' . $producto->id,
-            'marca'         => 'nullable|string',
-            'categoria_id'  => 'nullable|exists:categorias,id',
-            'peso'          => 'nullable|numeric|min:0',
-            'unidad_medida' => 'required|string',
-            'precio_venta'  => 'required|numeric|min:0',
-            'en_promo'      => 'nullable|boolean',
-            'precio_promo'  => 'nullable|numeric|min:0',
+            'nombre'               => 'required|string',
+            'codigo_barras'        => 'nullable|string|unique:productos,codigo_barras,' . $producto->id,
+            'marca'                => 'nullable|string',
+            'categoria_id'         => 'nullable|exists:categorias,id',
+            'peso'                 => 'nullable|numeric|min:0',
+            'unidad_medida'        => 'required|string',
+            'precio_venta'         => 'required|numeric|min:0',
+            'precio_compra'        => 'nullable|numeric|min:0',
+            'notificar_stock_bajo' => 'nullable|boolean',
+            'en_promo'             => 'nullable|boolean',
+            'precio_promo'         => 'nullable|numeric|min:0',
         ]);
 
         $producto->update($data);
@@ -85,6 +89,12 @@ class ProductoController extends Controller
     {
         $producto->update(['activo' => false]);
         return response()->json(null, 204);
+    }
+
+    public function toggleNotificacion(Request $request, Producto $producto): JsonResponse
+    {
+        $producto->update(['notificar_stock_bajo' => !$producto->notificar_stock_bajo]);
+        return response()->json(['notificar_stock_bajo' => $producto->notificar_stock_bajo]);
     }
 
     public function uploadFoto(Request $request, Producto $producto): JsonResponse

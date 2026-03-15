@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { api, type VentasDia, type TopProductos, type DashboardStats, type VentasSemanaItem } from '@/lib/api';
+import { api, type VentasDia, type TopProductos, type DashboardStats, type VentasSemanaItem, type GananciaDashboard } from '@/lib/api';
 
 type Periodo = 'hoy' | 'semana' | 'mes';
 
@@ -174,7 +174,8 @@ export default function DashboardPage() {
   const [ventasSemana, setVentasSemana] = useState<VentasSemanaItem[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductos | null>(null);
   const [alertas, setAlertas] = useState<DashboardStats | null>(null);
-  const [periodo, setPeriodo] = useState<Periodo>('mes');
+  const [ganancia, setGanancia] = useState<GananciaDashboard | null>(null);
+  const [periodo, setPeriodo] = useState<Periodo>('hoy');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cierreOpen, setCierreOpen] = useState(false);
@@ -185,6 +186,12 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  const loadGanancia = useCallback((p: Periodo) => {
+    api.get<GananciaDashboard>(`/dashboard/ganancia?periodo=${p}`)
+      .then(setGanancia)
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -192,13 +199,14 @@ export default function DashboardPage() {
       api.get<TopProductos>(`/dashboard/top-productos?periodo=${periodo}`),
       api.get<DashboardStats>('/dashboard/stats'),
       api.get<VentasSemanaItem[]>('/dashboard/ventas-semana'),
+      api.get<GananciaDashboard>(`/dashboard/ganancia?periodo=${periodo}`),
     ])
-      .then(([v, t, s, sem]) => { setVentasDia(v); setTopProductos(t); setAlertas(s); setVentasSemana(sem); })
+      .then(([v, t, s, sem, g]) => { setVentasDia(v); setTopProductos(t); setAlertas(s); setVentasSemana(sem); setGanancia(g); })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadTop(periodo); }, [periodo, loadTop]);
+  useEffect(() => { loadTop(periodo); loadGanancia(periodo); }, [periodo, loadTop, loadGanancia]);
 
   if (error) return (
     <div className="p-8">
@@ -251,34 +259,51 @@ export default function DashboardPage() {
 
       {/* ── Panel 1: KPIs + Gráfico ── */}
       <section>
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-          Ventas del día
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
+            {periodo === 'hoy' ? 'Ventas del día' : periodo === 'semana' ? 'Ventas de la semana' : 'Ventas del mes'}
+          </h2>
+          <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-xl">
+            {(['hoy', 'semana', 'mes'] as Periodo[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodo(p)}
+                className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                  periodo === p ? 'text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                }`}
+                style={periodo === p ? { background: 'var(--brand-purple)' } : {}}
+              >
+                {p === 'hoy' ? 'Hoy' : p === 'semana' ? 'Semana' : 'Mes'}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           <KpiCard
-            label="Total del día"
-            value={fmt(ventasDia?.total ?? 0)}
-            sub={`${ventasDia?.cantidad ?? 0} ventas`}
+            label="Total ventas"
+            value={fmt(periodo === 'hoy' ? (ventasDia?.total ?? 0) : (ganancia?.total_ventas ?? 0))}
+            sub={periodo === 'hoy' ? `${ventasDia?.cantidad ?? 0} ventas` : undefined}
             accent="text-[#7B2D8B]"
             bar
           />
           <KpiCard
             label="Ticket promedio"
             value={fmt(ventasDia?.ticket_promedio ?? 0)}
+            sub="hoy"
             accent="text-zinc-800"
+          />
+          <KpiCard
+            label="Ganancia neta"
+            value={fmt(ganancia?.ganancia_neta ?? 0)}
+            sub={ganancia ? `${ganancia.margen_pct}% margen` : undefined}
+            accent={(ganancia?.ganancia_neta ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           />
           <KpiCard
             label="Stock bajo"
             value={String(alertas?.stock_bajo_count ?? 0)}
             sub="productos ≤ 5 uds."
             accent={(alertas?.stock_bajo_count ?? 0) > 0 ? 'text-rose-600' : 'text-zinc-800'}
-          />
-          <KpiCard
-            label="Próx. a vencer"
-            value={String(alertas?.proximos_vencer_count ?? 0)}
-            sub="en 30 días"
-            accent={(alertas?.proximos_vencer_count ?? 0) > 0 ? 'text-amber-500' : 'text-zinc-800'}
           />
         </div>
 
@@ -381,22 +406,6 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
             Productos más vendidos
           </h2>
-          <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-xl">
-            {(['hoy', 'semana', 'mes'] as Periodo[]).map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriodo(p)}
-                className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                  periodo === p
-                    ? 'text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-                style={periodo === p ? { background: 'var(--brand-purple)' } : {}}
-              >
-                {p === 'hoy' ? 'Hoy' : p === 'semana' ? 'Semana' : 'Mes'}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
@@ -448,6 +457,49 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+
+      {/* ── Panel 4: Ganancia x Proveedor ── */}
+      {ganancia && ganancia.por_proveedor.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+            % Ganancia por proveedor
+          </h2>
+          <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+            <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-zinc-50">
+              <span className="col-span-4 text-xs font-medium text-zinc-400 uppercase tracking-wide">Proveedor</span>
+              <span className="col-span-3 text-xs font-medium text-zinc-400 uppercase tracking-wide text-right">Ventas</span>
+              <span className="col-span-3 text-xs font-medium text-zinc-400 uppercase tracking-wide text-right">Ganancia</span>
+              <span className="col-span-2 text-xs font-medium text-zinc-400 uppercase tracking-wide text-right">Margen</span>
+            </div>
+            {ganancia.por_proveedor.map((p) => (
+              <div key={p.proveedor} className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-zinc-50 last:border-0 items-center hover:bg-zinc-50/50 transition-colors">
+                <div className="col-span-4">
+                  <p className="text-sm font-medium text-zinc-800 truncate">{p.proveedor}</p>
+                  <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden mt-1 max-w-32">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.max(4, p.margen_pct)}%`, background: p.margen_pct >= 0 ? 'var(--brand-teal)' : '#f43f5e' }}
+                    />
+                  </div>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-zinc-700 tabular-nums">{fmt(p.total_ventas)}</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className={`text-sm font-semibold tabular-nums ${p.ganancia >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {fmt(p.ganancia)}
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.margen_pct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                    {p.margen_pct}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Alertas ── */}
       {((alertas?.stock_bajo_count ?? 0) > 0 || (alertas?.proximos_vencer_count ?? 0) > 0) && (

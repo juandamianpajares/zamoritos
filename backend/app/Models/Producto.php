@@ -13,17 +13,20 @@ class Producto extends Model
 
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'categoria_id',
-        'peso', 'unidad_medida', 'precio_venta', 'stock', 'activo',
+        'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock',
+        'activo', 'notificar_stock_bajo',
         'fraccionado_de', 'en_promo', 'precio_promo', 'foto',
     ];
 
     protected $casts = [
-        'precio_venta' => 'float',
-        'stock'        => 'float',
-        'peso'         => 'float',
-        'activo'       => 'boolean',
-        'en_promo'     => 'boolean',
-        'precio_promo' => 'float',
+        'precio_venta'          => 'float',
+        'precio_compra'         => 'float',
+        'stock'                 => 'float',
+        'peso'                  => 'float',
+        'activo'                => 'boolean',
+        'notificar_stock_bajo'  => 'boolean',
+        'en_promo'              => 'boolean',
+        'precio_promo'          => 'float',
     ];
 
     public function fraccionadoDe(): BelongsTo

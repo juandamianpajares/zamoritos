@@ -47,8 +47,10 @@ export interface Producto {
   peso?: number;
   unidad_medida: string;
   precio_venta: number;
+  precio_compra?: number;
   stock: number;
   activo: boolean;
+  notificar_stock_bajo?: boolean;
   fraccionado_de?: number;
   en_promo?: boolean;
   precio_promo?: number;
@@ -196,4 +198,22 @@ export interface VentasSemanaItem {
   fecha: string;
   total: number;
   cantidad: number;
+}
+
+export interface GananciaProveedorItem {
+  proveedor: string;
+  total_ventas: number;
+  total_costo: number;
+  ganancia: number;
+  margen_pct: number;
+}
+
+export interface GananciaDashboard {
+  periodo: string;
+  desde: string;
+  total_ventas: number;
+  total_costo: number;
+  ganancia_neta: number;
+  margen_pct: number;
+  por_proveedor: GananciaProveedorItem[];
 }

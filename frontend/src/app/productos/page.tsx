@@ -10,7 +10,7 @@ function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
-  unidad_medida: 'unidad', peso: '', precio_venta: '', stock: '',
+  unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
@@ -96,7 +96,9 @@ export default function ProductosPage() {
     setForm({
       nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
       categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
-      peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta), stock: String(p.stock),
+      peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
+      precio_compra: p.precio_compra != null ? String(p.precio_compra) : '',
+      stock: String(p.stock),
     });
     setError('');
     setFotoFile(null);
@@ -121,6 +123,7 @@ export default function ProductosPage() {
       unidad_medida: form.unidad_medida,
       peso: form.peso ? Number(form.peso) : null,
       precio_venta: Number(form.precio_venta),
+      precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
       stock: form.stock ? Number(form.stock) : undefined,
     };
     try {
@@ -191,7 +194,7 @@ export default function ProductosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'Precio', 'Stock', 'Unidad', ''].map((h, i) => (
+                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'P. Venta', 'P. Compra', 'Stock', 'Unidad', ''].map((h, i) => (
                     <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -224,6 +227,9 @@ export default function ProductosPage() {
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3 font-medium tabular-nums">${p.precio_venta.toLocaleString('es-CL')}</td>
+                    <td className="px-4 py-3 text-zinc-500 tabular-nums text-sm">
+                      {p.precio_compra != null ? `$${p.precio_compra.toLocaleString('es-CL')}` : '—'}
+                    </td>
                     <td className="px-4 py-3 tabular-nums">
                       <span className={`font-semibold ${p.stock <= 0 ? 'text-rose-600' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
                         {p.stock}
@@ -237,7 +243,7 @@ export default function ProductosPage() {
                   </tr>
                 ))}
                 {productos.length === 0 && (
-                  <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos registrados</td></tr>
+                  <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos registrados</td></tr>
                 )}
               </tbody>
             </table>
@@ -341,6 +347,11 @@ export default function ProductosPage() {
             <div>
               <label className={label}>Precio de venta *</label>
               <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+            </div>
+            <div>
+              <label className={label}>Precio de compra</label>
+              <input type="number" step="1" min="0" value={form.precio_compra} onChange={f('precio_compra')}
+                placeholder="Costo de referencia" className={input} />
             </div>
             {!editId && (
               <div>
