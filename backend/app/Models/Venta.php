@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Venta extends Model
 {
     protected $fillable = [
-        'fecha', 'tipo_pago', 'medio_pago',
+        'fecha', 'tipo_pago', 'medio_pago', 'medios_pago',
         'receptor_nombre', 'receptor_rut', 'moneda',
         'subtotal', 'descuento', 'total',
         'estado', 'tipo_comprobante', 'kitfe_id',
@@ -16,10 +16,11 @@ class Venta extends Model
     ];
 
     protected $casts = [
-        'fecha'     => 'datetime',
-        'subtotal'  => 'float',
-        'descuento' => 'float',
-        'total'     => 'float',
+        'fecha'       => 'datetime',
+        'subtotal'    => 'float',
+        'descuento'   => 'float',
+        'total'       => 'float',
+        'medios_pago' => 'array',
     ];
 
     public function detalles(): HasMany

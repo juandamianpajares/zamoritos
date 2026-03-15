@@ -39,6 +39,7 @@ class ProveedorController extends Controller
             'email'     => 'nullable|email',
             'direccion' => 'nullable|string',
             'contacto'  => 'nullable|string',
+            'notas'     => 'nullable|string',
         ]);
 
         return response()->json(Proveedor::create($data), 201);
@@ -53,6 +54,7 @@ class ProveedorController extends Controller
             'email'     => 'nullable|email',
             'direccion' => 'nullable|string',
             'contacto'  => 'nullable|string',
+            'notas'     => 'nullable|string',
         ]);
 
         $proveedor->update($data);

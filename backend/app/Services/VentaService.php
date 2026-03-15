@@ -40,10 +40,19 @@ class VentaService
             $subtotal = collect($data['detalles'])
                 ->sum(fn($d) => $d['cantidad'] * $d['precio_unitario']);
 
+            // Pago combinado: derivar medio_pago legible de la lista
+            $mediosPago = $data['medios_pago'] ?? null;
+            if ($mediosPago) {
+                $medioPago = collect($mediosPago)->pluck('medio')->join(', ');
+            } else {
+                $medioPago = $data['medio_pago'] ?? null;
+            }
+
             $venta = Venta::create([
                 'fecha'           => $data['fecha'],
                 'tipo_pago'       => $data['tipo_pago'],
-                'medio_pago'      => $data['medio_pago'] ?? null,
+                'medio_pago'      => $medioPago,
+                'medios_pago'     => $mediosPago,
                 'receptor_nombre' => $data['receptor_nombre'] ?? null,
                 'moneda'          => 'UYU',
                 'subtotal'        => $subtotal,

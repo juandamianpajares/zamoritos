@@ -72,6 +72,7 @@ export interface Proveedor {
   email?: string;
   direccion?: string;
   contacto?: string;
+  notas?: string;
   activo: boolean;
 }
 
@@ -129,11 +130,17 @@ export interface DetalleVenta {
   subtotal: number;
 }
 
+export interface MedioPagoItem {
+  medio: string;
+  monto: number;
+}
+
 export interface Venta {
   id: number;
   fecha: string;
   tipo_pago: 'contado' | 'credito';
   medio_pago?: string;
+  medios_pago?: MedioPagoItem[];
   receptor_nombre?: string;
   moneda: string;
   subtotal: number;

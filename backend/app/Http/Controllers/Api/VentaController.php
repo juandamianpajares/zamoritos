@@ -42,7 +42,10 @@ class VentaController extends Controller
         $data = $request->validate([
             'fecha'                          => 'required|date',
             'tipo_pago'                      => 'required|in:contado,credito',
-            'medio_pago'                     => 'nullable|string|max:50',
+            'medio_pago'                     => 'nullable|string|max:100',
+            'medios_pago'                    => 'nullable|array|min:1',
+            'medios_pago.*.medio'            => 'required_with:medios_pago|string',
+            'medios_pago.*.monto'            => 'required_with:medios_pago|numeric|min:0',
             'receptor_nombre'                => 'nullable|string|max:200',
             'usuario'                        => 'nullable|string|max:100',
             'observacion'                    => 'nullable|string',

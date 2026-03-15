@@ -116,6 +116,8 @@ function POSPanel() {
   const [carrito, setCarrito]         = useState<LineaCarrito[]>([]);
   const [tipoPago, setTipoPago]       = useState<'contado' | 'credito'>('contado');
   const [medioPago, setMedioPago]     = useState<MedioPago>('efectivo');
+  const [modoPago, setModoPago]       = useState<'unico' | 'combinado'>('unico');
+  const [pagos, setPagos]             = useState<PagoLinea[]>([]);
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState('');
   const [submitting, setSubmitting]   = useState(false);
@@ -187,22 +189,45 @@ function POSPanel() {
 
   const confirmarVenta = async () => {
     if (carrito.length === 0) return;
+
+    // Validar pago combinado
+    if (modoPago === 'combinado') {
+      const sumPagos = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+      if (Math.abs(sumPagos - total) > 0.01) {
+        setError(`Los pagos suman ${fmt(sumPagos)} pero el total es ${fmt(total)}.`);
+        return;
+      }
+      if (pagos.length === 0) {
+        setError('Agregá al menos un medio de pago.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     setError('');
     try {
-      await api.post<Venta>('/ventas', {
-        fecha:      new Date().toISOString().slice(0, 10),
-        tipo_pago:  tipoPago,
-        medio_pago: medioPago,
-        detalles:   carrito.map(l => ({
+      const body: Record<string, unknown> = {
+        fecha:     new Date().toISOString().slice(0, 10),
+        tipo_pago: tipoPago,
+        detalles:  carrito.map(l => ({
           producto_id:     l.producto.id,
           cantidad:        l.cantidad,
           precio_unitario: l.precio_unitario,
         })),
-      });
+      };
+
+      if (modoPago === 'combinado' && pagos.length > 0) {
+        body.medios_pago = pagos.map(p => ({ medio: p.medio, monto: parseFloat(p.monto) || 0 }));
+      } else {
+        body.medio_pago = medioPago;
+      }
+
+      await api.post<Venta>('/ventas', body);
       setSuccess(`Venta registrada · ${fmt(total)}`);
       setCarrito([]);
       setCartOpen(false);
+      setModoPago('unico');
+      setPagos([]);
       recargarProductos();
       setTimeout(() => setSuccess(''), 4000);
     } catch (e: unknown) {
@@ -441,6 +466,8 @@ function POSPanel() {
           total={total}
           tipoPago={tipoPago}
           medioPago={medioPago}
+          modoPago={modoPago}
+          pagos={pagos}
           submitting={submitting}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
@@ -448,6 +475,8 @@ function POSPanel() {
           onVaciar={vaciarCarrito}
           onTipoPago={setTipoPago}
           onMedioPago={(v) => setMedioPago(v as MedioPago)}
+          onModoPago={setModoPago}
+          onSetPagos={setPagos}
           onConfirmar={confirmarVenta}
         />
         </div>
@@ -510,6 +539,8 @@ function POSPanel() {
           total={total}
           tipoPago={tipoPago}
           medioPago={medioPago}
+          modoPago={modoPago}
+          pagos={pagos}
           submitting={submitting}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
@@ -517,6 +548,8 @@ function POSPanel() {
           onVaciar={vaciarCarrito}
           onTipoPago={setTipoPago}
           onMedioPago={(v) => setMedioPago(v as MedioPago)}
+          onModoPago={setModoPago}
+          onSetPagos={setPagos}
           onConfirmar={() => { confirmarVenta(); }}
         />
       </Modal>
@@ -526,11 +559,18 @@ function POSPanel() {
 
 // ─── Carrito Panel ─────────────────────────────────────────────────────────────
 
+interface PagoLinea {
+  medio: MedioPago;
+  monto: string; // string para permitir edición parcial
+}
+
 interface CarritoPanelProps {
   carrito:           LineaCarrito[];
   total:             number;
   tipoPago:          'contado' | 'credito';
   medioPago:         string;
+  modoPago:          'unico' | 'combinado';
+  pagos:             PagoLinea[];
   submitting:        boolean;
   onCambiarCantidad: (id: number, delta: number) => void;
   onCambiarPrecio:   (id: number, precio: string) => void;
@@ -538,14 +578,42 @@ interface CarritoPanelProps {
   onVaciar:          () => void;
   onTipoPago:        (v: 'contado' | 'credito') => void;
   onMedioPago:       (v: string) => void;
+  onModoPago:        (v: 'unico' | 'combinado') => void;
+  onSetPagos:        (p: PagoLinea[]) => void;
   onConfirmar:       () => void;
 }
 
 const CarritoPanel = memo(function CarritoPanel({
-  carrito, total, tipoPago, medioPago, submitting,
-  onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar, onTipoPago, onMedioPago, onConfirmar,
+  carrito, total, tipoPago, medioPago, modoPago, pagos, submitting,
+  onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar,
+  onTipoPago, onMedioPago, onModoPago, onSetPagos, onConfirmar,
 }: CarritoPanelProps) {
   const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
+  const sumPagos   = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const restante   = Math.max(0, total - sumPagos);
+  const pagoOk     = modoPago === 'unico' || Math.abs(sumPagos - total) < 0.01;
+
+  const addPago = () => {
+    const medioDisponible = MEDIOS_PAGO.find(m => !pagos.some(p => p.medio === m.value))?.value ?? 'efectivo';
+    onSetPagos([...pagos, { medio: medioDisponible, monto: String(restante > 0 ? restante : '') }]);
+  };
+
+  const removePago = (idx: number) => onSetPagos(pagos.filter((_, i) => i !== idx));
+
+  const updatePago = (idx: number, field: 'medio' | 'monto', value: string) =>
+    onSetPagos(pagos.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+
+  const completarConRestante = (idx: number) =>
+    onSetPagos(pagos.map((p, i) => i === idx ? { ...p, monto: String(restante + (parseFloat(p.monto) || 0)) } : p));
+
+  // When switching to combined, pre-populate with current single method
+  const handleModoPago = (v: 'unico' | 'combinado') => {
+    if (v === 'combinado' && pagos.length === 0) {
+      onSetPagos([{ medio: medioPago as MedioPago, monto: String(total) }]);
+    }
+    if (v === 'unico') onSetPagos([]);
+    onModoPago(v);
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -674,25 +742,100 @@ const CarritoPanel = memo(function CarritoPanel({
 
         {/* Medio de pago */}
         <div>
-          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
-          <div className="grid grid-cols-4 gap-1">
-            {MEDIOS_PAGO.map(m => (
-              <button
-                key={m.value}
-                onClick={() => onMedioPago(m.value)}
-                title={m.label}
-                className={`flex flex-col items-center gap-0.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
-                  medioPago === m.value
-                    ? 'text-white border-transparent'
-                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
-                }`}
-                style={medioPago === m.value ? { background: 'var(--brand-teal)', borderColor: 'var(--brand-teal)' } : {}}
-              >
-                {m.icon}
-                <span className="text-[9px] leading-none">{m.label}</span>
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">Medio de pago</p>
+            <button
+              onClick={() => handleModoPago(modoPago === 'unico' ? 'combinado' : 'unico')}
+              className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                modoPago === 'combinado'
+                  ? 'bg-violet-50 text-violet-700 border-violet-200'
+                  : 'text-zinc-400 border-zinc-200 hover:border-zinc-300 bg-white'
+              }`}
+            >
+              {modoPago === 'combinado' ? '✓ Pago combinado' : 'Dividir pago'}
+            </button>
           </div>
+
+          {modoPago === 'unico' ? (
+            <div className="grid grid-cols-4 gap-1">
+              {MEDIOS_PAGO.map(m => (
+                <button
+                  key={m.value}
+                  onClick={() => onMedioPago(m.value)}
+                  title={m.label}
+                  className={`flex flex-col items-center gap-0.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
+                    medioPago === m.value
+                      ? 'text-white border-transparent'
+                      : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
+                  }`}
+                  style={medioPago === m.value ? { background: 'var(--brand-teal)', borderColor: 'var(--brand-teal)' } : {}}
+                >
+                  {m.icon}
+                  <span className="text-[9px] leading-none">{m.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {pagos.map((pago, idx) => {
+                const pagoRestante = total - pagos.reduce((s, p, i) => i !== idx ? s + (parseFloat(p.monto) || 0) : s, 0);
+                return (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <select
+                      value={pago.medio}
+                      onChange={e => updatePago(idx, 'medio', e.target.value)}
+                      className="flex-1 text-xs border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
+                    >
+                      {MEDIOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pago.monto}
+                        onChange={e => updatePago(idx, 'monto', e.target.value)}
+                        className="w-24 pl-5 pr-1 py-1.5 text-xs border border-zinc-200 rounded-lg focus:outline-none focus:border-violet-400 tabular-nums"
+                      />
+                    </div>
+                    {pagoRestante > 0.01 && (
+                      <button
+                        onClick={() => completarConRestante(idx)}
+                        title={`Completar con ${fmt(pagoRestante)}`}
+                        className="text-[9px] text-violet-600 border border-violet-200 rounded-lg px-1.5 py-1.5 hover:bg-violet-50 whitespace-nowrap"
+                      >
+                        +{fmt(pagoRestante)}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => removePago(idx)}
+                      className="text-zinc-300 hover:text-rose-400 transition-colors shrink-0"
+                    >
+                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/>
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                onClick={addPago}
+                disabled={pagos.length >= MEDIOS_PAGO.length}
+                className="w-full py-1.5 text-xs text-violet-600 border border-dashed border-violet-200 rounded-lg hover:bg-violet-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                + Agregar método
+              </button>
+              {/* Balance */}
+              {pagos.length > 0 && (
+                <div className={`flex justify-between text-xs px-1 font-semibold ${
+                  Math.abs(sumPagos - total) < 0.01 ? 'text-emerald-600' : restante > 0 ? 'text-amber-600' : 'text-rose-600'
+                }`}>
+                  <span>{Math.abs(sumPagos - total) < 0.01 ? '✓ Saldo cubierto' : restante > 0 ? `Faltan ${fmt(restante)}` : `Excede ${fmt(sumPagos - total)}`}</span>
+                  <span>{fmt(sumPagos)} / {fmt(total)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Total */}
@@ -706,9 +849,9 @@ const CarritoPanel = memo(function CarritoPanel({
         {/* Botón confirmar */}
         <button
           onClick={onConfirmar}
-          disabled={carrito.length === 0 || submitting}
+          disabled={carrito.length === 0 || submitting || !pagoOk}
           className="w-full py-4 font-bold text-base rounded-2xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed text-white"
-          style={{ background: carrito.length > 0 && !submitting ? 'var(--brand-teal)' : '#9ca3af' }}
+          style={{ background: carrito.length > 0 && !submitting && pagoOk ? 'var(--brand-teal)' : '#9ca3af' }}
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2">
@@ -774,11 +917,24 @@ function FraccionarModal({
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-0.5">Producto origen</p>
           <p className="text-sm font-semibold text-zinc-900 leading-snug">{producto.nombre}</p>
           <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
-            <span>Stock: <strong className="text-zinc-800">{producto.stock} bolsas</strong></span>
+            <span>Stock: <strong className="text-zinc-800">{producto.stock} bolsa{producto.stock !== 1 ? 's' : ''}</strong></span>
             <span>·</span>
             <span>Peso: <strong className="text-zinc-800">{pesoKg} kg/bolsa</strong></span>
           </div>
         </div>
+
+        {/* Aviso cuando es la última bolsa */}
+        {bolsas >= producto.stock && (
+          <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
+            <svg className="text-rose-400 shrink-0 mt-0.5" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p className="text-xs text-rose-700">
+              Estás fraccionando la{producto.stock === 1 ? '' : 's'} última{producto.stock === 1 ? '' : 's'} bolsa{producto.stock === 1 ? '' : 's'}.
+              El stock quedará en <strong>0</strong> después de esta operación.
+            </p>
+          </div>
+        )}
 
         {/* Cantidad de bolsas */}
         <div>

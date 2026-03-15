@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, type Proveedor } from '@/lib/api';
 import Modal from '@/components/Modal';
 
-const emptyForm = { nombre: '', rut: '', telefono: '', email: '', direccion: '', contacto: '' };
+const emptyForm = { nombre: '', rut: '', telefono: '', email: '', direccion: '', contacto: '', notas: '' };
 
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const label = 'block text-xs font-medium text-zinc-500 mb-1.5';
@@ -31,7 +31,8 @@ export default function ProveedoresPage() {
   const openEdit = (p: Proveedor) => {
     setEditId(p.id);
     setForm({ nombre: p.nombre, rut: p.rut ?? '', telefono: p.telefono ?? '',
-              email: p.email ?? '', direccion: p.direccion ?? '', contacto: p.contacto ?? '' });
+              email: p.email ?? '', direccion: p.direccion ?? '', contacto: p.contacto ?? '',
+              notas: p.notas ?? '' });
     setError('');
     setModalOpen(true);
   };
@@ -39,7 +40,7 @@ export default function ProveedoresPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const body = { ...form, email: form.email || null, rut: form.rut || null };
+    const body = { ...form, email: form.email || null, rut: form.rut || null, notas: form.notas || null };
     try {
       if (editId) { await api.put(`/proveedores/${editId}`, body); }
       else         { await api.post('/proveedores', body); }
@@ -54,7 +55,7 @@ export default function ProveedoresPage() {
     load();
   };
 
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   return (
@@ -86,7 +87,7 @@ export default function ProveedoresPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', ''].map(h => (
+                  {['Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', 'Notas', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -99,6 +100,11 @@ export default function ProveedoresPage() {
                     <td className="px-4 py-3 text-zinc-500">{p.telefono ?? '—'}</td>
                     <td className="px-4 py-3 text-zinc-500">{p.email ?? '—'}</td>
                     <td className="px-4 py-3 text-zinc-500">{p.contacto ?? '—'}</td>
+                    <td className="px-4 py-3 max-w-xs">
+                      {p.notas ? (
+                        <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{p.notas}</p>
+                      ) : <span className="text-zinc-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => openEdit(p)} className="text-zinc-500 hover:text-zinc-800 text-xs mr-3 transition-colors">Editar</button>
                       <button onClick={() => handleDelete(p.id)} className="text-rose-400 hover:text-rose-600 text-xs transition-colors">Eliminar</button>
@@ -106,7 +112,7 @@ export default function ProveedoresPage() {
                   </tr>
                 ))}
                 {proveedores.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-400">Sin proveedores</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-zinc-400">Sin proveedores</td></tr>
                 )}
               </tbody>
             </table>
@@ -142,6 +148,16 @@ export default function ProveedoresPage() {
             <div className="col-span-2">
               <label className={label}>Dirección</label>
               <input value={form.direccion} onChange={f('direccion')} className={input} />
+            </div>
+            <div className="col-span-2">
+              <label className={label}>Notas / Memo</label>
+              <textarea
+                value={form.notas}
+                onChange={f('notas')}
+                rows={4}
+                placeholder="Condiciones de entrega, precios acordados, observaciones sobre pedidos..."
+                className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400 resize-none leading-relaxed"
+              />
             </div>
           </div>
 

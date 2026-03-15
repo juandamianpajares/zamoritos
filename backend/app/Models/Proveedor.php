@@ -13,7 +13,7 @@ class Proveedor extends Model
     protected $table = 'proveedores';
 
     protected $fillable = [
-        'nombre', 'rut', 'telefono', 'email', 'direccion', 'contacto', 'activo',
+        'nombre', 'rut', 'telefono', 'email', 'direccion', 'contacto', 'notas', 'activo',
     ];
 
     protected $casts = [
