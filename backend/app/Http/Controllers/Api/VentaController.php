@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MovimientoStock;
+use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\VentaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class VentaController extends Controller
 {
@@ -64,5 +68,94 @@ class VentaController extends Controller
     {
         $venta = $this->ventaService->anular($venta);
         return response()->json($venta);
+    }
+
+    /** Importación masiva desde SICFE (sin deducción de stock) */
+    public function importarSicfe(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ventas'                      => 'required|array|min:1',
+            'ventas.*.fecha'              => 'required|date',
+            'ventas.*.tipo_comprobante'   => 'nullable|string|max:50',
+            'ventas.*.receptor_nombre'    => 'nullable|string|max:200',
+            'ventas.*.total'              => 'required|numeric|min:0',
+            'ventas.*.medio_pago'         => 'nullable|string|max:50',
+        ]);
+
+        $creadas = 0;
+        foreach ($data['ventas'] as $v) {
+            Venta::create([
+                'fecha'             => $v['fecha'],
+                'tipo_pago'         => 'contado',
+                'medio_pago'        => $v['medio_pago'] ?? 'sicfe',
+                'tipo_comprobante'  => $v['tipo_comprobante'] ?? 'e-Ticket',
+                'receptor_nombre'   => $v['receptor_nombre'] ?? null,
+                'moneda'            => 'UYU',
+                'subtotal'          => $v['total'],
+                'descuento'         => 0,
+                'total'             => $v['total'],
+                'estado'            => 'confirmada',
+            ]);
+            $creadas++;
+        }
+
+        return response()->json(['importadas' => $creadas]);
+    }
+
+    /** Devolución parcial de una venta */
+    public function devolucion(Request $request, Venta $venta): JsonResponse
+    {
+        if ($venta->estado !== 'confirmada') {
+            throw ValidationException::withMessages(['estado' => 'La venta no está confirmada.']);
+        }
+
+        $data = $request->validate([
+            'detalles'               => 'required|array|min:1',
+            'detalles.*.producto_id' => 'required|exists:productos,id',
+            'detalles.*.cantidad'    => 'required|numeric|min:0.001',
+        ]);
+
+        return DB::transaction(function () use ($venta, $data) {
+            $venta->load('detalles');
+            $detallesOrig = $venta->detalles->keyBy('producto_id');
+            $totalDevuelto = 0;
+
+            foreach ($data['detalles'] as $d) {
+                $detOrig = $detallesOrig->get($d['producto_id']);
+                if (!$detOrig) continue;
+
+                $precio = $detOrig->precio_unitario;
+                $totalDevuelto += $d['cantidad'] * $precio;
+
+                $producto = Producto::findOrFail($d['producto_id']);
+                $producto->increment('stock', $d['cantidad']);
+
+                MovimientoStock::create([
+                    'producto_id' => $d['producto_id'],
+                    'tipo'        => 'ajuste',
+                    'cantidad'    => $d['cantidad'],
+                    'referencia'  => 'devolucion venta #' . $venta->id,
+                    'observacion' => 'Mercadería devuelta',
+                ]);
+            }
+
+            $devolucion = Venta::create([
+                'fecha'             => now()->toDateTimeString(),
+                'tipo_pago'         => $venta->tipo_pago,
+                'medio_pago'        => $venta->medio_pago,
+                'tipo_comprobante'  => 'devolucion',
+                'moneda'            => 'UYU',
+                'subtotal'          => -$totalDevuelto,
+                'descuento'         => 0,
+                'total'             => -$totalDevuelto,
+                'estado'            => 'confirmada',
+                'observacion'       => 'Devolución parcial de venta #' . $venta->id,
+            ]);
+
+            return response()->json([
+                'total_devuelto' => round($totalDevuelto, 2),
+                'devolucion_id'  => $devolucion->id,
+            ]);
+        });
     }
 }

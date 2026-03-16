@@ -31,7 +31,9 @@ Route::get('stock/bajo', [StockController::class, 'bajo']);
 
 Route::get('lotes', [LoteController::class, 'index']);
 
-Route::get('ventas',                  [VentaController::class, 'index']);
-Route::post('ventas',                 [VentaController::class, 'store']);
-Route::get('ventas/{venta}',          [VentaController::class, 'show']);
-Route::patch('ventas/{venta}/anular', [VentaController::class, 'anular']);
+Route::get('ventas',                        [VentaController::class, 'index']);
+Route::post('ventas',                       [VentaController::class, 'store']);
+Route::post('ventas/importar-sicfe',        [VentaController::class, 'importarSicfe']);
+Route::get('ventas/{venta}',               [VentaController::class, 'show']);
+Route::patch('ventas/{venta}/anular',      [VentaController::class, 'anular']);
+Route::post('ventas/{venta}/devolucion',   [VentaController::class, 'devolucion']);

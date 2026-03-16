@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 
@@ -884,13 +884,29 @@ function FraccionarModal({
   onDone: (r: FraccionarResult) => void;
 }) {
   const pesoKg          = producto.peso ?? 1;
+  const precioCompraKg  = producto.precio_compra != null ? producto.precio_compra / pesoKg : null;
   const precioSugerido  = Math.ceil(producto.precio_venta / pesoKg);
   const codigoAnexo     = (producto.codigo_barras ?? '').replace(/\*$/, '') + '-F';
 
-  const [bolsas,   setBolsas]   = useState(1);
-  const [precio,   setPrecio]   = useState(precioSugerido);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  // % ganancia inicial derivada de precio_venta vs precio_compra (si existe)
+  const pctInicial = precioCompraKg
+    ? Math.round(((precioSugerido / precioCompraKg) - 1) * 100)
+    : 30;
+
+  const [bolsas,       setBolsas]      = useState(1);
+  const [precio,       setPrecio]      = useState(precioSugerido);
+  const [pctGanancia,  setPctGanancia] = useState(pctInicial);
+  const [usarPct,      setUsarPct]     = useState(!!precioCompraKg);
+  const [loading,      setLoading]     = useState(false);
+  const [error,        setError]       = useState('');
+
+  // Cuando cambia %, recalcular precio desde costo/kg
+  const handlePct = (pct: number) => {
+    setPctGanancia(pct);
+    if (precioCompraKg && usarPct) {
+      setPrecio(Math.ceil(precioCompraKg * (1 + pct / 100)));
+    }
+  };
 
   const kgGenerados = bolsas * pesoKg;
 
@@ -974,31 +990,74 @@ function FraccionarModal({
           </div>
         </div>
 
-        {/* Precio fraccionado */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-semibold text-zinc-600">Precio por kg</label>
-            <button
-              onClick={() => setPrecio(precioSugerido)}
-              className="text-[10px] text-amber-600 hover:underline"
-            >
-              Sugerido: {fmt(precioSugerido)}/kg
-            </button>
+        {/* Precio fraccionado + % ganancia */}
+        <div className="space-y-3">
+          {/* Costo de compra por kg */}
+          {precioCompraKg != null && (
+            <div className="bg-zinc-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-zinc-500">Costo compra/kg</span>
+              <span className="text-sm font-bold text-zinc-700 tabular-nums">{fmt(precioCompraKg)}/kg</span>
+            </div>
+          )}
+
+          {/* % ganancia (solo si hay precio_compra) */}
+          {precioCompraKg != null && (
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 block mb-1.5">
+                % Ganancia
+                <span className="text-zinc-400 font-normal ml-1">(sobre costo)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={1} max={200} value={pctGanancia}
+                  onChange={e => handlePct(Number(e.target.value))}
+                  className="flex-1 accent-amber-500"
+                />
+                <div className="flex items-center border border-zinc-200 rounded-lg overflow-hidden">
+                  <input
+                    type="number" min={1} max={200} value={pctGanancia}
+                    onChange={e => handlePct(Number(e.target.value))}
+                    className="w-14 text-center text-sm font-bold py-1.5 focus:outline-none"
+                  />
+                  <span className="px-2 text-xs text-zinc-400 bg-zinc-50 border-l border-zinc-200 py-1.5">%</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-zinc-600">Precio por kg</label>
+              <button
+                onClick={() => setPrecio(precioSugerido)}
+                className="text-[10px] text-amber-600 hover:underline"
+              >
+                Desde precio bolsa: {fmt(precioSugerido)}/kg
+              </button>
+            </div>
+            <div className="flex items-center gap-2 border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-amber-400 transition-colors">
+              <span className="text-sm text-zinc-400 font-medium">$</span>
+              <input
+                type="number" min={0} value={precio}
+                onChange={e => { setPrecio(Number(e.target.value)); setUsarPct(false); }}
+                className="flex-1 text-base font-bold focus:outline-none bg-transparent"
+              />
+              <span className="text-xs text-zinc-400">/kg</span>
+            </div>
+            {precioCompraKg != null && precio > 0 && (
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Margen real: <strong className={`${((precio / precioCompraKg - 1) * 100) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {Math.round((precio / precioCompraKg - 1) * 100)}%
+                </strong>
+                {' · '}Total inventario: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong>
+              </p>
+            )}
+            {precioCompraKg == null && (
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Total a generar: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong> en inventario
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-2 border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-amber-400 transition-colors">
-            <span className="text-sm text-zinc-400 font-medium">$</span>
-            <input
-              type="number"
-              min={0}
-              value={precio}
-              onChange={e => setPrecio(Number(e.target.value))}
-              className="flex-1 text-base font-bold focus:outline-none bg-transparent"
-            />
-            <span className="text-xs text-zinc-400">/kg</span>
-          </div>
-          <p className="text-[10px] text-zinc-400 mt-1">
-            Total a generar: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong> en inventario
-          </p>
         </div>
 
         {error && (
@@ -1036,19 +1095,39 @@ function FraccionarModal({
 
 // ─── Historial ────────────────────────────────────────────────────────────────
 
+type Periodo = 'hoy' | 'semana' | 'mes' | 'todo';
+
 function HistorialPanel() {
-  const [ventas, setVentas]     = useState<Venta[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [detalle, setDetalle]   = useState<Venta | null>(null);
-  const [anulando, setAnulando] = useState<number | null>(null);
+  const [ventas,          setVentas]          = useState<Venta[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [detalle,         setDetalle]         = useState<Venta | null>(null);
+  const [anulando,        setAnulando]        = useState<number | null>(null);
+  const [periodo,         setPeriodo]         = useState<Periodo>('hoy');
+  const [sicfeOpen,       setSicfeOpen]       = useState(false);
+  const [devolucionVenta, setDevolucionVenta] = useState<Venta | null>(null);
+
+  const getParams = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+    switch (periodo) {
+      case 'hoy':    return `?fecha_desde=${today}&fecha_hasta=${today}`;
+      case 'semana': return `?fecha_desde=${weekStart.toISOString().slice(0,10)}&fecha_hasta=${today}`;
+      case 'mes':    return `?fecha_desde=${monthStart.toISOString().slice(0,10)}&fecha_hasta=${today}`;
+      default:       return '';
+    }
+  };
 
   const load = () => {
     setLoading(true);
-    api.get<VentasPaginado>('/ventas')
+    api.get<VentasPaginado>(`/ventas${getParams()}`)
       .then(r => { setVentas(r.data); setLoading(false); });
   };
 
-  useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [periodo]);
 
   const verDetalle = async (id: number) => {
     const v = await api.get<Venta>(`/ventas/${id}`);
@@ -1081,21 +1160,73 @@ function HistorialPanel() {
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl h-full overflow-y-auto">
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Historial de ventas</h2>
-          <p className="text-sm text-zinc-400 mt-0.5">{ventas.length} ventas registradas</p>
+          <p className="text-sm text-zinc-400 mt-0.5">{ventas.length} ventas en el período</p>
         </div>
-        <button
-          onClick={load}
-          className="text-xs text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors"
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSicfeOpen(true)}
+            className="text-xs text-violet-600 hover:text-violet-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-200 hover:border-violet-300 bg-violet-50 transition-colors"
+          >
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Importar SICFE
+          </button>
+          <button
+            onClick={load}
+            className="text-xs text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 hover:border-zinc-300 transition-colors"
+          >
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      {/* Period filter */}
+      <div className="flex gap-1 mb-4 bg-zinc-100 p-1 rounded-xl w-fit">
+        {([
+          { key: 'hoy',    label: 'Hoy' },
+          { key: 'semana', label: 'Semana' },
+          { key: 'mes',    label: 'Mes' },
+          { key: 'todo',   label: 'Todo' },
+        ] as { key: Periodo; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setPeriodo(key)}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-[9px] transition-colors ${
+              periodo === key
+                ? 'bg-white text-zinc-900 shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary */}
+      {!loading && ventas.length > 0 && (() => {
+        const confirmadas = ventas.filter(v => v.estado === 'confirmada');
+        const totalSum = confirmadas.reduce((s, v) => s + v.total, 0);
+        return (
+          <div className="flex gap-3 mb-4">
+            <div className="bg-white border border-zinc-100 rounded-xl px-4 py-2.5 text-center">
+              <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Ventas</p>
+              <p className="text-lg font-bold text-zinc-800 tabular-nums">{confirmadas.length}</p>
+            </div>
+            <div className="bg-white border border-zinc-100 rounded-xl px-4 py-2.5 text-center">
+              <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Total</p>
+              <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(totalSum)}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
@@ -1108,7 +1239,7 @@ function HistorialPanel() {
             <svg className="text-zinc-200 mx-auto mb-3" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v36a2 2 0 0 0 2 2h28a2 2 0 0 0 2-2V14z"/><polyline points="14 2 14 14 26 14"/>
             </svg>
-            <p className="text-sm text-zinc-400">Sin ventas registradas</p>
+            <p className="text-sm text-zinc-400">Sin ventas en el período</p>
           </div>
         ) : (
           <>
@@ -1149,10 +1280,18 @@ function HistorialPanel() {
                           {v.estado}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right space-x-3">
+                      <td className="px-4 py-3 text-right space-x-2">
                         <button onClick={() => verDetalle(v.id)} className="text-zinc-400 hover:text-zinc-800 text-xs transition-colors">
                           Ver
                         </button>
+                        {v.estado === 'confirmada' && v.tipo_comprobante !== 'devolucion' && (
+                          <button
+                            onClick={() => setDevolucionVenta(v)}
+                            className="text-amber-500 hover:text-amber-700 text-xs transition-colors"
+                          >
+                            Devolución
+                          </button>
+                        )}
                         {v.estado === 'confirmada' && (
                           <button
                             onClick={() => anularVenta(v.id)}
@@ -1196,6 +1335,9 @@ function HistorialPanel() {
                       <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(v.total)}</p>
                       <div className="flex gap-2 mt-1 justify-end">
                         <button onClick={() => verDetalle(v.id)} className="text-xs text-zinc-400 hover:text-zinc-700">Ver</button>
+                        {v.estado === 'confirmada' && v.tipo_comprobante !== 'devolucion' && (
+                          <button onClick={() => setDevolucionVenta(v)} className="text-xs text-amber-500 hover:text-amber-700">Dev.</button>
+                        )}
                         {v.estado === 'confirmada' && (
                           <button
                             onClick={() => anularVenta(v.id)}
@@ -1257,6 +1399,13 @@ function HistorialPanel() {
               </table>
             </div>
 
+            {detalle.observacion && (
+              <div className="bg-zinc-50 rounded-xl px-4 py-3 text-xs text-zinc-600">
+                <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-1">Observación</p>
+                {detalle.observacion}
+              </div>
+            )}
+
             {detalle.kitfe_id && (
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2 text-xs text-emerald-700 flex items-center gap-2">
                 <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 6 5 10 11 2"/></svg>
@@ -1266,6 +1415,320 @@ function HistorialPanel() {
           </div>
         </Modal>
       )}
+
+      {/* SICFE Import Modal */}
+      {sicfeOpen && (
+        <SICFEImportModal onClose={() => setSicfeOpen(false)} onDone={() => { setSicfeOpen(false); load(); }} />
+      )}
+
+      {/* Devolución Modal */}
+      {devolucionVenta && (
+        <DevolucionModal
+          venta={devolucionVenta}
+          onClose={() => setDevolucionVenta(null)}
+          onDone={() => { setDevolucionVenta(null); load(); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── SICFE Import Modal ───────────────────────────────────────────────────────
+
+interface SicfeRow {
+  fecha: string;
+  tipo_comprobante: string;
+  receptor_nombre: string;
+  total: string;
+  medio_pago: string;
+}
+
+function SICFEImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [rows,     setRows]     = useState<SicfeRow[]>([]);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [imported, setImported] = useState<number | null>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const parsed: SicfeRow[] = [];
+      for (const line of lines) {
+        const parts = line.split(/[,;]/).map(p => p.trim().replace(/^"|"$/g, ''));
+        if (parts.length < 2) continue;
+        // Skip header rows (first column is not date-like)
+        if (!/^\d{4}-\d{2}-\d{2}/.test(parts[0]) && !/^\d{2}\/\d{2}\/\d{4}/.test(parts[0])) continue;
+        let fecha = parts[0];
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
+          const [d, m, y] = fecha.split('/');
+          fecha = `${y}-${m}-${d}`;
+        }
+        parsed.push({
+          fecha,
+          tipo_comprobante: parts[1] ?? 'e-Ticket',
+          receptor_nombre:  parts[2] ?? '',
+          total:            parts[3] ?? '0',
+          medio_pago:       parts[4] ?? 'efectivo',
+        });
+      }
+      if (parsed.length === 0) {
+        setError('No se encontraron filas válidas. Formato: fecha, tipo, receptor, total, medio_pago');
+      } else {
+        setError('');
+        setRows(parsed);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const confirmar = async () => {
+    if (rows.length === 0) return;
+    setLoading(true);
+    setError('');
+    try {
+      const ventas = rows.map(r => ({
+        fecha:            r.fecha,
+        tipo_comprobante: r.tipo_comprobante,
+        receptor_nombre:  r.receptor_nombre || undefined,
+        total:            parseFloat(r.total.replace(/\./g, '').replace(',', '.')),
+        medio_pago:       r.medio_pago || 'efectivo',
+      }));
+      const res = await api.post<{ importadas: number }>('/ventas/importar-sicfe', { ventas });
+      setImported(res.importadas);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Error al importar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar desde SICFE" size="lg">
+      <div className="space-y-4">
+        {imported !== null ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <svg width="28" height="28" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <p className="text-lg font-semibold text-zinc-800">{imported} ventas importadas</p>
+            <p className="text-sm text-zinc-400 mt-1">Sin deducción de stock</p>
+            <button onClick={onDone} className="mt-6 px-6 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: 'var(--brand-teal)' }}>
+              Listo
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-zinc-500">
+              Archivo CSV con columnas: <strong>fecha, tipo_comprobante, receptor, total, medio_pago</strong><br />
+              Formatos de fecha: <code className="bg-zinc-100 px-1 rounded">YYYY-MM-DD</code> o <code className="bg-zinc-100 px-1 rounded">DD/MM/YYYY</code>. Separador: coma o punto y coma.
+            </p>
+
+            <label className="flex flex-col items-center gap-2 border-2 border-dashed border-zinc-200 rounded-xl p-6 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+              <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span className="text-sm text-zinc-500">{rows.length > 0 ? `${rows.length} filas cargadas — clic para cambiar` : 'Seleccionar archivo CSV'}</span>
+              <input type="file" accept=".csv,.txt" className="hidden" onChange={handleFile} />
+            </label>
+
+            {error && <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-4 py-2.5 rounded-xl">{error}</div>}
+
+            {rows.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-zinc-100 max-h-56">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-100 bg-zinc-50">
+                      {['Fecha', 'Tipo', 'Receptor', 'Total', 'Medio'].map(h => (
+                        <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} className="border-b border-zinc-50 last:border-0">
+                        <td className="px-3 py-2 tabular-nums">{r.fecha}</td>
+                        <td className="px-3 py-2">{r.tipo_comprobante}</td>
+                        <td className="px-3 py-2 max-w-[100px] truncate">{r.receptor_nombre || '—'}</td>
+                        <td className="px-3 py-2 tabular-nums font-semibold">{r.total}</td>
+                        <td className="px-3 py-2">{r.medio_pago}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+              <button
+                onClick={confirmar}
+                disabled={rows.length === 0 || loading}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
+                style={{ background: 'var(--brand-purple)' }}
+              >
+                {loading ? 'Importando…' : `Importar ${rows.length} ventas`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Devolución Modal ─────────────────────────────────────────────────────────
+
+interface DevolucionLinea {
+  producto_id: number;
+  nombre: string;
+  cantidadMax: number;
+  cantidad: string;
+  precio_unitario: number;
+}
+
+function DevolucionModal({ venta, onClose, onDone }: { venta: Venta; onClose: () => void; onDone: () => void }) {
+  const [lineas,  setLineas]  = useState<DevolucionLinea[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+  const [remito,  setRemito]  = useState<{ total_devuelto: number; devolucion_id: number } | null>(null);
+
+  useEffect(() => {
+    api.get<Venta>(`/ventas/${venta.id}`).then(v => {
+      setLineas((v.detalles ?? []).map(d => ({
+        producto_id:     d.producto_id,
+        nombre:          d.producto?.nombre ?? `Producto #${d.producto_id}`,
+        cantidadMax:     d.cantidad,
+        cantidad:        '0',
+        precio_unitario: d.precio_unitario,
+      })));
+    });
+  }, [venta.id]);
+
+  const updateCantidad = (idx: number, val: string) =>
+    setLineas(prev => prev.map((l, i) => i === idx ? { ...l, cantidad: val } : l));
+
+  const totalDevuelto = lineas.reduce((s, l) => s + (parseFloat(l.cantidad) || 0) * l.precio_unitario, 0);
+
+  const confirmar = async () => {
+    const detalles = lineas
+      .filter(l => (parseFloat(l.cantidad) || 0) > 0)
+      .map(l => ({ producto_id: l.producto_id, cantidad: parseFloat(l.cantidad) }));
+
+    if (detalles.length === 0) { setError('Ingresá al menos una cantidad a devolver.'); return; }
+
+    for (const l of lineas) {
+      if ((parseFloat(l.cantidad) || 0) > l.cantidadMax) {
+        setError(`No podés devolver más de ${l.cantidadMax} de "${l.nombre}".`);
+        return;
+      }
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.post<{ total_devuelto: number; devolucion_id: number }>(`/ventas/${venta.id}/devolucion`, { detalles });
+      setRemito(res);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Error al procesar devolución');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Devolución — Venta #${venta.id}`} size="lg">
+      <div className="space-y-4">
+        {remito ? (
+          <div className="space-y-4">
+            <div className="bg-zinc-50 rounded-xl p-5 font-mono text-xs space-y-2 border border-zinc-100">
+              <p className="font-bold text-sm text-zinc-800 text-center">REMITO DE DEVOLUCIÓN</p>
+              <p className="text-center text-zinc-400">#{remito.devolucion_id} · {new Date().toLocaleDateString('es-CL')}</p>
+              <div className="border-t border-dashed border-zinc-300 pt-2 mt-2 space-y-1">
+                {lineas.filter(l => (parseFloat(l.cantidad) || 0) > 0).map(l => (
+                  <div key={l.producto_id} className="flex justify-between text-zinc-700">
+                    <span>{l.nombre}</span>
+                    <span>{parseFloat(l.cantidad)} × {fmt(l.precio_unitario)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-dashed border-zinc-300 pt-2 flex justify-between font-bold text-zinc-900">
+                <span>TOTAL DEVUELTO</span>
+                <span>{fmt(remito.total_devuelto)}</span>
+              </div>
+              <p className="text-center text-zinc-400 pt-1">Mercadería reintegrada al stock</p>
+            </div>
+            <button onClick={onDone} className="w-full py-3 text-sm font-semibold text-white rounded-xl" style={{ background: 'var(--brand-teal)' }}>
+              Cerrar
+            </button>
+          </div>
+        ) : lineas.length === 0 ? (
+          <div className="py-8 text-center text-sm text-zinc-400">Cargando detalles…</div>
+        ) : (
+          <>
+            <p className="text-xs text-zinc-400">Ingresá la cantidad a devolver por producto (0 = sin devolución).</p>
+            <div className="space-y-2">
+              {lineas.map((l, idx) => (
+                <div key={l.producto_id} className="flex items-center gap-3 bg-zinc-50 rounded-xl px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-800 truncate">{l.nombre}</p>
+                    <p className="text-xs text-zinc-400">{fmt(l.precio_unitario)} · máx {l.cantidadMax}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => updateCantidad(idx, String(Math.max(0, (parseFloat(l.cantidad) || 0) - 1)))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-200 text-zinc-600 hover:bg-zinc-300 font-bold text-base leading-none"
+                    >−</button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={l.cantidadMax}
+                      step={0.001}
+                      value={l.cantidad}
+                      onChange={e => updateCantidad(idx, e.target.value)}
+                      className="w-16 text-center text-sm border border-zinc-200 rounded-lg py-1.5 focus:outline-none focus:border-violet-400 tabular-nums bg-white"
+                    />
+                    <button
+                      onClick={() => updateCantidad(idx, String(Math.min(l.cantidadMax, (parseFloat(l.cantidad) || 0) + 1)))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-200 text-zinc-600 hover:bg-zinc-300 font-bold text-base leading-none"
+                    >+</button>
+                    <button
+                      onClick={() => updateCantidad(idx, String(l.cantidadMax))}
+                      className="text-[9px] text-violet-600 border border-violet-200 rounded-lg px-2 py-1.5 hover:bg-violet-50 whitespace-nowrap"
+                    >Todo</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {totalDevuelto > 0 && (
+              <div className="flex justify-between items-center bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-semibold text-amber-700">Total a devolver</span>
+                <span className="text-base font-bold text-amber-700 tabular-nums">{fmt(totalDevuelto)}</span>
+              </div>
+            )}
+
+            {error && <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-4 py-2.5 rounded-xl">{error}</div>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+              <button
+                onClick={confirmar}
+                disabled={loading || totalDevuelto === 0}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
+                style={{ background: '#f59e0b' }}
+              >
+                {loading ? 'Procesando…' : `Devolver ${fmt(totalDevuelto)}`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
