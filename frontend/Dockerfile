@@ -4,11 +4,12 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 
-# npm install runs at IMAGE BUILD TIME so the named volume is pre-populated
+# Instala dependencias en imagen (pre-popula el volumen node_modules)
 RUN npm install
 
 COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+# Compila en primera ejecución, luego inicia en modo producción
+CMD ["sh", "docker-entrypoint.sh"]

@@ -1,4 +1,6 @@
 services:
+
+  # ── Base de datos ────────────────────────────────────────────────────────────
   db:
     image: mysql:8.0
     container_name: zamoritos_db
@@ -9,6 +11,8 @@ services:
       MYSQL_ROOT_PASSWORD: root_secret
     volumes:
       - db_data:/var/lib/mysql
+    # Puerto expuesto solo para acceso directo (MySQL Workbench, etc.)
+    # Comentar en producción real
     ports:
       - "3306:3306"
     healthcheck:
@@ -19,16 +23,18 @@ services:
     networks:
       - zamoritos
 
+  # ── Backend Laravel (PHP-FPM) ────────────────────────────────────────────────
   backend:
     build: ./backend
     container_name: zamoritos_backend
     volumes:
       - ./backend:/var/www/html
-    ports:
-      - "8000:8000"
+    # Puerto directo para debug/acceso sin nginx. Comentar si no se necesita.
+    # ports:
+    #   - "9000:9000"
     environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
+      APP_ENV: production
+      APP_DEBUG: "false"
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
@@ -38,9 +44,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # Verifica que Laravel está instalado y PHP funciona
+      test: ["CMD-SHELL", "php -r \"require '/var/www/html/vendor/autoload.php'; echo 'ok';\" 2>/dev/null | grep -q ok"]
+      interval: 10s
+      timeout: 15s
+      retries: 30
+      start_period: 180s
     networks:
       - zamoritos
 
+  # ── Frontend Next.js (producción) ───────────────────────────────────────────
   frontend:
     build: ./frontend
     container_name: zamoritos_frontend
@@ -48,12 +62,55 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
       - frontend_next:/app/.next
-    ports:
-      - "3000:3000"
+    # Puerto directo para debug. Comentar si no se necesita.
+    # ports:
+    #   - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      # URL relativa → nginx proxy /api/* al backend. Funciona desde cualquier IP/dominio.
+      NEXT_PUBLIC_API_URL: /api
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 240s
     networks:
       - zamoritos
+
+  # ── Nginx (entrada única: puerto 80) ────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: zamoritos_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Acceso a archivos estáticos de Laravel (storage, public/)
+      - ./backend:/var/www/html:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zamoritos
+
+  # ── Cloudflare Tunnel (opcional - para acceso desde internet sin abrir puertos)
+  # Para activar:
+  #   1. Crea un tunnel en https://one.dash.cloudflare.com/
+  #   2. Copia el token y crea el archivo .env con: CLOUDFLARE_TUNNEL_TOKEN=<token>
+  #   3. Descomenta el servicio y ejecuta: make up
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: zamoritos_tunnel
+  #   command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  #   depends_on:
+  #     - nginx
+  #   networks:
+  #     - zamoritos
+  #   restart: unless-stopped
 
 networks:
   zamoritos:
