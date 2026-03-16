@@ -71,6 +71,7 @@ class ProductoController extends Controller
             'notificar_stock_bajo' => 'nullable|boolean',
             'en_promo'             => 'nullable|boolean',
             'precio_promo'         => 'nullable|numeric|min:0',
+            'foto_url'             => 'nullable|string|max:500',
         ]);
 
         return response()->json(Producto::create($data), 201);
@@ -90,6 +91,7 @@ class ProductoController extends Controller
             'notificar_stock_bajo' => 'nullable|boolean',
             'en_promo'             => 'nullable|boolean',
             'precio_promo'         => 'nullable|numeric|min:0',
+            'foto_url'             => 'nullable|string|max:500',
         ]);
 
         $producto->update($data);

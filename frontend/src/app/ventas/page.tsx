@@ -405,9 +405,9 @@ function POSPanel() {
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
-                        {p.foto && (
-                          <div className="w-full h-20 rounded-xl overflow-hidden mb-2 -mx-0">
-                            <img src={fotoUrl(p.foto)} alt={p.nombre}
+                        {(p.foto || p.foto_url) && (
+                          <div className="w-full h-20 rounded-xl overflow-hidden mb-2">
+                            <img src={p.foto_url ?? fotoUrl(p.foto!)} alt={p.nombre}
                               className="w-full h-full object-cover" />
                           </div>
                         )}
@@ -436,18 +436,47 @@ function POSPanel() {
                         </p>
                       </button>
 
-                      {/* Botón fraccionar */}
-                      {puedeFraccionar && (
-                        <button
-                          onClick={() => setFraccionando(p)}
-                          title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
-                          className="flex items-center justify-center gap-1 py-1.5 border-t border-zinc-100 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-b-2xl transition-colors"
-                        >
-                          <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <path d="M7 1L1 7M1 1l6 6"/><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-                          </svg>
-                          Fraccionar
-                        </button>
+                      {/* Botones inferiores */}
+                      {(puedeFraccionar || (esPromo && !agotado)) && (
+                        <div className={`flex border-t border-zinc-100 rounded-b-2xl overflow-hidden ${puedeFraccionar && esPromo ? 'divide-x divide-zinc-100' : ''}`}>
+                          {puedeFraccionar && (
+                            <button
+                              onClick={() => setFraccionando(p)}
+                              title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                            >
+                              <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <path d="M7 1L1 7M1 1l6 6"/><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+                              </svg>
+                              Fraccionar
+                            </button>
+                          )}
+                          {esPromo && !agotado && (
+                            <button
+                              onClick={() => {
+                                // Agrega 2 unidades al precio promo
+                                setCarrito(prev => {
+                                  const existe = prev.find(l => l.producto.id === p.id);
+                                  if (existe) {
+                                    return prev.map(l => l.producto.id === p.id
+                                      ? { ...l, cantidad: l.cantidad + 2, precio_unitario: p.precio_promo! }
+                                      : l
+                                    );
+                                  }
+                                  return [...prev, { producto: p, cantidad: 2, precio_unitario: p.precio_promo! }];
+                                });
+                                setAddedId(p.id);
+                                setTimeout(() => setAddedId(null), 600);
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 transition-colors"
+                            >
+                              <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/>
+                              </svg>
+                              x2 Promo
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -1646,6 +1675,7 @@ function DevolucionModal({ venta, onClose, onDone }: { venta: Venta; onClose: ()
       <div className="space-y-4">
         {remito ? (
           <div className="space-y-4">
+            {/* Remito */}
             <div className="bg-zinc-50 rounded-xl p-5 font-mono text-xs space-y-2 border border-zinc-100">
               <p className="font-bold text-sm text-zinc-800 text-center">REMITO DE DEVOLUCIÓN</p>
               <p className="text-center text-zinc-400">#{remito.devolucion_id} · {new Date().toLocaleDateString('es-CL')}</p>
@@ -1663,6 +1693,26 @@ function DevolucionModal({ venta, onClose, onDone }: { venta: Venta; onClose: ()
               </div>
               <p className="text-center text-zinc-400 pt-1">Mercadería reintegrada al stock</p>
             </div>
+
+            {/* Crédito en efectivo */}
+            {venta.medio_pago === 'efectivo' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3.5 space-y-1">
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1" y="4" width="14" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2"/>
+                  </svg>
+                  <p className="text-sm font-semibold text-emerald-800">Devolución en efectivo</p>
+                </div>
+                <p className="text-xs text-emerald-700">
+                  La venta original fue cobrada en <strong>efectivo</strong>.
+                  Devolver al cliente: <strong className="text-base">{fmt(remito.total_devuelto)}</strong>
+                </p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  Si el cliente compra mercadería nueva, aplicar como saldo a favor.
+                </p>
+              </div>
+            )}
+
             <button onClick={onDone} className="w-full py-3 text-sm font-semibold text-white rounded-xl" style={{ background: 'var(--brand-teal)' }}>
               Cerrar
             </button>

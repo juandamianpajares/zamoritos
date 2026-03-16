@@ -15,7 +15,7 @@ class Producto extends Model
         'codigo_barras', 'nombre', 'marca', 'categoria_id',
         'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock',
         'activo', 'notificar_stock_bajo',
-        'fraccionado_de', 'en_promo', 'precio_promo', 'foto',
+        'fraccionado_de', 'en_promo', 'precio_promo', 'foto', 'foto_url',
     ];
 
     protected $casts = [

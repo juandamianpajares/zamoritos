@@ -5,12 +5,18 @@ import { api, type Producto, type Categoria } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
-
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
+
+function efectivaFoto(p: Producto): string | null {
+  if (p.foto_url) return p.foto_url;
+  if (p.foto) return fotoUrl(p.foto);
+  return null;
+}
 
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
   unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
+  en_promo: false, precio_promo: '', foto_url: '',
 };
 
 function calcPrecioVenta(precioCompra: number, pct: number): number {
@@ -21,28 +27,98 @@ function calcPct(precioCompra: number, precioVenta: number): number {
   return Math.round(((precioVenta / precioCompra) - 1) * 100);
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
-
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
-
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const label = 'block text-xs font-medium text-zinc-500 mb-1.5';
 
+// ─── Ajuste stock modal ───────────────────────────────────────────────────────
+function AjusteStockModal({ producto, onClose, onDone }: { producto: Producto; onClose: () => void; onDone: () => void }) {
+  const [cantidad, setCantidad] = useState('');
+  const [obs,      setObs]      = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+
+  const confirmar = async () => {
+    const qty = parseFloat(cantidad);
+    if (!qty || qty === 0) { setError('Ingresá una cantidad (positiva para agregar, negativa para quitar).'); return; }
+    setLoading(true); setError('');
+    try {
+      await api.post('/stock/ajuste', { producto_id: producto.id, cantidad: qty, observacion: obs || undefined });
+      onDone();
+    } catch (e: unknown) { setError((e as Error).message); }
+    finally { setLoading(false); }
+  };
+
+  const nuevoStock = producto.stock + (parseFloat(cantidad) || 0);
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Ajuste stock — ${producto.nombre}`}>
+      <div className="space-y-4">
+        <div className="bg-zinc-50 rounded-xl px-4 py-3 flex justify-between text-sm">
+          <span className="text-zinc-500">Stock actual</span>
+          <span className="font-semibold text-zinc-800 tabular-nums">{producto.stock} {producto.unidad_medida}</span>
+        </div>
+
+        <div>
+          <label className={label}>Cantidad a ajustar</label>
+          <div className="flex gap-2">
+            <button onClick={() => setCantidad(v => String((parseFloat(v) || 0) - 1))}
+              className="w-10 h-10 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-600 hover:bg-zinc-100">−</button>
+            <input
+              type="number" step="0.001" value={cantidad}
+              onChange={e => setCantidad(e.target.value)}
+              placeholder="Ej: +5 o -2"
+              className={`${input} text-center tabular-nums`}
+            />
+            <button onClick={() => setCantidad(v => String((parseFloat(v) || 0) + 1))}
+              className="w-10 h-10 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-600 hover:bg-zinc-100">+</button>
+          </div>
+          {cantidad !== '' && !isNaN(parseFloat(cantidad)) && (
+            <p className={`text-xs mt-1.5 font-medium ${nuevoStock < 0 ? 'text-rose-500' : 'text-zinc-500'}`}>
+              Nuevo stock: <strong>{nuevoStock.toFixed(2)}</strong> {producto.unidad_medida}
+              {nuevoStock < 0 && ' · ⚠ Stock negativo no permitido'}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className={label}>Observación (opcional)</label>
+          <input value={obs} onChange={e => setObs(e.target.value)} placeholder="Ej: conteo físico, merma, etc." className={input} />
+        </div>
+
+        {error && <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl">{error}</div>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+          <button onClick={confirmar} disabled={loading || nuevoStock < 0}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
+            style={{ background: 'var(--brand-teal)' }}>
+            {loading ? 'Guardando…' : 'Guardar ajuste'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProductosPage() {
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [catFilter, setCatFilter] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [error, setError] = useState('');
-  const [fotoFile, setFotoFile] = useState<File | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
-  const [pctGanancia, setPctGanancia] = useState<string>('');
-  const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState('');
+  const [productos,    setProductos]    = useState<Producto[]>([]);
+  const [categorias,   setCategorias]   = useState<Categoria[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState('');
+  const [catFilter,    setCatFilter]    = useState('');
+  const [modalOpen,    setModalOpen]    = useState(false);
+  const [editId,       setEditId]       = useState<number | null>(null);
+  const [form,         setForm]         = useState({ ...emptyForm });
+  const [error,        setError]        = useState('');
+  const [fotoFile,     setFotoFile]     = useState<File | null>(null);
+  const [fotoPreview,  setFotoPreview]  = useState<string | null>(null);
+  const [pctGanancia,  setPctGanancia]  = useState<string>('');
+  const [ajusteP,      setAjusteP]      = useState<Producto | null>(null);
+  const [notifLoading, setNotifLoading] = useState<number | null>(null);
+  const [scanning,     setScanning]     = useState(false);
+  const [scanError,    setScanError]    = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -66,12 +142,30 @@ export default function ProductosPage() {
     setPctGanancia(''); resetFoto(); setModalOpen(true);
   };
 
+  const openEdit = (p: Producto) => {
+    setEditId(p.id);
+    const pc = p.precio_compra ?? 0;
+    setForm({
+      nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
+      categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
+      peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
+      precio_compra: pc > 0 ? String(pc) : '',
+      stock: String(p.stock),
+      en_promo: !!p.en_promo,
+      precio_promo: p.precio_promo != null ? String(p.precio_promo) : '',
+      foto_url: p.foto_url ?? '',
+    });
+    setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
+    setError('');
+    setFotoFile(null);
+    setFotoPreview(efectivaFoto(p));
+    setModalOpen(true);
+  };
+
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setScanning(true);
-    setScanError('');
-    // Show scanned image as foto preview
+    setScanning(true); setScanError('');
     setFotoFile(file);
     setFotoPreview(URL.createObjectURL(file));
     try {
@@ -80,7 +174,6 @@ export default function ProductosPage() {
       const res = await fetch('/api/scan-producto', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Error');
-      // Pre-fill form fields
       setForm(prev => ({
         ...prev,
         nombre: data.nombre ?? prev.nombre,
@@ -88,7 +181,6 @@ export default function ProductosPage() {
         codigo_barras: data.codigo_barras ?? prev.codigo_barras,
         peso: data.peso != null ? String(data.peso) : prev.peso,
         unidad_medida: data.unidad_medida ?? prev.unidad_medida,
-        // Map categoria_sugerida to actual categoria_id
         ...(data.categoria_sugerida
           ? { categoria_id: String(categorias.find(c => c.nombre === data.categoria_sugerida)?.id ?? prev.categoria_id) }
           : {}),
@@ -101,29 +193,28 @@ export default function ProductosPage() {
     }
   };
 
-  const openEdit = (p: Producto) => {
-    setEditId(p.id);
-    const pc = p.precio_compra ?? 0;
-    setForm({
-      nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
-      categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
-      peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
-      precio_compra: pc > 0 ? String(pc) : '',
-      stock: String(p.stock),
-    });
-    setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
-    setError('');
-    setFotoFile(null);
-    setFotoPreview(p.foto ? fotoUrl(p.foto) : null);
-    setModalOpen(true);
-  };
-
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFotoFile(file);
     setFotoPreview(URL.createObjectURL(file));
   };
+
+  const handlePctChange = (val: string) => {
+    setPctGanancia(val);
+    const pc = parseFloat(form.precio_compra);
+    const pct = parseFloat(val);
+    if (pc > 0 && !isNaN(pct)) {
+      setForm(prev => ({ ...prev, precio_venta: String(calcPrecioVenta(pc, pct)) }));
+    }
+  };
+
+  const precioVentaCalculado = (() => {
+    const pc = parseFloat(form.precio_compra);
+    const pct = parseFloat(pctGanancia);
+    if (editId && pc > 0 && !isNaN(pct)) return calcPrecioVenta(pc, pct);
+    return null;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,13 +229,15 @@ export default function ProductosPage() {
       precio_venta: pvFinal,
       precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
       stock: form.stock ? Number(form.stock) : undefined,
+      en_promo: form.en_promo,
+      precio_promo: form.en_promo && form.precio_promo ? Number(form.precio_promo) : null,
+      foto_url: form.foto_url || null,
     };
     try {
       let saved: Producto;
       if (editId) { saved = await api.put<Producto>(`/productos/${editId}`, body); }
       else         { saved = await api.post<Producto>('/productos', body); }
 
-      // Subir foto si se seleccionó una
       if (fotoFile) {
         const fd = new FormData();
         fd.append('foto', fotoFile);
@@ -153,7 +246,6 @@ export default function ProductosPage() {
           { method: 'POST', headers: { Accept: 'application/json' }, body: fd }
         );
       }
-
       setModalOpen(false);
       resetFoto();
       load();
@@ -166,25 +258,18 @@ export default function ProductosPage() {
     load();
   };
 
-  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }));
-
-  const handlePctChange = (val: string) => {
-    setPctGanancia(val);
-    const pc = parseFloat(form.precio_compra);
-    const pct = parseFloat(val);
-    if (pc > 0 && !isNaN(pct)) {
-      setForm(prev => ({ ...prev, precio_venta: String(calcPrecioVenta(pc, pct)) }));
+  const toggleNotificacion = async (p: Producto) => {
+    setNotifLoading(p.id);
+    try {
+      await api.patch(`/productos/${p.id}/notificacion-stock`, {});
+      setProductos(prev => prev.map(x => x.id === p.id ? { ...x, notificar_stock_bajo: !x.notificar_stock_bajo } : x));
+    } finally {
+      setNotifLoading(null);
     }
   };
 
-  // Derived precio_venta for edit mode (when precio_compra + pct are set)
-  const precioVentaCalculado = (() => {
-    const pc = parseFloat(form.precio_compra);
-    const pct = parseFloat(pctGanancia);
-    if (editId && pc > 0 && !isNaN(pct)) return calcPrecioVenta(pc, pct);
-    return null;
-  })();
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
@@ -199,14 +284,24 @@ export default function ProductosPage() {
       </div>
 
       <div className="flex gap-2 mb-4">
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nombre, código, marca..."
-          className={`flex-1 ${input}`}
-        />
+        <div className="flex-1 relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="5.5" cy="5.5" r="4.5"/><line x1="9" y1="9" x2="13" y2="13"/>
+          </svg>
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, código, marca o precio..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-xl bg-white focus:outline-none focus:border-zinc-400"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+            </button>
+          )}
+        </div>
         <select
           value={catFilter} onChange={e => setCatFilter(e.target.value)}
-          className={`w-48 ${input}`}
+          className="w-44 border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-zinc-400"
         >
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -224,56 +319,94 @@ export default function ProductosPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'P. Venta', 'P. Compra', 'Stock', 'Unidad', ''].map((h, i) => (
-                    <th key={i} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'P. Venta', 'P. Compra', 'Stock', 'Notif.', ''].map((h, i) => (
+                    <th key={i} className="text-left px-3 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {productos.map(p => (
-                  <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
-                    <td className="pl-4 py-2">
-                      {p.foto ? (
-                        <img src={fotoUrl(p.foto)} alt={p.nombre}
-                          className="w-10 h-10 rounded-lg object-cover border border-zinc-100" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-300">
-                          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                            <rect x="3" y="3" width="18" height="18" rx="3"/>
-                            <circle cx="8.5" cy="8.5" r="1.5"/>
-                            <polyline points="21 15 16 10 5 21"/>
-                          </svg>
+                {productos.map(p => {
+                  const img = efectivaFoto(p);
+                  return (
+                    <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
+                      <td className="pl-3 py-2 w-12">
+                        {img ? (
+                          <img src={img} alt={p.nombre}
+                            className="w-10 h-10 rounded-lg object-cover border border-zinc-100" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-300">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                              <rect x="3" y="3" width="18" height="18" rx="3"/>
+                              <circle cx="8.5" cy="8.5" r="1.5"/>
+                              <polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-zinc-400 text-xs font-mono">{p.codigo_barras ?? '—'}</td>
+                      <td className="px-3 py-3">
+                        <p className="font-medium text-zinc-800">{p.nombre}</p>
+                        {p.en_promo && p.precio_promo != null && (
+                          <span className="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-full font-medium">
+                            Promo x2 · ${p.precio_promo.toLocaleString('es-CL')}
+                          </span>
+                        )}
+                        {p.fraccionado_de && (
+                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full font-medium ml-1">Fraccionado</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-zinc-500">{p.marca ?? '—'}</td>
+                      <td className="px-3 py-3">
+                        {p.categoria ? (
+                          <span className="bg-zinc-100 text-zinc-600 text-xs px-2 py-0.5 rounded-full">{p.categoria.nombre}</span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-3 py-3 font-medium tabular-nums">${p.precio_venta.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-3 text-zinc-500 tabular-nums">
+                        {p.precio_compra != null ? `$${p.precio_compra.toLocaleString('es-CL')}` : '—'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <span className={`font-semibold tabular-nums ${p.stock <= 0 ? 'text-rose-600' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                            {p.stock}
+                          </span>
+                          <span className="text-zinc-400 text-[10px]">{p.unidad_medida}</span>
+                          {/* Ajuste stock rápido */}
+                          <button
+                            onClick={() => setAjusteP(p)}
+                            title="Ajustar stock"
+                            className="ml-1 w-5 h-5 flex items-center justify-center rounded border border-zinc-200 text-zinc-400 hover:text-zinc-700 hover:border-zinc-400 transition-colors"
+                          >
+                            <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
+                            </svg>
+                          </button>
                         </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs font-mono">{p.codigo_barras ?? '—'}</td>
-                    <td className="px-4 py-3 font-medium text-zinc-800">{p.nombre}</td>
-                    <td className="px-4 py-3 text-zinc-500">{p.marca ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      {p.categoria ? (
-                        <span className="bg-zinc-100 text-zinc-600 text-xs px-2 py-0.5 rounded-full">
-                          {p.categoria.nombre}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 font-medium tabular-nums">${p.precio_venta.toLocaleString('es-CL')}</td>
-                    <td className="px-4 py-3 text-zinc-500 tabular-nums text-sm">
-                      {p.precio_compra != null ? `$${p.precio_compra.toLocaleString('es-CL')}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      <span className={`font-semibold ${p.stock <= 0 ? 'text-rose-600' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                        {p.stock}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs">{p.unidad_medida}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={() => openEdit(p)} className="text-zinc-500 hover:text-zinc-800 text-xs mr-3 transition-colors">Editar</button>
-                      <button onClick={() => handleDelete(p.id)} className="text-rose-400 hover:text-rose-600 text-xs transition-colors">Eliminar</button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      {/* Notificación stock bajo toggle */}
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={() => toggleNotificacion(p)}
+                          disabled={notifLoading === p.id}
+                          title={p.notificar_stock_bajo ? 'Desactivar alerta de stock bajo' : 'Activar alerta de stock bajo'}
+                          className={`w-8 h-5 rounded-full transition-colors relative ${
+                            p.notificar_stock_bajo ? 'bg-amber-400' : 'bg-zinc-200'
+                          } ${notifLoading === p.id ? 'opacity-50' : ''}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                            p.notificar_stock_bajo ? 'translate-x-3' : 'translate-x-0.5'
+                          }`} />
+                        </button>
+                      </td>
+                      <td className="px-3 py-3 text-right whitespace-nowrap">
+                        <button onClick={() => openEdit(p)} className="text-zinc-500 hover:text-zinc-800 text-xs mr-3 transition-colors">Editar</button>
+                        <button onClick={() => handleDelete(p.id)} className="text-rose-400 hover:text-rose-600 text-xs transition-colors">Eliminar</button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {productos.length === 0 && (
-                  <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos registrados</td></tr>
+                  <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos</td></tr>
                 )}
               </tbody>
             </table>
@@ -281,6 +414,16 @@ export default function ProductosPage() {
         )}
       </div>
 
+      {/* Modal ajuste stock */}
+      {ajusteP && (
+        <AjusteStockModal
+          producto={ajusteP}
+          onClose={() => setAjusteP(null)}
+          onDone={() => { setAjusteP(null); load(); }}
+        />
+      )}
+
+      {/* Modal crear/editar */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Editar producto' : 'Nuevo producto'} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-rose-600 text-xs bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
@@ -303,11 +446,11 @@ export default function ProductosPage() {
                     <circle cx="12" cy="13" r="4"/>
                   </svg>
                 )}
-                {scanning ? 'Analizando…' : 'Escanear producto con IA'}
+                {scanning ? 'Analizando…' : 'Escanear con IA'}
               </button>
             </div>
             {scanError && <p className="text-xs text-rose-500 mb-2">{scanError}</p>}
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-4">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -326,15 +469,23 @@ export default function ProductosPage() {
                   </div>
                 )}
               </button>
-              <div className="text-xs text-zinc-400 space-y-1">
-                <p>JPG, PNG o WebP · máx. 4 MB</p>
+              <div className="flex-1 space-y-2">
+                <div>
+                  <label className={label}>URL de imagen web</label>
+                  <input
+                    value={form.foto_url}
+                    onChange={e => { setForm(p => ({ ...p, foto_url: e.target.value })); if (e.target.value) setFotoPreview(e.target.value); }}
+                    placeholder="https://ejemplo.com/imagen.jpg"
+                    className={input}
+                  />
+                </div>
                 {fotoPreview && (
                   <button
                     type="button"
-                    onClick={() => { resetFoto(); if (fileRef.current) fileRef.current.value = ''; }}
-                    className="text-rose-400 hover:text-rose-600 transition-colors"
+                    onClick={() => { resetFoto(); setForm(p => ({ ...p, foto_url: '' })); if (fileRef.current) fileRef.current.value = ''; }}
+                    className="text-xs text-rose-400 hover:text-rose-600 transition-colors"
                   >
-                    Quitar foto
+                    Quitar imagen
                   </button>
                 )}
               </div>
@@ -374,24 +525,21 @@ export default function ProductosPage() {
               <input type="number" step="0.001" min="0" value={form.peso} onChange={f('peso')}
                 placeholder="Ej: 22 (kg)" className={input} />
             </div>
+
             {editId ? (
               /* ── Modo edición: precio_compra read-only + % ganancia → precio_venta ── */
               <>
                 <div>
-                  <label className={label}>Precio de compra (de última compra)</label>
+                  <label className={label}>Precio de compra (última compra)</label>
                   <div className={`${input} bg-zinc-50 text-zinc-500 select-none cursor-default`}>
-                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL')}` : 'Sin precio de compra registrado'}
+                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL')}` : 'Sin precio de compra'}
                   </div>
                 </div>
                 <div>
                   <label className={label}>% Ganancia</label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      max="9999"
-                      value={pctGanancia}
+                      type="number" step="1" min="-100" max="9999" value={pctGanancia}
                       onChange={e => handlePctChange(e.target.value)}
                       placeholder="Ej: 30"
                       className={`${input} w-28`}
@@ -401,9 +549,6 @@ export default function ProductosPage() {
                       <span className="text-sm text-zinc-600">
                         → <strong className="text-zinc-900">${precioVentaCalculado.toLocaleString('es-CL')}</strong>
                       </span>
-                    )}
-                    {!form.precio_compra && (
-                      <span className="text-xs text-zinc-400">Cargá un precio de compra primero</span>
                     )}
                   </div>
                   {!form.precio_compra && (
@@ -419,8 +564,7 @@ export default function ProductosPage() {
               <>
                 <div>
                   <label className={label}>Precio de compra</label>
-                  <input type="number" step="1" min="0" value={form.precio_compra}
-                    onChange={e => { f('precio_compra')(e); }}
+                  <input type="number" step="1" min="0" value={form.precio_compra} onChange={f('precio_compra')}
                     placeholder="Costo de referencia" className={input} />
                 </div>
                 <div>
@@ -429,10 +573,53 @@ export default function ProductosPage() {
                 </div>
               </>
             )}
+
             {!editId && (
               <div>
                 <label className={label}>Stock inicial</label>
                 <input type="number" step="0.001" min="0" value={form.stock} onChange={f('stock')} className={input} />
+              </div>
+            )}
+          </div>
+
+          {/* Promo bundle */}
+          <div className="border border-zinc-100 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-800">Promo bundle (x2)</p>
+                <p className="text-xs text-zinc-400">Precio especial para venta de 2 unidades juntas</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, en_promo: !p.en_promo }))}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.en_promo ? 'bg-rose-500' : 'bg-zinc-200'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.en_promo ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            {form.en_promo && (
+              <div>
+                <label className={label}>Precio promo (por unidad, vendiéndose de a 2)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" step="1" min="0" value={form.precio_promo} onChange={f('precio_promo')}
+                    placeholder="Precio por unidad en bundle"
+                    className={`${input} flex-1`}
+                  />
+                  {form.precio_compra && form.precio_promo && (
+                    <span className={`text-xs font-semibold whitespace-nowrap ${
+                      Number(form.precio_promo) < Number(form.precio_compra) ? 'text-rose-500' : 'text-emerald-600'
+                    }`}>
+                      {Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 100)}% margen
+                    </span>
+                  )}
+                </div>
+                {form.precio_promo && form.precio_venta && (
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Descuento vs precio normal: <strong>{Math.round((1 - Number(form.precio_promo) / Number(form.precio_venta)) * 100)}%</strong>
+                    {' · '} 2 unidades = <strong>${(2 * Number(form.precio_promo)).toLocaleString('es-CL')}</strong>
+                  </p>
+                )}
               </div>
             )}
           </div>

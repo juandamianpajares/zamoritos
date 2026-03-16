@@ -15,7 +15,7 @@ const tipoBadge: Record<string, string> = {
 const inputCls = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const labelCls = 'block text-xs font-medium text-zinc-500 mb-1.5';
 
-type Vista = 'movimientos' | 'alertas';
+type Vista = 'movimientos' | 'alertas' | 'fraccionados';
 
 export default function StockPage() {
   const [vista, setVista] = useState<Vista>('movimientos');
@@ -93,16 +93,20 @@ export default function StockPage() {
         <div className="flex items-center gap-2">
           {/* Tabs */}
           <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-xl">
-            {(['movimientos', 'alertas'] as Vista[]).map(v => (
+            {([
+              { key: 'movimientos',  label: 'Movimientos' },
+              { key: 'alertas',      label: 'Alertas' },
+              { key: 'fraccionados', label: 'Fraccionados' },
+            ] as { key: Vista; label: string }[]).map(({ key, label }) => (
               <button
-                key={v}
-                onClick={() => setVista(v)}
+                key={key}
+                onClick={() => setVista(key)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  vista === v ? 'text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                  vista === key ? 'text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
                 }`}
-                style={vista === v ? { background: 'var(--brand-purple)' } : {}}
+                style={vista === key ? { background: 'var(--brand-purple)' } : {}}
               >
-                {v === 'movimientos' ? 'Movimientos' : 'Alertas de stock'}
+                {label}
               </button>
             ))}
           </div>
@@ -234,6 +238,85 @@ export default function StockPage() {
           )}
         </div>
       )}
+
+      {/* ── Fraccionados ── */}
+      {vista === 'fraccionados' && (() => {
+        // Group: find products that have fraccionados children
+        const padres = productos.filter(p => productos.some(f => f.fraccionado_de === p.id));
+        const solos  = productos.filter(p => p.fraccionado_de && !padres.some(x => x.id === p.fraccionado_de));
+
+        const filtrados = [...padres, ...solos].filter(p =>
+          !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+        );
+
+        if (filtrados.length === 0 && !loading) {
+          return (
+            <div className="bg-white rounded-2xl border border-zinc-100 px-6 py-12 text-center text-sm text-zinc-400">
+              Sin productos fraccionados registrados
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-3">
+            {padres
+              .filter(p => !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+              .map(padre => {
+                const hijos = productos.filter(f => f.fraccionado_de === padre.id);
+                return (
+                  <div key={padre.id} className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                    {/* Padre */}
+                    <div className="flex items-center gap-4 px-5 py-3 bg-amber-50/50 border-b border-amber-100">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-zinc-800">{padre.nombre}</p>
+                        <p className="text-xs text-zinc-400">{padre.codigo_barras ?? '—'} · {padre.unidad_medida}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-lg font-bold tabular-nums ${padre.stock <= 0 ? 'text-rose-600' : padre.stock <= 3 ? 'text-amber-500' : 'text-zinc-800'}`}>
+                          {padre.stock}
+                        </span>
+                        <span className="text-xs text-zinc-400 ml-1">bolsas</span>
+                      </div>
+                      <button
+                        onClick={() => { setForm({ producto_id: String(padre.id), cantidad: '', observacion: '' }); setError(''); setModalOpen(true); }}
+                        className="text-xs text-zinc-500 border border-zinc-200 rounded-lg px-2.5 py-1 hover:bg-zinc-100 transition-colors shrink-0"
+                      >
+                        Ajustar
+                      </button>
+                    </div>
+                    {/* Hijos */}
+                    {hijos.map(hijo => (
+                      <div key={hijo.id} className="flex items-center gap-4 px-5 py-2.5 border-b border-zinc-50 last:border-0 pl-10">
+                        <svg className="text-zinc-300 shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                          <path d="M2 2v8h10"/>
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-zinc-700">{hijo.nombre}</p>
+                          <p className="text-xs text-zinc-400">{hijo.codigo_barras ?? '—'} · /kg</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-base font-semibold tabular-nums ${hijo.stock <= 0 ? 'text-rose-600' : hijo.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                            {hijo.stock}
+                          </span>
+                          <span className="text-xs text-zinc-400 ml-1">kg</span>
+                        </div>
+                        <div className="text-right text-sm font-medium text-zinc-700">
+                          ${hijo.precio_venta.toLocaleString('es-CL')}/kg
+                        </div>
+                        <button
+                          onClick={() => { setForm({ producto_id: String(hijo.id), cantidad: '', observacion: '' }); setError(''); setModalOpen(true); }}
+                          className="text-xs text-zinc-500 border border-zinc-200 rounded-lg px-2.5 py-1 hover:bg-zinc-100 transition-colors shrink-0"
+                        >
+                          Ajustar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+          </div>
+        );
+      })()}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Ajuste manual de stock" size="sm">
         <form onSubmit={handleAjuste} className="space-y-4">
