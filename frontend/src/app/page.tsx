@@ -8,7 +8,7 @@ type Periodo = 'hoy' | 'semana' | 'mes';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return `$${n.toLocaleString('es-CL', { minimumFractionDigits: 0 })}`;
+  return `$${Math.round(n).toLocaleString('es-CL')}`;
 }
 
 const MEDIO_LABEL: Record<string, string> = {

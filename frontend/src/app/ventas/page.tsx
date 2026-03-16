@@ -52,7 +52,7 @@ const MEDIOS_PAGO: { value: MedioPago; label: string; icon: React.ReactNode }[] 
 ];
 
 function fmt(n: number) {
-  return `$${n.toLocaleString('es-CL', { minimumFractionDigits: 0 })}`;
+  return `$${Math.round(n).toLocaleString('es-CL')}`;
 }
 
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
@@ -362,7 +362,7 @@ function POSPanel() {
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
                   const esPromo        = !!p.en_promo && !!p.precio_promo;
-                  const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado;
+                  const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
                   return (
                     <div
                       key={p.id}
@@ -420,7 +420,10 @@ function POSPanel() {
                         {esPromo ? (
                           <div>
                             <p className="text-base font-bold tabular-nums text-rose-600">{fmt(p.precio_promo!)}</p>
-                            <p className="text-[10px] line-through text-zinc-400 tabular-nums">{fmt(p.precio_venta)}</p>
+                            {p.promo_producto
+                              ? <p className="text-[10px] text-rose-400 truncate">+ {p.promo_producto.nombre}</p>
+                              : <p className="text-[10px] line-through text-zinc-400 tabular-nums">{fmt(p.precio_venta)}</p>
+                            }
                           </div>
                         ) : (
                           <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
@@ -454,16 +457,28 @@ function POSPanel() {
                           {esPromo && !agotado && (
                             <button
                               onClick={() => {
-                                // Agrega 2 unidades al precio promo
+                                const precioCombo = p.precio_promo!;
+                                const partner = p.promo_producto;
                                 setCarrito(prev => {
-                                  const existe = prev.find(l => l.producto.id === p.id);
-                                  if (existe) {
-                                    return prev.map(l => l.producto.id === p.id
-                                      ? { ...l, cantidad: l.cantidad + 2, precio_unitario: p.precio_promo! }
-                                      : l
-                                    );
+                                  let cart = prev;
+                                  if (partner) {
+                                    // Combo con otro producto: 1 de cada uno
+                                    const existeMain = cart.find(l => l.producto.id === p.id);
+                                    cart = existeMain
+                                      ? cart.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precioCombo } : l)
+                                      : [...cart, { producto: p, cantidad: 1, precio_unitario: precioCombo }];
+                                    const existePartner = cart.find(l => l.producto.id === partner.id);
+                                    cart = existePartner
+                                      ? cart.map(l => l.producto.id === partner.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precioCombo } : l)
+                                      : [...cart, { producto: partner, cantidad: 1, precio_unitario: precioCombo }];
+                                  } else {
+                                    // Combo mismo producto × 2
+                                    const existe = cart.find(l => l.producto.id === p.id);
+                                    cart = existe
+                                      ? cart.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 2, precio_unitario: precioCombo } : l)
+                                      : [...cart, { producto: p, cantidad: 2, precio_unitario: precioCombo }];
                                   }
-                                  return [...prev, { producto: p, cantidad: 2, precio_unitario: p.precio_promo! }];
+                                  return cart;
                                 });
                                 setAddedId(p.id);
                                 setTimeout(() => setAddedId(null), 600);
@@ -473,7 +488,7 @@ function POSPanel() {
                               <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/>
                               </svg>
-                              x2 Promo
+                              {p.promo_producto_id ? 'Combo' : 'Combo x2'}
                             </button>
                           )}
                         </div>

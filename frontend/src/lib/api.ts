@@ -52,8 +52,11 @@ export interface Producto {
   activo: boolean;
   notificar_stock_bajo?: boolean;
   fraccionado_de?: number;
+  fraccionable?: boolean;
   en_promo?: boolean;
   precio_promo?: number;
+  promo_producto_id?: number;
+  promo_producto?: Producto;
   foto?: string;
   foto_url?: string;
 }

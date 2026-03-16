@@ -8,10 +8,11 @@ interface DetalleLine {
   producto_id: string;
   cantidad: string;
   precio_compra: string;
+  pct_ganancia: string;
   fecha_vencimiento: string;
 }
 
-const emptyLine = (): DetalleLine => ({ producto_id: '', cantidad: '', precio_compra: '', fecha_vencimiento: '' });
+const emptyLine = (): DetalleLine => ({ producto_id: '', cantidad: '', precio_compra: '', pct_ganancia: '', fecha_vencimiento: '' });
 
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const inputSm = 'w-full border border-zinc-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
@@ -50,6 +51,23 @@ export default function ComprasPage() {
   const removeLinea = (i: number) => setLineas(prev => prev.filter((_, idx) => idx !== i));
   const updateLinea = (i: number, k: keyof DetalleLine, v: string) =>
     setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
+
+  // Al elegir producto, auto-rellena % ganancia actual del producto
+  const handleProductoChange = (i: number, productoId: string) => {
+    const prod = productos.find(p => p.id === Number(productoId));
+    const pct = prod?.precio_compra && prod.precio_compra > 0
+      ? String(Math.round(((prod.precio_venta / prod.precio_compra) - 1) * 100))
+      : '';
+    setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, producto_id: productoId, pct_ganancia: pct } : l));
+  };
+
+  // Precio de venta calculado para una línea (solo display)
+  const pvCalcLinea = (l: DetalleLine): number | null => {
+    const pc = parseFloat(l.precio_compra);
+    const pct = parseFloat(l.pct_ganancia);
+    if (!pc || isNaN(pct)) return null;
+    return Math.round(pc * (1 + pct / 100));
+  };
 
   const openNew = () => {
     setForm({ proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '' });
@@ -120,7 +138,7 @@ export default function ComprasPage() {
                     <td className="px-4 py-3 text-zinc-600">{new Date(c.fecha).toLocaleDateString('es-CL')}</td>
                     <td className="px-4 py-3 font-medium text-zinc-800">{c.proveedor?.nombre ?? <span className="text-zinc-400">Sin proveedor</span>}</td>
                     <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{c.factura ?? '—'}</td>
-                    <td className="px-4 py-3 font-semibold tabular-nums">${c.total.toLocaleString('es-CL')}</td>
+                    <td className="px-4 py-3 font-semibold tabular-nums">${Math.round(c.total).toLocaleString('es-CL')}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => verDetalle(c.id)} className="text-zinc-500 hover:text-zinc-800 text-xs transition-colors">Ver detalle</button>
                     </td>
@@ -172,10 +190,12 @@ export default function ComprasPage() {
                   }`}>{h}</p> : null
                 ))}
               </div>
-              {lineas.map((l, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+              {lineas.map((l, i) => {
+                const pv = pvCalcLinea(l);
+                return (
+                <div key={i} className="grid grid-cols-12 gap-2 items-start">
                   <div className="col-span-4">
-                    <select required value={l.producto_id} onChange={e => updateLinea(i, 'producto_id', e.target.value)} className={inputSm}>
+                    <select required value={l.producto_id} onChange={e => handleProductoChange(i, e.target.value)} className={inputSm}>
                       <option value="">Seleccionar producto</option>
                       {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>
@@ -187,11 +207,28 @@ export default function ComprasPage() {
                   <div className="col-span-2">
                     <input required type="number" step="1" min="0" placeholder="0"
                       value={l.precio_compra} onChange={e => updateLinea(i, 'precio_compra', e.target.value)} className={inputSm} />
+                    {/* % ganancia y precio de venta sugerido */}
+                    {l.precio_compra && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <input
+                          type="number" step="1" placeholder="%"
+                          value={l.pct_ganancia}
+                          onChange={e => updateLinea(i, 'pct_ganancia', e.target.value)}
+                          className="w-14 text-[11px] border border-zinc-200 rounded px-1.5 py-1 tabular-nums focus:outline-none focus:border-zinc-400 bg-white"
+                        />
+                        <span className="text-[11px] text-zinc-400">%</span>
+                        {pv !== null && (
+                          <span className={`text-[11px] font-semibold tabular-nums ${pv < parseFloat(l.precio_compra) ? 'text-rose-500' : 'text-emerald-700'}`}>
+                            → ${Math.round(pv).toLocaleString('es-CL')}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-3">
                     <input type="date" value={l.fecha_vencimiento} onChange={e => updateLinea(i, 'fecha_vencimiento', e.target.value)} className={inputSm} />
                   </div>
-                  <div className="col-span-1 flex justify-center">
+                  <div className="col-span-1 flex justify-center pt-1">
                     {lineas.length > 1 && (
                       <button type="button" onClick={() => removeLinea(i)}
                         className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500 transition-colors">
@@ -202,7 +239,8 @@ export default function ComprasPage() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -220,7 +258,7 @@ export default function ComprasPage() {
           <div className="flex justify-between items-center pt-4 border-t border-zinc-100">
             <div className="text-sm">
               <span className="text-zinc-500">Total:</span>
-              <span className="ml-2 font-semibold text-zinc-900 text-base tabular-nums">${total.toLocaleString('es-CL')}</span>
+              <span className="ml-2 font-semibold text-zinc-900 text-base tabular-nums">${Math.round(total).toLocaleString('es-CL')}</span>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => setModalOpen(false)}
@@ -241,7 +279,7 @@ export default function ComprasPage() {
                 ['Proveedor', detailModal.proveedor?.nombre ?? '—'],
                 ['Fecha', new Date(detailModal.fecha).toLocaleDateString('es-CL')],
                 ['Factura', detailModal.factura ?? '—'],
-                ['Total', `$${detailModal.total?.toLocaleString('es-CL')}`],
+                ['Total', `$${Math.round(detailModal.total ?? 0).toLocaleString('es-CL')}`],
               ].map(([k, v]) => (
                 <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
                   <p className="text-xs text-zinc-400 mb-0.5">{k}</p>
@@ -263,8 +301,8 @@ export default function ComprasPage() {
                     <tr key={d.id} className="border-b border-zinc-50 last:border-0">
                       <td className="px-3 py-2.5 text-zinc-800">{d.producto?.nombre}</td>
                       <td className="px-3 py-2.5 tabular-nums">{d.cantidad}</td>
-                      <td className="px-3 py-2.5 tabular-nums">${d.precio_compra.toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-medium">${d.subtotal.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2.5 tabular-nums">${Math.round(d.precio_compra).toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-medium">${Math.round(d.subtotal).toLocaleString('es-CL')}</td>
                     </tr>
                   ))}
                 </tbody>

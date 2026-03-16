@@ -14,7 +14,7 @@ class ProductoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Producto::with('categoria')->where('activo', true);
+        $query = Producto::with(['categoria', 'promoProducto'])->where('activo', true);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -22,6 +22,10 @@ class ProductoController extends Controller
                 $q->where('nombre', 'like', "%$s%")
                   ->orWhere('codigo_barras', 'like', "%$s%")
                   ->orWhere('marca', 'like', "%$s%");
+                if (is_numeric($s)) {
+                    $q->orWhere('precio_venta', $s)
+                      ->orWhere('precio_compra', $s);
+                }
             });
         }
 
@@ -30,7 +34,7 @@ class ProductoController extends Controller
         }
 
         if ($request->boolean('stock_bajo')) {
-            $query->where('stock', '<=', 5);
+            $query->whereColumn('stock', '<=', DB::raw('COALESCE(stock_minimo, 5)'));
         }
 
         if ($request->boolean('en_promo')) {
@@ -42,22 +46,26 @@ class ProductoController extends Controller
 
     public function show(Producto $producto): JsonResponse
     {
-        return response()->json($producto->load('categoria'));
+        return response()->json($producto->load(['categoria', 'promoProducto']));
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nombre'        => 'required|string',
-            'codigo_barras' => 'nullable|string|unique:productos,codigo_barras',
-            'marca'         => 'nullable|string',
-            'categoria_id'  => 'nullable|exists:categorias,id',
-            'peso'          => 'nullable|numeric|min:0',
-            'unidad_medida' => 'required|string',
-            'precio_venta'  => 'required|numeric|min:0',
-            'stock'         => 'nullable|numeric|min:0',
-            'en_promo'      => 'nullable|boolean',
-            'precio_promo'  => 'nullable|numeric|min:0',
+            'nombre'            => 'required|string',
+            'codigo_barras'     => 'nullable|string|unique:productos,codigo_barras',
+            'marca'             => 'nullable|string',
+            'categoria_id'      => 'nullable|exists:categorias,id',
+            'peso'              => 'nullable|numeric|min:0',
+            'unidad_medida'     => 'required|string',
+            'precio_venta'      => 'required|integer|min:0',
+            'precio_compra'     => 'nullable|integer|min:0',
+            'stock'             => 'nullable|numeric|min:0',
+            'fraccionable'      => 'nullable|boolean',
+            'en_promo'          => 'nullable|boolean',
+            'precio_promo'      => 'nullable|integer|min:0',
+            'promo_producto_id' => 'nullable|exists:productos,id',
+            'foto_url'          => 'nullable|string|max:500',
         ]);
 
         return response()->json(Producto::create($data), 201);
@@ -66,19 +74,22 @@ class ProductoController extends Controller
     public function update(Request $request, Producto $producto): JsonResponse
     {
         $data = $request->validate([
-            'nombre'        => 'required|string',
-            'codigo_barras' => 'nullable|string|unique:productos,codigo_barras,' . $producto->id,
-            'marca'         => 'nullable|string',
-            'categoria_id'  => 'nullable|exists:categorias,id',
-            'peso'          => 'nullable|numeric|min:0',
-            'unidad_medida' => 'required|string',
-            'precio_venta'  => 'required|numeric|min:0',
-            'en_promo'      => 'nullable|boolean',
-            'precio_promo'  => 'nullable|numeric|min:0',
+            'nombre'            => 'required|string',
+            'codigo_barras'     => 'nullable|string|unique:productos,codigo_barras,' . $producto->id,
+            'marca'             => 'nullable|string',
+            'categoria_id'      => 'nullable|exists:categorias,id',
+            'peso'              => 'nullable|numeric|min:0',
+            'unidad_medida'     => 'required|string',
+            'precio_venta'      => 'required|integer|min:0',
+            'fraccionable'      => 'nullable|boolean',
+            'en_promo'          => 'nullable|boolean',
+            'precio_promo'      => 'nullable|integer|min:0',
+            'promo_producto_id' => 'nullable|exists:productos,id',
+            'foto_url'          => 'nullable|string|max:500',
         ]);
 
         $producto->update($data);
-        return response()->json($producto->load('categoria'));
+        return response()->json($producto->load(['categoria', 'promoProducto']));
     }
 
     public function destroy(Producto $producto): JsonResponse
@@ -87,11 +98,16 @@ class ProductoController extends Controller
         return response()->json(null, 204);
     }
 
+    public function toggleNotificacion(Producto $producto): JsonResponse
+    {
+        $producto->update(['notificar_stock_bajo' => !$producto->notificar_stock_bajo]);
+        return response()->json($producto);
+    }
+
     public function uploadFoto(Request $request, Producto $producto): JsonResponse
     {
         $request->validate(['foto' => 'required|image|max:4096']);
 
-        // Eliminar foto anterior si existe
         if ($producto->foto) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($producto->foto);
         }
@@ -99,20 +115,17 @@ class ProductoController extends Controller
         $path = $request->file('foto')->store('productos', 'public');
         $producto->update(['foto' => $path]);
 
-        return response()->json($producto->fresh('categoria'));
+        return response()->json($producto->fresh(['categoria', 'promoProducto']));
     }
 
     /**
      * Fracciona una bolsa/unidad grande en unidades menores.
-     *
-     * Da de baja N bolsas del producto original y da de alta
-     * (N × peso_kg) unidades del producto fraccionado (código anexo: original + "-F").
      */
     public function fraccionar(Request $request, Producto $producto): JsonResponse
     {
         $data = $request->validate([
             'cantidad_bolsas'    => 'required|numeric|min:0.001',
-            'precio_fraccionado' => 'required|numeric|min:0',
+            'precio_fraccionado' => 'required|integer|min:0',
         ]);
 
         if ($producto->stock < $data['cantidad_bolsas']) {
@@ -121,12 +134,11 @@ class ProductoController extends Controller
             ]);
         }
 
-        $pesoKg         = $producto->peso ?? 1;
-        $unidadesAlta   = round($data['cantidad_bolsas'] * $pesoKg, 3);
-        $codigoFrac     = rtrim($producto->codigo_barras, '*') . '-F';
+        $pesoKg       = $producto->peso ?? 1;
+        $unidadesAlta = round($data['cantidad_bolsas'] * $pesoKg, 3);
+        $codigoFrac   = rtrim($producto->codigo_barras, '*') . '-F';
 
         return DB::transaction(function () use ($producto, $data, $codigoFrac, $unidadesAlta) {
-            // Obtener o crear el producto fraccionado
             $fraccionado = Producto::firstOrCreate(
                 ['codigo_barras' => $codigoFrac],
                 [
@@ -142,13 +154,11 @@ class ProductoController extends Controller
                 ]
             );
 
-            // Actualiza precio sugerido si cambió
             $fraccionado->update([
                 'precio_venta'   => $data['precio_fraccionado'],
                 'fraccionado_de' => $producto->id,
             ]);
 
-            // Baja de la bolsa original
             $producto->decrement('stock', $data['cantidad_bolsas']);
             MovimientoStock::create([
                 'producto_id' => $producto->id,
@@ -158,7 +168,6 @@ class ProductoController extends Controller
                 'observacion' => "Se fraccionaron {$data['cantidad_bolsas']} bolsa(s) → {$unidadesAlta} kg",
             ]);
 
-            // Alta de unidades fraccionadas
             $fraccionado->increment('stock', $unidadesAlta);
             MovimientoStock::create([
                 'producto_id' => $fraccionado->id,

@@ -16,7 +16,9 @@ function efectivaFoto(p: Producto): string | null {
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
   unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
-  en_promo: false, precio_promo: '', foto_url: '',
+  fraccionable: false,
+  en_promo: false, precio_promo: '', promo_producto_id: '',
+  foto_url: '',
 };
 
 function calcPrecioVenta(precioCompra: number, pct: number): number {
@@ -151,8 +153,10 @@ export default function ProductosPage() {
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
       precio_compra: pc > 0 ? String(pc) : '',
       stock: String(p.stock),
+      fraccionable: !!p.fraccionable,
       en_promo: !!p.en_promo,
       precio_promo: p.precio_promo != null ? String(p.precio_promo) : '',
+      promo_producto_id: p.promo_producto_id != null ? String(p.promo_producto_id) : '',
       foto_url: p.foto_url ?? '',
     });
     setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
@@ -229,8 +233,10 @@ export default function ProductosPage() {
       precio_venta: pvFinal,
       precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
       stock: form.stock ? Number(form.stock) : undefined,
+      fraccionable: form.fraccionable,
       en_promo: form.en_promo,
       precio_promo: form.en_promo && form.precio_promo ? Number(form.precio_promo) : null,
+      promo_producto_id: form.en_promo && form.promo_producto_id ? Number(form.promo_producto_id) : null,
       foto_url: form.foto_url || null,
     };
     try {
@@ -348,7 +354,7 @@ export default function ProductosPage() {
                         <p className="font-medium text-zinc-800">{p.nombre}</p>
                         {p.en_promo && p.precio_promo != null && (
                           <span className="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-full font-medium">
-                            Promo x2 · ${p.precio_promo.toLocaleString('es-CL')}
+                            Promo x2 · ${Math.round(p.precio_promo!).toLocaleString('es-CL')}
                           </span>
                         )}
                         {p.fraccionado_de && (
@@ -361,9 +367,9 @@ export default function ProductosPage() {
                           <span className="bg-zinc-100 text-zinc-600 text-xs px-2 py-0.5 rounded-full">{p.categoria.nombre}</span>
                         ) : '—'}
                       </td>
-                      <td className="px-3 py-3 font-medium tabular-nums">${p.precio_venta.toLocaleString('es-CL')}</td>
+                      <td className="px-3 py-3 font-medium tabular-nums">${Math.round(p.precio_venta).toLocaleString('es-CL')}</td>
                       <td className="px-3 py-3 text-zinc-500 tabular-nums">
-                        {p.precio_compra != null ? `$${p.precio_compra.toLocaleString('es-CL')}` : '—'}
+                        {p.precio_compra != null ? `$${Math.round(p.precio_compra).toLocaleString('es-CL')}` : '—'}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1">
@@ -532,7 +538,7 @@ export default function ProductosPage() {
                 <div>
                   <label className={label}>Precio de compra (última compra)</label>
                   <div className={`${input} bg-zinc-50 text-zinc-500 select-none cursor-default`}>
-                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL')}` : 'Sin precio de compra'}
+                    {form.precio_compra ? `$${Math.round(Number(form.precio_compra)).toLocaleString('es-CL')}` : 'Sin precio de compra'}
                   </div>
                 </div>
                 <div>
@@ -618,44 +624,87 @@ export default function ProductosPage() {
             )}
           </div>
 
-          {/* Promo bundle */}
+          {/* ── Fraccionable ── */}
+          <div className="flex items-center justify-between border border-zinc-100 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-zinc-800">¿Es fraccionable?</p>
+              <p className="text-xs text-zinc-400">Permite dividir el producto en unidades menores (ej: bolsa → kg)</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(p => ({ ...p, fraccionable: !p.fraccionable }))}
+              className={`w-10 h-6 rounded-full transition-colors relative ${form.fraccionable ? 'bg-amber-500' : 'bg-zinc-200'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.fraccionable ? 'translate-x-5' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          {/* ── Combo promocional ── */}
           <div className="border border-zinc-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-zinc-800">Promo bundle (x2)</p>
-                <p className="text-xs text-zinc-400">Precio especial para venta de 2 unidades juntas</p>
+                <p className="text-sm font-medium text-zinc-800">Combo promocional</p>
+                <p className="text-xs text-zinc-400">Precio especial al vender el combo (2 productos)</p>
               </div>
               <button
                 type="button"
-                onClick={() => setForm(p => ({ ...p, en_promo: !p.en_promo }))}
+                onClick={() => setForm(p => ({ ...p, en_promo: !p.en_promo, promo_producto_id: '' }))}
                 className={`w-10 h-6 rounded-full transition-colors relative ${form.en_promo ? 'bg-rose-500' : 'bg-zinc-200'}`}
               >
                 <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.en_promo ? 'translate-x-5' : 'translate-x-1'}`} />
               </button>
             </div>
             {form.en_promo && (
-              <div>
-                <label className={label}>Precio promo (por unidad, vendiéndose de a 2)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number" step="1" min="0" value={form.precio_promo} onChange={f('precio_promo')}
-                    placeholder="Precio por unidad en bundle"
-                    className={`${input} flex-1`}
-                  />
-                  {form.precio_compra && form.precio_promo && (
-                    <span className={`text-xs font-semibold whitespace-nowrap ${
-                      Number(form.precio_promo) < Number(form.precio_compra) ? 'text-rose-500' : 'text-emerald-600'
-                    }`}>
-                      {Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 100)}% margen
-                    </span>
+              <div className="space-y-3">
+                {/* Precio del combo */}
+                <div>
+                  <label className={label}>Precio del combo por unidad</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" step="1" min="0" value={form.precio_promo} onChange={f('precio_promo')}
+                      placeholder="Precio por unidad en el combo"
+                      className={`${input} flex-1`}
+                    />
+                    {form.precio_compra && form.precio_promo && (
+                      <span className={`text-xs font-semibold whitespace-nowrap ${
+                        Number(form.precio_promo) < Number(form.precio_compra) ? 'text-rose-500' : 'text-emerald-600'
+                      }`}>
+                        {Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 100)}% margen
+                      </span>
+                    )}
+                  </div>
+                  {form.precio_promo && form.precio_venta && (
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Descuento vs. precio normal: <strong>{Math.round((1 - Number(form.precio_promo) / Number(form.precio_venta)) * 100)}%</strong>
+                      {' · '} Total combo = <strong>${Math.round(2 * Number(form.precio_promo)).toLocaleString('es-CL')}</strong>
+                    </p>
                   )}
                 </div>
-                {form.precio_promo && form.precio_venta && (
+
+                {/* Segundo producto del combo */}
+                <div>
+                  <label className={label}>Segundo producto del combo</label>
+                  <select
+                    value={form.promo_producto_id}
+                    onChange={e => setForm(p => ({ ...p, promo_producto_id: e.target.value }))}
+                    className={input}
+                  >
+                    <option value="">Mismo producto × 2</option>
+                    {productos
+                      .filter(p => p.en_promo && p.id !== editId)
+                      .map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}{p.fraccionable ? ' [fraccionable]' : ''}
+                        </option>
+                      ))
+                    }
+                  </select>
                   <p className="text-xs text-zinc-400 mt-1">
-                    Descuento vs precio normal: <strong>{Math.round((1 - Number(form.precio_promo) / Number(form.precio_venta)) * 100)}%</strong>
-                    {' · '} 2 unidades = <strong>${(2 * Number(form.precio_promo)).toLocaleString('es-CL')}</strong>
+                    {form.promo_producto_id
+                      ? 'Se agrega 1 unidad de este producto + 1 del seleccionado al precio del combo'
+                      : 'Se agregan 2 unidades de este mismo producto al precio del combo'}
                   </p>
-                )}
+                </div>
               </div>
             )}
           </div>

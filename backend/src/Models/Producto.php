@@ -13,17 +13,23 @@ class Producto extends Model
 
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'categoria_id',
-        'peso', 'unidad_medida', 'precio_venta', 'stock', 'activo',
-        'fraccionado_de', 'en_promo', 'precio_promo', 'foto',
+        'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock', 'activo',
+        'fraccionado_de', 'fraccionable',
+        'en_promo', 'precio_promo', 'promo_producto_id',
+        'foto', 'foto_url',
+        'notificar_stock_bajo',
     ];
 
     protected $casts = [
-        'precio_venta' => 'float',
-        'stock'        => 'float',
-        'peso'         => 'float',
-        'activo'       => 'boolean',
-        'en_promo'     => 'boolean',
-        'precio_promo' => 'float',
+        'precio_venta'        => 'integer',
+        'precio_compra'       => 'integer',
+        'stock'               => 'float',
+        'peso'                => 'float',
+        'activo'              => 'boolean',
+        'fraccionable'        => 'boolean',
+        'en_promo'            => 'boolean',
+        'precio_promo'        => 'integer',
+        'notificar_stock_bajo'=> 'boolean',
     ];
 
     public function fraccionadoDe(): BelongsTo
@@ -39,6 +45,12 @@ class Producto extends Model
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class);
+    }
+
+    /** Segundo producto del combo promocional */
+    public function promoProducto(): BelongsTo
+    {
+        return $this->belongsTo(Producto::class, 'promo_producto_id');
     }
 
     public function movimientos(): HasMany
