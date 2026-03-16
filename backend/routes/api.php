@@ -15,6 +15,7 @@ Route::get('dashboard/ventas-dia',     [DashboardController::class, 'ventasDia']
 Route::get('dashboard/ventas-semana',  [DashboardController::class, 'ventasSemana']);
 Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
 Route::get('dashboard/ganancia',       [DashboardController::class, 'ganancia']);
+Route::get('dashboard/caja',           [DashboardController::class, 'caja']);
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 Route::apiResource('productos', ProductoController::class);

@@ -70,6 +70,14 @@ const CashIcon = () => (
   </svg>
 );
 
+const DrawerIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <rect x="1" y="2" width="14" height="12" rx="1.5" />
+    <line x1="1" y1="9" x2="15" y2="9" />
+    <line x1="6" y1="11.5" x2="10" y2="11.5" />
+  </svg>
+);
+
 interface NavLink {
   href: string;
   label: string;
@@ -80,6 +88,7 @@ interface NavLink {
 const links: NavLink[] = [
   { href: '/',            label: 'Dashboard',   Icon: DashboardIcon },
   { href: '/ventas',      label: 'Ventas',      Icon: CashIcon,     highlight: true },
+  { href: '/caja',        label: 'Caja',        Icon: DrawerIcon },
   { href: '/productos',   label: 'Productos',   Icon: BoxIcon },
   { href: '/categorias',  label: 'Categorías',  Icon: TagIcon },
   { href: '/proveedores', label: 'Proveedores', Icon: TruckIcon },

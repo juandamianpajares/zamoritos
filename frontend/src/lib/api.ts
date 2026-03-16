@@ -215,6 +215,23 @@ export interface GananciaProveedorItem {
   margen_pct: number;
 }
 
+export interface CajaMedioPago {
+  medio: string;
+  total: number;
+  cantidad: number;
+}
+
+export interface CajaDia {
+  fecha: string;
+  total_ventas: number;
+  cantidad_ventas: number;
+  ventas_por_medio: CajaMedioPago[];
+  total_compras: number;
+  cantidad_compras: number;
+  compras_por_prov: { proveedor: string; total: number; cantidad: number }[];
+  compras: Compra[];
+}
+
 export interface GananciaDashboard {
   periodo: string;
   desde: string;

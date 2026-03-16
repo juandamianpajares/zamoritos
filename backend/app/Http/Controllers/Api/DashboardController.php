@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Compra;
+use App\Models\DetalleCompra;
 use App\Models\DetalleVenta;
 use App\Models\Lote;
 use App\Models\Producto;
@@ -101,6 +102,50 @@ class DashboardController extends Controller
         });
 
         return response()->json($dias);
+    }
+
+    public function caja(Request $request): JsonResponse
+    {
+        $fecha = $request->get('fecha', now()->toDateString());
+
+        $ventas = Venta::with('detalles')
+            ->where('estado', 'confirmada')
+            ->whereDate('fecha', $fecha)
+            ->get();
+
+        $ventasPorMedio = $ventas
+            ->groupBy(fn($v) => $v->medio_pago ?? 'sin especificar')
+            ->map(fn($g, $medio) => [
+                'medio'    => $medio,
+                'total'    => round($g->sum('total'), 2),
+                'cantidad' => $g->count(),
+            ])
+            ->values();
+
+        $compras = Compra::with('proveedor', 'detalles.producto')
+            ->whereDate('fecha', $fecha)
+            ->orderByDesc('fecha')
+            ->get();
+
+        $comprasPorProveedor = $compras
+            ->groupBy(fn($c) => $c->proveedor?->nombre ?? 'Sin proveedor')
+            ->map(fn($g, $prov) => [
+                'proveedor' => $prov,
+                'total'     => round($g->sum('total'), 2),
+                'cantidad'  => $g->count(),
+            ])
+            ->values();
+
+        return response()->json([
+            'fecha'               => $fecha,
+            'total_ventas'        => round($ventas->sum('total'), 2),
+            'cantidad_ventas'     => $ventas->count(),
+            'ventas_por_medio'    => $ventasPorMedio,
+            'total_compras'       => round($compras->sum('total'), 2),
+            'cantidad_compras'    => $compras->count(),
+            'compras_por_prov'    => $comprasPorProveedor,
+            'compras'             => $compras,
+        ]);
     }
 
     public function ganancia(Request $request): JsonResponse
