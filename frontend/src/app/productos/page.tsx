@@ -13,6 +13,14 @@ const emptyForm = {
   unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
 };
 
+function calcPrecioVenta(precioCompra: number, pct: number): number {
+  return Math.ceil(precioCompra * (1 + pct / 100));
+}
+function calcPct(precioCompra: number, precioVenta: number): number {
+  if (precioCompra <= 0) return 0;
+  return Math.round(((precioVenta / precioCompra) - 1) * 100);
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
 
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
@@ -32,6 +40,7 @@ export default function ProductosPage() {
   const [error, setError] = useState('');
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [pctGanancia, setPctGanancia] = useState<string>('');
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -53,7 +62,8 @@ export default function ProductosPage() {
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); };
 
   const openCreate = () => {
-    setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError(''); resetFoto(); setModalOpen(true);
+    setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError('');
+    setPctGanancia(''); resetFoto(); setModalOpen(true);
   };
 
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,13 +103,15 @@ export default function ProductosPage() {
 
   const openEdit = (p: Producto) => {
     setEditId(p.id);
+    const pc = p.precio_compra ?? 0;
     setForm({
       nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
       categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
-      precio_compra: p.precio_compra != null ? String(p.precio_compra) : '',
+      precio_compra: pc > 0 ? String(pc) : '',
       stock: String(p.stock),
     });
+    setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
     setError('');
     setFotoFile(null);
     setFotoPreview(p.foto ? fotoUrl(p.foto) : null);
@@ -116,13 +128,14 @@ export default function ProductosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const pvFinal = precioVentaCalculado ?? Number(form.precio_venta);
     const body = {
       nombre: form.nombre, codigo_barras: form.codigo_barras || null,
       marca: form.marca || null,
       categoria_id: form.categoria_id ? Number(form.categoria_id) : null,
       unidad_medida: form.unidad_medida,
       peso: form.peso ? Number(form.peso) : null,
-      precio_venta: Number(form.precio_venta),
+      precio_venta: pvFinal,
       precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
       stock: form.stock ? Number(form.stock) : undefined,
     };
@@ -155,6 +168,23 @@ export default function ProductosPage() {
 
   const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  const handlePctChange = (val: string) => {
+    setPctGanancia(val);
+    const pc = parseFloat(form.precio_compra);
+    const pct = parseFloat(val);
+    if (pc > 0 && !isNaN(pct)) {
+      setForm(prev => ({ ...prev, precio_venta: String(calcPrecioVenta(pc, pct)) }));
+    }
+  };
+
+  // Derived precio_venta for edit mode (when precio_compra + pct are set)
+  const precioVentaCalculado = (() => {
+    const pc = parseFloat(form.precio_compra);
+    const pct = parseFloat(pctGanancia);
+    if (editId && pc > 0 && !isNaN(pct)) return calcPrecioVenta(pc, pct);
+    return null;
+  })();
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
@@ -344,15 +374,61 @@ export default function ProductosPage() {
               <input type="number" step="0.001" min="0" value={form.peso} onChange={f('peso')}
                 placeholder="Ej: 22 (kg)" className={input} />
             </div>
-            <div>
-              <label className={label}>Precio de venta *</label>
-              <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
-            </div>
-            <div>
-              <label className={label}>Precio de compra</label>
-              <input type="number" step="1" min="0" value={form.precio_compra} onChange={f('precio_compra')}
-                placeholder="Costo de referencia" className={input} />
-            </div>
+            {editId ? (
+              /* ── Modo edición: precio_compra read-only + % ganancia → precio_venta ── */
+              <>
+                <div>
+                  <label className={label}>Precio de compra (de última compra)</label>
+                  <div className={`${input} bg-zinc-50 text-zinc-500 select-none cursor-default`}>
+                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL')}` : 'Sin precio de compra registrado'}
+                  </div>
+                </div>
+                <div>
+                  <label className={label}>% Ganancia</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      max="9999"
+                      value={pctGanancia}
+                      onChange={e => handlePctChange(e.target.value)}
+                      placeholder="Ej: 30"
+                      className={`${input} w-28`}
+                      disabled={!form.precio_compra}
+                    />
+                    {precioVentaCalculado != null && (
+                      <span className="text-sm text-zinc-600">
+                        → <strong className="text-zinc-900">${precioVentaCalculado.toLocaleString('es-CL')}</strong>
+                      </span>
+                    )}
+                    {!form.precio_compra && (
+                      <span className="text-xs text-zinc-400">Cargá un precio de compra primero</span>
+                    )}
+                  </div>
+                  {!form.precio_compra && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio de venta *</label>
+                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* ── Modo creación: ambos campos libres ── */
+              <>
+                <div>
+                  <label className={label}>Precio de compra</label>
+                  <input type="number" step="1" min="0" value={form.precio_compra}
+                    onChange={e => { f('precio_compra')(e); }}
+                    placeholder="Costo de referencia" className={input} />
+                </div>
+                <div>
+                  <label className={label}>Precio de venta *</label>
+                  <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+                </div>
+              </>
+            )}
             {!editId && (
               <div>
                 <label className={label}>Stock inicial</label>

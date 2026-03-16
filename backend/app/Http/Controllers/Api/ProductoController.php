@@ -22,7 +22,18 @@ class ProductoController extends Controller
                 $q->where('nombre', 'like', "%$s%")
                   ->orWhere('codigo_barras', 'like', "%$s%")
                   ->orWhere('marca', 'like', "%$s%");
+                if (is_numeric($s)) {
+                    $q->orWhere('precio_venta', $s)
+                      ->orWhere('precio_compra', $s);
+                }
             });
+        }
+
+        if ($request->filled('precio_max')) {
+            $query->where('precio_venta', '<=', $request->precio_max);
+        }
+        if ($request->filled('precio_min')) {
+            $query->where('precio_venta', '>=', $request->precio_min);
         }
 
         if ($request->filled('categoria_id')) {
