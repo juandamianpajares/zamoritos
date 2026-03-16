@@ -39,6 +39,7 @@ class CompraController extends Controller
             'fecha'                             => 'required|date',
             'factura'                           => 'nullable|string',
             'usuario'                           => 'nullable|string',
+            'nota'                              => 'nullable|string',
             'detalles'                          => 'required|array|min:1',
             'detalles.*.producto_id'            => 'required|exists:productos,id',
             'detalles.*.cantidad'               => 'required|numeric|min:0.001',
@@ -55,6 +56,7 @@ class CompraController extends Controller
                 'fecha'        => $data['fecha'],
                 'factura'      => $data['factura'] ?? null,
                 'usuario'      => $data['usuario'] ?? null,
+                'nota'         => $data['nota'] ?? null,
                 'total'        => $total,
             ]);
 

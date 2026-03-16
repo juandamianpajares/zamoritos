@@ -560,16 +560,52 @@ export default function ProductosPage() {
                 </div>
               </>
             ) : (
-              /* ── Modo creación: ambos campos libres ── */
+              /* ── Modo creación: precio_compra libre + % → precio_venta ── */
               <>
                 <div>
                   <label className={label}>Precio de compra</label>
-                  <input type="number" step="1" min="0" value={form.precio_compra} onChange={f('precio_compra')}
-                    placeholder="Costo de referencia" className={input} />
+                  <input
+                    type="number" step="1" min="0" value={form.precio_compra}
+                    onChange={e => {
+                      const pc = e.target.value;
+                      setForm(prev => ({ ...prev, precio_compra: pc }));
+                      const pct = parseFloat(pctGanancia);
+                      const pcNum = parseFloat(pc);
+                      if (pcNum > 0 && !isNaN(pct)) {
+                        setForm(prev => ({ ...prev, precio_compra: pc, precio_venta: String(calcPrecioVenta(pcNum, pct)) }));
+                      }
+                    }}
+                    placeholder="Costo de referencia" className={input}
+                  />
                 </div>
                 <div>
-                  <label className={label}>Precio de venta *</label>
-                  <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+                  <label className={label}>% Ganancia</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" step="1" min="-100" max="9999" value={pctGanancia}
+                      onChange={e => handlePctChange(e.target.value)}
+                      placeholder="Ej: 30"
+                      className={`${input} w-28`}
+                      disabled={!form.precio_compra}
+                    />
+                    {form.precio_compra && pctGanancia !== '' && !isNaN(parseFloat(pctGanancia)) && (
+                      <span className="text-sm text-zinc-600">
+                        → <strong className="text-zinc-900">${calcPrecioVenta(parseFloat(form.precio_compra), parseFloat(pctGanancia)).toLocaleString('es-CL')}</strong>
+                      </span>
+                    )}
+                  </div>
+                  {!form.precio_compra && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio de venta *</label>
+                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+                    </div>
+                  )}
+                  {form.precio_compra && (
+                    <div className="mt-1.5">
+                      <label className="block text-xs font-medium text-zinc-500 mb-1">Precio de venta resultante *</label>
+                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
+                    </div>
+                  )}
                 </div>
               </>
             )}

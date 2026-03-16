@@ -993,14 +993,15 @@ function FraccionarModal({
             >−</button>
             <input
               type="number"
+              step={1}
               min={1}
-              max={producto.stock}
+              max={Math.floor(producto.stock)}
               value={bolsas}
-              onChange={e => setBolsas(Math.min(producto.stock, Math.max(1, Number(e.target.value))))}
+              onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value)))))}
               className="w-20 text-center text-base font-bold border border-zinc-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-amber-400"
             />
             <button
-              onClick={() => setBolsas(b => Math.min(producto.stock, b + 1))}
+              onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
               className="w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 text-lg transition-colors"
             >+</button>
             <span className="text-xs text-zinc-400">de {producto.stock} disponibles</span>

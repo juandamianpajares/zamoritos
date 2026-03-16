@@ -94,6 +94,7 @@ export interface Compra {
   factura?: string;
   total: number;
   usuario?: string;
+  nota?: string;
   detalles?: DetalleCompra[];
 }
 
@@ -237,6 +238,7 @@ export interface GananciaDashboard {
   periodo: string;
   desde: string;
   total_ventas: number;
+  total_compras: number;
   total_costo: number;
   ganancia_neta: number;
   margen_pct: number;

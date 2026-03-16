@@ -75,8 +75,104 @@ export default function CajaPage() {
     setCambio('');
   };
 
+  const handlePrint = () => window.print();
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
+
+      {/* ── Print-only cierre de caja ── */}
+      <div className="hidden print:block font-sans text-zinc-900">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold">CIERRE DE CAJA</h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            {new Date(fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+          </p>
+          <p className="text-xs text-zinc-400 mt-0.5">Impreso: {new Date().toLocaleString('es-CL')}</p>
+        </div>
+
+        {/* Ventas */}
+        <div className="mb-5">
+          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Ventas del día</h2>
+          {datos?.ventas_por_medio.map(m => (
+            <div key={m.medio} className="flex justify-between text-sm py-0.5">
+              <span className="capitalize">{m.medio} ({m.cantidad} ventas)</span>
+              <span className="tabular-nums font-medium">{fmt(m.total)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-sm font-bold border-t border-zinc-200 pt-1 mt-1">
+            <span>Total ventas</span>
+            <span className="tabular-nums">{fmt(datos?.total_ventas ?? 0)}</span>
+          </div>
+        </div>
+
+        {/* Compras */}
+        <div className="mb-5">
+          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Compras del día</h2>
+          {datos?.compras_por_prov.map(p => (
+            <div key={p.proveedor} className="flex justify-between text-sm py-0.5">
+              <span>{p.proveedor} ({p.cantidad})</span>
+              <span className="tabular-nums font-medium">{fmt(p.total)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-sm font-bold border-t border-zinc-200 pt-1 mt-1">
+            <span>Total compras</span>
+            <span className="tabular-nums">{fmt(datos?.total_compras ?? 0)}</span>
+          </div>
+        </div>
+
+        {/* Arqueo */}
+        <div className="mb-5">
+          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Arqueo de efectivo</h2>
+          {DENOMS.map(d => {
+            const qty = parseInt(cantidades[d] || '0') || 0;
+            if (qty === 0) return null;
+            return (
+              <div key={d} className="flex justify-between text-sm py-0.5">
+                <span>{fmt(d)} × {qty}</span>
+                <span className="tabular-nums">{fmt(d * qty)}</span>
+              </div>
+            );
+          })}
+          {fondoCambio > 0 && (
+            <div className="flex justify-between text-sm py-0.5">
+              <span>Fondo de cambio</span>
+              <span className="tabular-nums">{fmt(fondoCambio)}</span>
+            </div>
+          )}
+          <div className="border-t border-zinc-200 pt-1 mt-1 space-y-0.5">
+            <div className="flex justify-between text-sm">
+              <span>Total contado</span>
+              <span className="tabular-nums font-medium">{fmt(suma)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Esperado en caja</span>
+              <span className="tabular-nums font-medium">{fmt(esperado)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-bold">
+              <span>Diferencia</span>
+              <span className={`tabular-nums ${diferencia === 0 ? '' : diferencia > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {fmtDiff(diferencia).text}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Resultado neto */}
+        <div className="border-t-2 border-zinc-900 pt-3">
+          <div className="flex justify-between text-base font-bold">
+            <span>Resultado del día (ventas − compras)</span>
+            <span className="tabular-nums">{fmt((datos?.total_ventas ?? 0) - (datos?.total_compras ?? 0))}</span>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-4 border-t border-zinc-300 flex justify-between text-xs text-zinc-400">
+          <span>Firma responsable: ______________________________</span>
+          <span>Sello</span>
+        </div>
+      </div>
+
+      {/* ── Screen content (hidden on print) ── */}
+      <div className="print:hidden">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -106,6 +202,15 @@ export default function CajaPage() {
               </button>
             ))}
           </div>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors"
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Cerrar caja
+          </button>
         </div>
       </div>
 
@@ -381,6 +486,8 @@ export default function CajaPage() {
           )}
         </div>
       )}
+
+      </div>{/* end print:hidden */}
     </div>
   );
 }

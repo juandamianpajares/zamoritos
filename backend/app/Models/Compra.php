@@ -11,7 +11,7 @@ class Compra extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['fecha', 'proveedor_id', 'factura', 'total', 'usuario'];
+    protected $fillable = ['fecha', 'proveedor_id', 'factura', 'total', 'usuario', 'nota'];
 
     protected $casts = [
         'fecha' => 'datetime',

@@ -27,7 +27,7 @@ export default function ComprasPage() {
   const [error, setError] = useState('');
 
   const [form, setForm] = useState({
-    proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '',
+    proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '',
   });
   const [lineas, setLineas] = useState<DetalleLine[]>([emptyLine()]);
 
@@ -52,7 +52,7 @@ export default function ComprasPage() {
     setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l));
 
   const openNew = () => {
-    setForm({ proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '' });
+    setForm({ proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '' });
     setLineas([emptyLine()]);
     setError('');
     setModalOpen(true);
@@ -71,6 +71,7 @@ export default function ComprasPage() {
       await api.post('/compras', {
         proveedor_id: form.proveedor_id ? Number(form.proveedor_id) : null,
         fecha: form.fecha, factura: form.factura || null, usuario: form.usuario || null,
+        nota: form.nota || null,
         detalles,
       });
       setModalOpen(false);
@@ -203,6 +204,17 @@ export default function ComprasPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className={label}>Nota del pedido</label>
+            <textarea
+              value={form.nota}
+              onChange={e => setForm(p => ({ ...p, nota: e.target.value }))}
+              rows={3}
+              placeholder="Condiciones acordadas, observaciones, próxima entrega..."
+              className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400 resize-none leading-relaxed"
+            />
           </div>
 
           <div className="flex justify-between items-center pt-4 border-t border-zinc-100">

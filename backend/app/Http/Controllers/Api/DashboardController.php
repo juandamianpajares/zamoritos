@@ -158,32 +158,16 @@ class DashboardController extends Controller
             default  => now()->startOfDay(),
         };
 
-        // Ventas con detalles y precio_compra del producto
-        $detalles = DetalleVenta::select(
-                'detalle_ventas.cantidad',
-                'detalle_ventas.subtotal',
-                'detalle_ventas.producto_id',
-                'productos.precio_compra',
-                'productos.nombre as producto_nombre',
-                'compras.proveedor_id',
-                'proveedores.nombre as proveedor_nombre',
-            )
-            ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
-            ->join('productos', 'detalle_ventas.producto_id', '=', 'productos.id')
-            ->leftJoin('detalle_compras', function ($join) {
-                $join->on('detalle_compras.producto_id', '=', 'detalle_ventas.producto_id');
-            })
-            ->leftJoin('compras', 'detalle_compras.compra_id', '=', 'compras.id')
-            ->leftJoin('proveedores', 'compras.proveedor_id', '=', 'proveedores.id')
-            ->where('ventas.estado', 'confirmada')
-            ->where('ventas.fecha', '>=', $desde)
-            ->get();
+        // Total ventas del período
+        $totalVentas = (float) Venta::where('estado', 'confirmada')
+            ->where('fecha', '>=', $desde)
+            ->sum('total');
 
-        $totalVentas  = $detalles->sum('subtotal');
-        $totalCosto   = $detalles->sum(fn($d) =>
-            $d->precio_compra !== null ? $d->cantidad * $d->precio_compra : 0
-        );
-        $gananciaNeta = $totalVentas - $totalCosto;
+        // Total compras reales del período (egreso)
+        $totalCompras = (float) Compra::where('fecha', '>=', $desde)->sum('total');
+
+        // Ganancia = ingresos (ventas) − egresos (compras)
+        $gananciaNeta = $totalVentas - $totalCompras;
         $margenPct    = $totalVentas > 0 ? round(($gananciaNeta / $totalVentas) * 100, 1) : 0;
 
         // Por proveedor (usando precio_compra del producto)
@@ -215,13 +199,14 @@ class DashboardController extends Controller
             ]);
 
         return response()->json([
-            'periodo'       => $periodo,
-            'desde'         => $desde->toDateString(),
-            'total_ventas'  => round($totalVentas, 2),
-            'total_costo'   => round($totalCosto, 2),
-            'ganancia_neta' => round($gananciaNeta, 2),
-            'margen_pct'    => $margenPct,
-            'por_proveedor' => $ventasPorProveedor,
+            'periodo'        => $periodo,
+            'desde'          => $desde->toDateString(),
+            'total_ventas'   => round($totalVentas, 2),
+            'total_compras'  => round($totalCompras, 2),
+            'total_costo'    => round($totalCompras, 2),
+            'ganancia_neta'  => round($gananciaNeta, 2),
+            'margen_pct'     => $margenPct,
+            'por_proveedor'  => $ventasPorProveedor,
         ]);
     }
 

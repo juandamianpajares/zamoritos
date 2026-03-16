@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, type Proveedor } from '@/lib/api';
+import { api, type Proveedor, type Compra } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 const emptyForm = { nombre: '', rut: '', telefono: '', email: '', direccion: '', contacto: '', notas: '' };
@@ -17,6 +17,7 @@ export default function ProveedoresPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [error, setError] = useState('');
+  const [comprasProveedor, setComprasProveedor] = useState<Compra[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -34,6 +35,10 @@ export default function ProveedoresPage() {
               email: p.email ?? '', direccion: p.direccion ?? '', contacto: p.contacto ?? '',
               notas: p.notas ?? '' });
     setError('');
+    setComprasProveedor([]);
+    api.get<Compra[]>(`/compras?proveedor_id=${p.id}`)
+      .then(cs => setComprasProveedor(cs.sort((a, b) => b.fecha.localeCompare(a.fecha))))
+      .catch(() => {});
     setModalOpen(true);
   };
 
@@ -172,6 +177,31 @@ export default function ProveedoresPage() {
             </button>
           </div>
         </form>
+
+        {/* Historial de pedidos con notas */}
+        {editId && comprasProveedor.length > 0 && (
+          <div className="mt-6 border-t border-zinc-100 pt-4">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Historial de pedidos</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {comprasProveedor.map(c => (
+                <div key={c.id} className="rounded-xl border border-zinc-100 px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-zinc-400 tabular-nums">
+                      {new Date(c.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      {c.factura && <span className="ml-2 font-mono text-zinc-300">#{c.factura}</span>}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-zinc-800">
+                      ${c.total.toLocaleString('es-CL')}
+                    </span>
+                  </div>
+                  {c.nota && (
+                    <p className="text-xs text-zinc-500 leading-relaxed bg-zinc-50 rounded-lg px-3 py-2 mt-1">{c.nota}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

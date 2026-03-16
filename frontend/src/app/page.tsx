@@ -288,21 +288,21 @@ export default function DashboardPage() {
             bar
           />
           <KpiCard
-            label="Ticket promedio"
-            value={fmt(ventasDia?.ticket_promedio ?? 0)}
-            sub="hoy"
-            accent="text-zinc-800"
+            label="Total compras"
+            value={fmt(ganancia?.total_compras ?? 0)}
+            sub="egresos del período"
+            accent="text-rose-600"
           />
           <KpiCard
             label="Ganancia neta"
             value={fmt(ganancia?.ganancia_neta ?? 0)}
-            sub={ganancia ? `${ganancia.margen_pct}% margen` : undefined}
+            sub={ganancia ? `${ganancia.margen_pct}% sobre ventas` : undefined}
             accent={(ganancia?.ganancia_neta ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}
           />
           <KpiCard
             label="Stock bajo"
             value={String(alertas?.stock_bajo_count ?? 0)}
-            sub="productos ≤ 5 uds."
+            sub="productos ≤ mínimo"
             accent={(alertas?.stock_bajo_count ?? 0) > 0 ? 'text-rose-600' : 'text-zinc-800'}
           />
         </div>
