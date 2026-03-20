@@ -103,6 +103,130 @@ function AjusteStockModal({ producto, onClose, onDone }: { producto: Producto; o
   );
 }
 
+// ─── Importar CSV modal ───────────────────────────────────────────────────────
+type ImportResult = { creados: number; actualizados: number; errores: { fila: number; error: string }[]; total_filas: number };
+
+function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [archivo,    setArchivo]    = useState<File | null>(null);
+  const [loading,    setLoading]    = useState(false);
+  const [resultado,  setResultado]  = useState<ImportResult | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const importar = async () => {
+    if (!archivo) return;
+    setLoading(true); setErrorMsg('');
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const res = await fetch(`${apiBase}/productos/importar`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Error en el servidor');
+      setResultado(data as ImportResult);
+    } catch (e: unknown) {
+      setErrorMsg((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar catálogo desde CSV">
+      <div className="space-y-4">
+        {/* Formato */}
+        <div className="bg-zinc-50 rounded-xl p-4 text-xs text-zinc-500 space-y-1.5">
+          <p className="font-semibold text-zinc-700">Formato esperado (separador <code>;</code>, primera fila = cabecera):</p>
+          <p className="font-mono break-all leading-relaxed text-zinc-400">
+            codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ; precio_compra ; precio_venta ; fraccionable ; en_promo ; precio_promo
+          </p>
+          <ul className="list-disc list-inside space-y-0.5 mt-2">
+            <li><strong>nombre</strong>, <strong>precio_venta</strong> y <strong>unidad_medida</strong> son obligatorios.</li>
+            <li><strong>fraccionable</strong> / <strong>en_promo</strong>: escribí <code>1</code> para sí, <code>0</code> o vacío para no.</li>
+            <li>Si el código de barras ya existe → actualiza el producto.</li>
+            <li>Si el código está vacío → crea siempre un producto nuevo.</li>
+            <li>Exportá el Excel como <em>CSV UTF-8</em> (en LibreOffice: Guardar como → CSV → separador <code>;</code>).</li>
+          </ul>
+        </div>
+
+        {/* Selector de archivo */}
+        {!resultado && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 mb-1.5">Archivo CSV</label>
+            <div
+              onClick={() => inputRef.current?.click()}
+              className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-zinc-400 transition-colors"
+            >
+              {archivo ? (
+                <p className="text-sm font-medium text-zinc-700">{archivo.name} ({(archivo.size / 1024).toFixed(1)} KB)</p>
+              ) : (
+                <p className="text-sm text-zinc-400">Hacé clic para elegir el archivo CSV</p>
+              )}
+            </div>
+            <input ref={inputRef} type="file" accept=".csv,.txt" className="hidden"
+              onChange={e => setArchivo(e.target.files?.[0] ?? null)} />
+          </div>
+        )}
+
+        {/* Error */}
+        {errorMsg && (
+          <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl">{errorMsg}</div>
+        )}
+
+        {/* Resultado */}
+        {resultado && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{resultado.creados}</p>
+                <p className="text-xs text-emerald-500 mt-0.5">Creados</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600">{resultado.actualizados}</p>
+                <p className="text-xs text-amber-500 mt-0.5">Actualizados</p>
+              </div>
+              <div className="bg-rose-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-rose-600">{resultado.errores.length}</p>
+                <p className="text-xs text-rose-500 mt-0.5">Errores</p>
+              </div>
+            </div>
+            {resultado.errores.length > 0 && (
+              <div className="max-h-36 overflow-y-auto space-y-1">
+                {resultado.errores.map((e, i) => (
+                  <p key={i} className="text-xs text-rose-500 bg-rose-50 px-2 py-1 rounded">
+                    Fila {e.fila}: {e.error}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">
+            {resultado ? 'Cerrar' : 'Cancelar'}
+          </button>
+          {!resultado ? (
+            <button onClick={importar} disabled={!archivo || loading}
+              className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40">
+              {loading ? 'Importando…' : 'Importar'}
+            </button>
+          ) : (
+            <button onClick={onDone}
+              className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800">
+              Ver productos
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProductosPage() {
   const [productos,    setProductos]    = useState<Producto[]>([]);
@@ -121,6 +245,7 @@ export default function ProductosPage() {
   const [notifLoading, setNotifLoading] = useState<number | null>(null);
   const [scanning,     setScanning]     = useState(false);
   const [scanError,    setScanError]    = useState('');
+  const [importOpen,   setImportOpen]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -284,9 +409,14 @@ export default function ProductosPage() {
           <h1 className="text-xl font-semibold text-zinc-900">Productos</h1>
           <p className="text-sm text-zinc-400 mt-0.5">{productos.length} registrados</p>
         </div>
-        <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
-          + Nuevo producto
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setImportOpen(true)} className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors">
+            ↑ Importar CSV
+          </button>
+          <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
+            + Nuevo producto
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-4">
@@ -721,6 +851,14 @@ export default function ProductosPage() {
           </div>
         </form>
       </Modal>
+
+      {/* ── Modal importar CSV ── */}
+      {importOpen && (
+        <ImportarCsvModal
+          onClose={() => setImportOpen(false)}
+          onDone={() => { setImportOpen(false); load(); }}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\CompraController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ImportarCatalogoController;
 use App\Http\Controllers\Api\LoteController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\ProveedorController;
@@ -16,6 +17,8 @@ Route::get('dashboard/ventas-semana',  [DashboardController::class, 'ventasSeman
 Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
+// Rutas explícitas ANTES del apiResource para evitar conflictos de model binding
+Route::post('productos/importar',              [ImportarCatalogoController::class, 'store']);
 Route::apiResource('productos', ProductoController::class);
 Route::post('productos/{producto}/fraccionar', [ProductoController::class, 'fraccionar']);
 Route::post('productos/{producto}/foto',       [ProductoController::class, 'uploadFoto']);
