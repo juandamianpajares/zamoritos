@@ -15,6 +15,7 @@ Route::get('dashboard/stats',          [DashboardController::class, 'stats']);
 Route::get('dashboard/ventas-dia',     [DashboardController::class, 'ventasDia']);
 Route::get('dashboard/ventas-semana',  [DashboardController::class, 'ventasSemana']);
 Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
+Route::get('dashboard/ganancia',       [DashboardController::class, 'ganancia']);
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 // Rutas explícitas ANTES del apiResource para evitar conflictos de model binding
