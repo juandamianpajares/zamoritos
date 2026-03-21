@@ -41,7 +41,7 @@ if [ ! -f "artisan" ]; then
 fi
 
 # ── Configurar .env ────────────────────────────────────────────────────────
-sed -i "s|^APP_URL=.*|APP_URL=http://localhost|" .env
+sed -i "s|^APP_URL=.*|APP_URL=${APP_URL:-http://localhost}|" .env
 sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=mysql|" .env
 sed -i "s|^# DB_HOST=.*|DB_HOST=${DB_HOST:-db}|; s|^DB_HOST=.*|DB_HOST=${DB_HOST:-db}|" .env
 sed -i "s|^# DB_PORT=.*|DB_PORT=${DB_PORT:-3306}|; s|^DB_PORT=.*|DB_PORT=${DB_PORT:-3306}|" .env
