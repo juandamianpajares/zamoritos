@@ -181,11 +181,64 @@ zamoritos/
 
 Las imágenes se suben a `backend/storage/app/public/productos/` y quedan accesibles en `/storage/productos/nombre.webp`.
 
-Para convertir imágenes a WebP en lote (requiere `sudo apt install webp`):
+### Enlace de almacenamiento (`storage:link`)
+
+Laravel necesita un enlace simbólico `public/storage → storage/app/public` para servir las imágenes. Esto se ejecuta automáticamente al levantar el contenedor, pero si las imágenes no aparecen podés forzarlo manualmente:
+
+```bash
+docker compose exec backend php artisan storage:link --force
+```
+
+Verificá que el enlace existe dentro del contenedor:
+
+```bash
+docker compose exec backend ls -la public/storage
+# Debe mostrar: public/storage -> ../storage/app/public
+```
+
+### Convertir imágenes a WebP en lote
+
+Requiere `sudo apt install webp` en el host:
 
 ```bash
 chmod +x convertir_webp.sh
 ./convertir_webp.sh /ruta/a/las/imagenes
+```
+
+Después de convertir, copiá las imágenes WebP al volumen:
+
+```bash
+# Copiar desde el host al contenedor
+docker compose cp imagenes_productos/. backend:/var/www/html/storage/app/public/productos/
+```
+
+---
+
+## Comandos artisan via `docker compose exec`
+
+Todos los comandos de artisan se ejecutan dentro del contenedor backend:
+
+```bash
+# Correr migraciones pendientes
+docker compose exec backend php artisan migrate
+
+# Resetear DB completa y correr seeders (⚠️ borra todos los datos)
+docker compose exec backend php artisan migrate:fresh --seed
+
+# Sembrar solo el catálogo Zamoritos (sin resetear)
+docker compose exec backend php artisan db:seed --class=ZamoritorsCatalogoSeeder
+
+# Abrir consola interactiva de Laravel (Tinker)
+docker compose exec backend php artisan tinker
+
+# Ver todas las rutas registradas de la API
+docker compose exec backend php artisan route:list
+
+# Limpiar caché de configuración y rutas
+docker compose exec backend php artisan optimize:clear
+
+# Recrear el enlace de storage (imágenes)
+docker compose exec backend php artisan storage:link --force
 ```
 
 ---
