@@ -49,14 +49,15 @@ sed -i "s|^# DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE:-zamoritos}|; s|^DB_DATABA
 sed -i "s|^# DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME:-zamoritos}|; s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME:-zamoritos}|" .env
 sed -i "s|^# DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD:-zamoritos_secret}|; s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD:-zamoritos_secret}|" .env
 
+# ── Generar clave temporal si no existe (antes de composer, que dispara package:discover) ──
+if ! grep -q "^APP_KEY=base64:" .env; then
+    php artisan key:generate --force --no-interaction 2>/dev/null || \
+    sed -i "s|^APP_KEY=.*|APP_KEY=$(php -r 'echo "base64:".base64_encode(random_bytes(32));')|" .env
+fi
+
 # ── Instalar dependencias si falta vendor ─────────────────────────────────
 if [ ! -d "vendor" ]; then
     composer install --no-interaction --quiet
-fi
-
-# ── Generar clave si no existe ─────────────────────────────────────────────
-if ! grep -q "^APP_KEY=base64:" .env; then
-    php artisan key:generate --force --no-interaction
 fi
 
 # ── Esperar base de datos ──────────────────────────────────────────────────
