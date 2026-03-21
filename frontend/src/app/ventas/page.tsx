@@ -120,6 +120,7 @@ function POSPanel() {
   const [pagos, setPagos]             = useState<PagoLinea[]>([]);
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState('');
+  const [ventaModal, setVentaModal]   = useState<{ total: number; stockAlerts: { nombre: string; stock: number }[] } | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [cartOpen, setCartOpen]         = useState(false);
   const [addedId, setAddedId]           = useState<number | null>(null);
@@ -223,13 +224,17 @@ function POSPanel() {
       }
 
       await api.post<Venta>('/ventas', body);
-      setSuccess(`Venta registrada · ${fmt(total)}`);
+      // Detectar productos que quedarán con stock bajo tras la venta
+      const alerts = carrito
+        .filter(l => (l.producto.stock - l.cantidad) <= 3 && (l.producto.stock - l.cantidad) >= 0)
+        .map(l => ({ nombre: l.producto.nombre, stock: l.producto.stock - l.cantidad }));
+      setVentaModal({ total, stockAlerts: alerts });
+      setTimeout(() => setVentaModal(null), alerts.length > 0 ? 2500 : 1000);
       setCarrito([]);
       setCartOpen(false);
       setModoPago('unico');
       setPagos([]);
       recargarProductos();
-      setTimeout(() => setSuccess(''), 4000);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -254,6 +259,7 @@ function POSPanel() {
             </div>
           )}
           {error && (
+
             <div className="bg-rose-50 border border-rose-200 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</div>
           )}
 
@@ -431,8 +437,8 @@ function POSPanel() {
                             {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
                           </p>
                         )}
-                        <p className={`text-[10px] mt-0.5 font-medium ${
-                          agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-400'
+                        <p className={`text-xs mt-1 font-bold ${
+                          agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
                         }`}>
                           {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
                           {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
@@ -597,6 +603,68 @@ function POSPanel() {
           onConfirmar={() => { confirmarVenta(); }}
         />
       </Modal>
+
+      {/* ── Modal venta exitosa ── */}
+      {ventaModal && (
+        <>
+          <style>{`
+            @keyframes ventaOk {
+              0%   { opacity: 0; transform: scale(0.72) translateY(12px); }
+              60%  { transform: scale(1.04) translateY(-2px); }
+              100% { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            @keyframes checkDraw {
+              from { stroke-dashoffset: 30; opacity: 0; }
+              to   { stroke-dashoffset: 0;  opacity: 1; }
+            }
+          `}</style>
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-4">
+            <div
+              className="bg-white rounded-3xl shadow-2xl p-7 flex flex-col items-center gap-4 w-full max-w-xs"
+              style={{ animation: 'ventaOk 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both' }}
+            >
+              {/* Logo */}
+              <img src="/logo.png" alt="Zamoritos" className="h-12 w-auto" />
+
+              {/* Check animado */}
+              <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(16,185,129,0.12)' }}>
+                <svg width="36" height="36" fill="none" stroke="#10b981" strokeWidth="3"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="7 18 15 26 29 10"
+                    strokeDasharray="30" strokeDashoffset="0"
+                    style={{ animation: 'checkDraw 0.4s 0.1s ease-out both' }} />
+                </svg>
+              </div>
+
+              {/* Texto */}
+              <div className="text-center">
+                <p className="text-lg font-bold text-zinc-800 tracking-tight">¡Venta registrada!</p>
+                <p className="text-3xl font-black tabular-nums mt-1" style={{ color: 'var(--brand-purple)' }}>
+                  {fmt(ventaModal.total)}
+                </p>
+              </div>
+
+              {/* Alertas de stock */}
+              {ventaModal.stockAlerts.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 w-full">
+                  <p className="text-xs font-bold text-amber-700 mb-1.5 flex items-center gap-1">
+                    <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19h-17L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+                    </svg>
+                    Stock bajo
+                  </p>
+                  {ventaModal.stockAlerts.map(a => (
+                    <p key={a.nombre} className="text-xs text-amber-600 truncate">
+                      {a.nombre}: <span className="font-bold">{a.stock} restantes</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
