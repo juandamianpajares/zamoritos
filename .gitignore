@@ -16,3 +16,6 @@ frontend/out/
 
 # Docker
 .docker/
+
+# Imagenes sin convertir
+imagenes_productos/
