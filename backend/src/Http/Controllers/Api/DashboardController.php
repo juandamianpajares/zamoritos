@@ -12,6 +12,7 @@ use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
 class DashboardController extends Controller
 {
@@ -100,6 +101,83 @@ class DashboardController extends Controller
         });
 
         return response()->json($dias);
+    }
+
+    public function ganancia(Request $request): JsonResponse
+    {
+        $periodo = $request->get('periodo', 'mes');
+
+        $desde = match ($periodo) {
+            'hoy'    => now()->startOfDay(),
+            'semana' => now()->startOfWeek(),
+            default  => now()->startOfMonth(),
+        };
+
+        // Total ventas confirmadas del período
+        $totalVentas = Venta::where('estado', 'confirmada')
+            ->where('fecha', '>=', $desde)
+            ->sum('total');
+
+        // Total compras del período (egresos reales)
+        $totalCompras = Compra::where('fecha', '>=', $desde)->sum('total');
+
+        // Detalles de ventas del período con precio_compra del producto
+        $detalles = DetalleVenta::whereHas('venta', fn($q) =>
+                $q->where('estado', 'confirmada')->where('fecha', '>=', $desde)
+            )
+            ->with('producto:id,precio_compra')
+            ->get();
+
+        // Costo de lo vendido
+        $totalCosto = $detalles->sum(fn($d) => $d->cantidad * ($d->producto?->precio_compra ?? 0));
+
+        $gananciaNeta = $totalVentas - $totalCosto;
+        $margenPct    = $totalVentas > 0 ? round($gananciaNeta / $totalVentas * 100, 1) : 0;
+
+        // Último proveedor por producto (por compra_id más reciente)
+        $proveedorPorProducto = DB::table('detalle_compras as dc')
+            ->joinSub(
+                DB::table('detalle_compras')
+                    ->select('producto_id', DB::raw('MAX(compra_id) as max_compra_id'))
+                    ->groupBy('producto_id'),
+                'latest',
+                fn($j) => $j->on('dc.producto_id', '=', 'latest.producto_id')
+                             ->on('dc.compra_id', '=', 'latest.max_compra_id')
+            )
+            ->join('compras', 'dc.compra_id', '=', 'compras.id')
+            ->join('proveedores', 'compras.proveedor_id', '=', 'proveedores.id')
+            ->select('dc.producto_id', 'proveedores.nombre as proveedor')
+            ->get()
+            ->pluck('proveedor', 'producto_id');
+
+        // Ganancia agrupada por proveedor
+        $porProveedor = $detalles
+            ->groupBy(fn($d) => $proveedorPorProducto[$d->producto_id] ?? 'Sin proveedor')
+            ->map(function ($grupo, $proveedor) {
+                $tv   = $grupo->sum('subtotal');
+                $tc   = $grupo->sum(fn($d) => $d->cantidad * ($d->producto?->precio_compra ?? 0));
+                $gan  = $tv - $tc;
+                return [
+                    'proveedor'    => $proveedor,
+                    'total_ventas' => round($tv, 2),
+                    'total_costo'  => round($tc, 2),
+                    'ganancia'     => round($gan, 2),
+                    'margen_pct'   => $tv > 0 ? round($gan / $tv * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('total_ventas')
+            ->values();
+
+        return response()->json([
+            'periodo'       => $periodo,
+            'desde'         => $desde->toDateString(),
+            'total_ventas'  => round((float) $totalVentas, 2),
+            'total_compras' => round((float) $totalCompras, 2),
+            'total_costo'   => round($totalCosto, 2),
+            'ganancia_neta' => round($gananciaNeta, 2),
+            'margen_pct'    => $margenPct,
+            'por_proveedor' => $porProveedor,
+        ]);
     }
 
     public function topProductos(Request $request): JsonResponse
