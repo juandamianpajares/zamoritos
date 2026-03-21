@@ -98,17 +98,16 @@ services:
     networks:
       - zamoritos
 
-  # ── Cloudflare Tunnel (acceso desde internet sin abrir puertos en el router)
-  # Requiere: archivo .env en la raíz del proyecto con CLOUDFLARE_TUNNEL_TOKEN=<token>
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: zamoritos_tunnel
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - nginx
-    networks:
-      - zamoritos
-    restart: unless-stopped
+  # ── Cloudflare Tunnel (opcional - descomentar si se prefiere tunnel sobre port forwarding)
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: zamoritos_tunnel
+  #   command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  #   depends_on:
+  #     - nginx
+  #   networks:
+  #     - zamoritos
+  #   restart: unless-stopped
 
 networks:
   zamoritos:
