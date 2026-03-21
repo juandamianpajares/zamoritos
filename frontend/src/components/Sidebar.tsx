@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -81,7 +82,7 @@ const DrawerIcon = () => (
 interface NavLink {
   href: string;
   label: string;
-  Icon: () => JSX.Element;
+  Icon: () => React.ReactElement;
   highlight?: boolean;
 }
 
