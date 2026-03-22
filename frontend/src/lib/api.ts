@@ -35,6 +35,9 @@ export const api = {
 export interface Categoria {
   id: number;
   nombre: string;
+  foto?: string;
+  parent_id?: number;
+  children?: Categoria[];
 }
 
 export interface ComboItem {
@@ -67,6 +70,7 @@ export interface Producto {
   promo_producto_id?: number;
   promo_producto?: Producto;
   foto?: string;
+  thumb?: string;
   foto_url?: string;
 }
 

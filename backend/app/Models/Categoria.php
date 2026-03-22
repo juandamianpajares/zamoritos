@@ -11,7 +11,7 @@ class Categoria extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nombre', 'parent_id'];
+    protected $fillable = ['nombre', 'parent_id', 'foto'];
 
     public function parent(): BelongsTo
     {

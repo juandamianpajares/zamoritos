@@ -17,7 +17,7 @@ class Producto extends Model
         'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock', 'activo',
         'fraccionado_de', 'fraccionable', 'es_combo',
         'en_promo', 'precio_promo', 'promo_producto_id',
-        'foto', 'foto_url',
+        'foto', 'thumb', 'foto_url',
         'notificar_stock_bajo',
     ];
 

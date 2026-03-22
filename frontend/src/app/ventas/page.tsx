@@ -494,9 +494,9 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
-                        {(p.foto || p.foto_url) && (
+                        {(p.foto || p.thumb || p.foto_url) && (
                           <div className="w-full h-20 rounded-xl overflow-hidden mb-2">
-                            <img src={p.foto_url ?? fotoUrl(p.foto!)} alt={p.nombre}
+                            <img src={p.foto_url ?? fotoUrl(p.thumb ?? p.foto!)} alt={p.nombre}
                               className="w-full h-full object-cover" />
                           </div>
                         )}

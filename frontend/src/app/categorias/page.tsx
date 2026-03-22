@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { api, type Categoria } from '@/lib/api';
 
+const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
+function catFotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
+
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 
 export default function CategoriasPage() {
@@ -82,6 +85,7 @@ export default function CategoriasPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100">
+                <th className="text-left px-5 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide w-14"></th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Nombre</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Acciones</th>
               </tr>
@@ -89,6 +93,14 @@ export default function CategoriasPage() {
             <tbody>
               {categorias.map(c => (
                 <tr key={c.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
+                  <td className="pl-3 py-2 w-14">
+                    {c.foto ? (
+                      <img src={catFotoUrl(c.foto)} alt={c.nombre}
+                        className="w-10 h-5 rounded object-cover border border-zinc-100" />
+                    ) : (
+                      <div className="w-10 h-5 rounded bg-zinc-100" />
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     {editId === c.id ? (
                       <input
@@ -118,7 +130,7 @@ export default function CategoriasPage() {
                 </tr>
               ))}
               {categorias.length === 0 && (
-                <tr><td colSpan={2} className="px-5 py-12 text-center text-sm text-zinc-400">Sin categorías</td></tr>
+                <tr><td colSpan={3} className="px-5 py-12 text-center text-sm text-zinc-400">Sin categorías</td></tr>
               )}
             </tbody>
           </table>

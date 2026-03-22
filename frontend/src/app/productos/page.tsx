@@ -7,8 +7,9 @@ import Modal from '@/components/Modal';
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
-function efectivaFoto(p: Producto): string | null {
+function efectivaFoto(p: Producto, preferThumb = false): string | null {
   if (p.foto_url) return p.foto_url;
+  if (preferThumb && p.thumb) return fotoUrl(p.thumb);
   if (p.foto) return fotoUrl(p.foto);
   return null;
 }
@@ -469,6 +470,151 @@ function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   );
 }
 
+// ─── Modal importar imágenes masivo ──────────────────────────────────────────
+type ImagenResultado = { archivo: string; producto: string; foto: string; thumb: string };
+type ImagenError     = { archivo: string; error: string };
+type ImagenImportResult = { procesados: number; errores: ImagenError[]; resultados: ImagenResultado[] };
+
+function ImportarImagenesModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [archivos,   setArchivos]   = useState<FileList | null>(null);
+  const [loading,    setLoading]    = useState(false);
+  const [resultado,  setResultado]  = useState<ImagenImportResult | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const importar = async () => {
+    if (!archivos || archivos.length === 0) return;
+    setLoading(true); setErrorMsg('');
+    const fd = new FormData();
+    for (let i = 0; i < archivos.length; i++) fd.append('fotos[]', archivos[i]);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const res = await fetch(`${apiBase}/imagenes/importar`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Error en el servidor');
+      setResultado(data as ImagenImportResult);
+    } catch (e: unknown) {
+      setErrorMsg((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const count = archivos ? archivos.length : 0;
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar imágenes de productos">
+      <div className="space-y-4">
+
+        {/* Requisitos */}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-xs text-amber-800 space-y-1.5">
+          <p className="font-semibold text-amber-900">Requisitos para las imágenes</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            <li><strong>Formatos:</strong> JPG, PNG, WebP, GIF</li>
+            <li><strong>Tamaño máximo:</strong> 8 MB por imagen</li>
+            <li><strong>Dimensiones mínimas:</strong> 200 × 200 px</li>
+            <li><strong>Recomendado:</strong> 800 × 800 px, fondo blanco, JPG</li>
+          </ul>
+          <p className="font-semibold text-amber-900 mt-2">Nombrado de archivos (en orden de prioridad)</p>
+          <ol className="list-decimal list-inside space-y-0.5">
+            <li><code>7730918030044.jpg</code> → código de barras exacto</li>
+            <li><code>lager_adulto_10kg.jpg</code> → slug del nombre del producto</li>
+            <li><code>lager_7730918030044.jpg</code> → el nombre contiene el código</li>
+          </ol>
+          <p className="text-amber-700 mt-1">El sistema genera automáticamente la imagen principal <strong>(800×800)</strong> y el thumbnail <strong>(200×200)</strong>.</p>
+        </div>
+
+        {/* Selector de archivos */}
+        {!resultado && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 mb-1.5">Imágenes</label>
+            <div
+              onClick={() => inputRef.current?.click()}
+              className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-zinc-400 transition-colors"
+            >
+              {count > 0 ? (
+                <div>
+                  <p className="text-sm font-medium text-zinc-700">{count} imagen{count !== 1 ? 'es' : ''} seleccionada{count !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{Array.from(archivos!).map(f => f.name).slice(0, 3).join(', ')}{count > 3 ? `… y ${count - 3} más` : ''}</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-zinc-400">Hacé clic para elegir imágenes</p>
+                  <p className="text-xs text-zinc-300 mt-0.5">Podés seleccionar múltiples archivos a la vez</p>
+                </div>
+              )}
+            </div>
+            <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={e => setArchivos(e.target.files)} />
+          </div>
+        )}
+
+        {errorMsg && (
+          <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl">{errorMsg}</div>
+        )}
+
+        {resultado && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{resultado.procesados}</p>
+                <p className="text-xs text-emerald-500 mt-0.5">Procesadas</p>
+              </div>
+              <div className="bg-rose-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-rose-600">{resultado.errores.length}</p>
+                <p className="text-xs text-rose-500 mt-0.5">Sin match / Error</p>
+              </div>
+            </div>
+
+            {resultado.resultados.length > 0 && (
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {resultado.resultados.map((r, i) => (
+                  <p key={i} className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded flex justify-between">
+                    <span className="truncate">{r.archivo}</span>
+                    <span className="text-emerald-500 ml-2 shrink-0">→ {r.producto}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {resultado.errores.length > 0 && (
+              <div className="max-h-28 overflow-y-auto space-y-1">
+                {resultado.errores.map((e, i) => (
+                  <p key={i} className="text-xs text-rose-500 bg-rose-50 px-2 py-1 rounded flex justify-between">
+                    <span className="truncate">{e.archivo}</span>
+                    <span className="ml-2 shrink-0">{e.error}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">
+            {resultado ? 'Cerrar' : 'Cancelar'}
+          </button>
+          {!resultado ? (
+            <button onClick={importar} disabled={count === 0 || loading}
+              className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40">
+              {loading ? `Procesando ${count} imagen${count !== 1 ? 'es' : ''}…` : `Subir ${count || ''} imagen${count !== 1 ? 'es' : ''}`}
+            </button>
+          ) : (
+            <button onClick={onDone}
+              className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800">
+              Ver productos
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProductosPage() {
   const [productos,    setProductos]    = useState<Producto[]>([]);
@@ -491,6 +637,7 @@ export default function ProductosPage() {
   const [importOpen,   setImportOpen]   = useState(false);
   const [sheetsOpen,   setSheetsOpen]   = useState(false);
   const [fotoIaOpen,   setFotoIaOpen]   = useState(false);
+  const [imagenesOpen, setImagenesOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -676,6 +823,10 @@ export default function ProductosPage() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3l5 5h-3v4h-4v-4H7l5-5z"/></svg>
             Google Sheets
           </button>
+          <button onClick={() => setImagenesOpen(true)} className="border border-amber-200 text-amber-700 text-sm px-4 py-2 rounded-xl hover:bg-amber-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Imágenes
+          </button>
           <button onClick={() => setImportOpen(true)} className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors">
             ↑ CSV
           </button>
@@ -728,7 +879,7 @@ export default function ProductosPage() {
               </thead>
               <tbody>
                 {productos.map(p => {
-                  const img = efectivaFoto(p);
+                  const img = efectivaFoto(p, true); // prefer thumb in list
                   return (
                     <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
                       <td className="pl-3 py-2 w-12">
@@ -1228,6 +1379,14 @@ export default function ProductosPage() {
         <ImportarSheetsModal
           onClose={() => setSheetsOpen(false)}
           onDone={() => { setSheetsOpen(false); load(); }}
+        />
+      )}
+
+      {/* ── Modal Imágenes masivo ── */}
+      {imagenesOpen && (
+        <ImportarImagenesModal
+          onClose={() => setImagenesOpen(false)}
+          onDone={() => { setImagenesOpen(false); load(); }}
         />
       )}
 

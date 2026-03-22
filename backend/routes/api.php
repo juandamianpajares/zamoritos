@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\ImagenController;
 use App\Http\Controllers\Api\MarcaController;
 use App\Http\Controllers\Api\CompraController;
 use App\Http\Controllers\Api\DashboardController;
@@ -30,6 +31,9 @@ Route::post('productos/importar-sheets',      [ImportarCatalogoController::class
 Route::apiResource('productos', ProductoController::class);
 Route::post('productos/{producto}/fraccionar', [ProductoController::class, 'fraccionar']);
 Route::post('productos/{producto}/foto',       [ProductoController::class, 'uploadFoto']);
+
+Route::get('imagenes/requisitos',   [ImagenController::class, 'requisitos']);
+Route::post('imagenes/importar',    [ImagenController::class, 'importar']);
 Route::apiResource('proveedores', ProveedorController::class);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 

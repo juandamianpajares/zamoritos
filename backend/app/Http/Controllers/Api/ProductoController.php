@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\ComboItem;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
+use App\Services\ImagenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ProductoController extends Controller
@@ -165,16 +167,20 @@ class ProductoController extends Controller
         return response()->json($producto);
     }
 
-    public function uploadFoto(Request $request, Producto $producto): JsonResponse
+    public function uploadFoto(Request $request, Producto $producto, ImagenService $img): JsonResponse
     {
-        $request->validate(['foto' => 'required|image|max:4096']);
+        $request->validate([
+            'foto' => 'required|image|mimes:jpg,jpeg,png,webp,gif|max:8192',
+        ]);
 
-        if ($producto->foto) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($producto->foto);
-        }
+        // Borrar fotos anteriores
+        if ($producto->foto)  Storage::disk('public')->delete($producto->foto);
+        if ($producto->thumb) Storage::disk('public')->delete($producto->thumb);
 
-        $path = $request->file('foto')->store('productos', 'public');
-        $producto->update(['foto' => $path]);
+        $slug  = $img->slug($producto->codigo_barras ?? (string) $producto->id);
+        $paths = $img->guardarProducto($request->file('foto')->getRealPath(), $slug);
+
+        $producto->update(['foto' => $paths['foto'], 'thumb' => $paths['thumb']]);
 
         return response()->json($producto->fresh(['categoria', 'promoProducto']));
     }
