@@ -1,0 +1,37 @@
+{
+  "name": "Zamoritos – Gestión",
+  "short_name": "Zamoritos",
+  "description": "Sistema de gestión comercial · Agroveterinaria Zamoritos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#7B2D8B",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Nueva venta",
+      "url": "/ventas",
+      "description": "Abrir punto de venta"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/",
+      "description": "Ver resumen del día"
+    }
+  ]
+}

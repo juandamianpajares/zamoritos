@@ -5,7 +5,10 @@
       "Bash(command -v cwebp)",
       "Bash(cwebp --version)",
       "Bash(find /c/Users/Juan/Documents/repos/zamoritos/frontend -name *logo* -o -name *Logo*)",
-      "Bash(docker cp:*)"
+      "Bash(docker cp:*)",
+      "Read(//c/Users/Juan/AppData/Local/Temp/claude/c--Users-Juan-Documents-GitHub-zamoritos/bc650d09-6197-436a-a47d-14ee90d7d675/tasks/**)",
+      "Bash(node -e \"require\\(''next-pwa''\\)\")",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

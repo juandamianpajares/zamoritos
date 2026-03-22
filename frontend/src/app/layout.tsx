@@ -8,6 +8,12 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Zamoritos – Gestión',
   description: 'Sistema de gestión comercial y stock · Agroveterinaria Zamoritos',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Zamoritos',
+  },
   icons: {
     icon: '/logo.png',
     apple: '/logo.png',

@@ -42,7 +42,11 @@ class ProductoController extends Controller
             $query->where('en_promo', true);
         }
 
-        $productos = $query->orderBy('nombre')->get();
+        $productos = $query
+            ->addSelect(DB::raw('(SELECT COALESCE(SUM(dv.cantidad),0) FROM detalle_ventas dv JOIN ventas v ON v.id = dv.venta_id WHERE dv.producto_id = productos.id AND v.estado = "confirmada") as veces_vendido'))
+            ->orderByDesc('veces_vendido')
+            ->orderBy('nombre')
+            ->get();
 
         // Calcular stock virtual para combos
         foreach ($productos as $producto) {
