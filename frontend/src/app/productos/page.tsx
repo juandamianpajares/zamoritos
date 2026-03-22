@@ -280,13 +280,13 @@ export default function ProductosPage() {
       precio_compra: pc > 0 ? String(pc) : '',
       stock: String(p.stock),
       fraccionable: !!p.fraccionable,
+      es_combo: !!p.es_combo,
       en_promo: !!p.en_promo,
       precio_promo: p.precio_promo != null ? String(p.precio_promo) : '',
       promo_producto_id: p.promo_producto_id != null ? String(p.promo_producto_id) : '',
       foto_url: p.foto_url ?? '',
     });
     setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
-    setForm(prev => ({ ...prev, es_combo: !!p.es_combo }));
     setComboItems(
       (p.combo_items ?? []).map(ci => ({
         componente_producto_id: String(ci.componente_producto_id),
