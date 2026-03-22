@@ -784,7 +784,7 @@ export default function ProductosPage() {
     setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl">
+    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1">
       {toastMsg && <Toast message={toastMsg} type="success" onClose={() => setToastMsg('')} />}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -38,7 +38,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <span className="text-sm font-semibold tracking-tight">Zamoritos</span>
         </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-hidden flex flex-col">{children}</main>
       </div>
     </div>
   );

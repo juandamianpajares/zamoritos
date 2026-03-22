@@ -33,7 +33,12 @@ class ProductoController extends Controller
         }
 
         if ($request->filled('categoria_id')) {
-            $query->where('categoria_id', $request->categoria_id);
+            if ($request->boolean('subtree')) {
+                $ids = $this->descendantIds((int) $request->categoria_id);
+                $query->whereIn('categoria_id', $ids);
+            } else {
+                $query->where('categoria_id', $request->categoria_id);
+            }
         }
 
         if ($request->boolean('stock_bajo')) {
@@ -174,6 +179,21 @@ class ProductoController extends Controller
     {
         $producto->update(['destacado' => !$producto->destacado]);
         return response()->json($producto);
+    }
+
+    /** Devuelve el ID de la categoría dada + todos sus descendientes. */
+    private function descendantIds(int $parentId): array
+    {
+        $all   = \App\Models\Categoria::all(['id', 'parent_id']);
+        $ids   = [$parentId];
+        $queue = [$parentId];
+        while (!empty($queue)) {
+            $current  = array_shift($queue);
+            $children = $all->where('parent_id', $current)->pluck('id')->toArray();
+            $ids      = array_merge($ids, $children);
+            $queue    = array_merge($queue, $children);
+        }
+        return $ids;
     }
 
     public function uploadFoto(Request $request, Producto $producto, ImagenService $img): JsonResponse

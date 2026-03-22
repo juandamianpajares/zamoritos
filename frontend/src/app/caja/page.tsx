@@ -128,7 +128,7 @@ export default function CajaPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl">
+    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1">
 
       {/* ── Print-only cierre de caja ── */}
       <div className="hidden print:block font-sans text-zinc-900">

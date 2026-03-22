@@ -38,7 +38,7 @@ export default function LotesPage() {
   useEffect(() => { load(); }, [filtroProducto, soloVencer]);
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl">
+    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1">
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-zinc-900">Lotes y Vencimientos</h1>
         <p className="text-sm text-zinc-400 mt-0.5">{lotes.length} lotes</p>
