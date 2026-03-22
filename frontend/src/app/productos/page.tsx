@@ -15,7 +15,7 @@ function efectivaFoto(p: Producto): string | null {
 
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
-  unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
+  unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '',
   fraccionable: false, es_combo: false,
   en_promo: false, precio_promo: '', promo_producto_id: '',
   foto_url: '',
@@ -278,7 +278,6 @@ export default function ProductosPage() {
       categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
       precio_compra: pc > 0 ? String(pc) : '',
-      stock: String(p.stock),
       fraccionable: !!p.fraccionable,
       es_combo: !!p.es_combo,
       en_promo: !!p.en_promo,
@@ -365,7 +364,6 @@ export default function ProductosPage() {
       peso: form.peso ? Number(form.peso) : null,
       precio_venta: pvFinal,
       precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
-      stock: form.stock ? Number(form.stock) : undefined,
       fraccionable: form.fraccionable,
       es_combo: form.es_combo,
       en_promo: form.en_promo,
@@ -762,12 +760,6 @@ export default function ProductosPage() {
               </>
             )}
 
-            {!editId && (
-              <div>
-                <label className={label}>Stock inicial</label>
-                <input type="number" step="0.001" min="0" value={form.stock} onChange={f('stock')} className={input} />
-              </div>
-            )}
           </div>
 
           {/* ── Combo ── */}
