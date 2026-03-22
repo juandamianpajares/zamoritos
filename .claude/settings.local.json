@@ -13,7 +13,8 @@
       "Bash(find c:UsersJuanDocumentsGitHubzamoritosbackend -name *Controller.php -type f)",
       "Bash(find c:UsersJuanDocumentsGitHubzamoritosbackendapp -type f -name *.php)",
       "Bash(find c:UsersJuanDocumentsGitHubzamoritosbackendsrc -type f -name *.php)",
-      "Bash(composer require:*)"
+      "Bash(composer require:*)",
+      "Bash(git push:*)"
     ]
   }
 }
