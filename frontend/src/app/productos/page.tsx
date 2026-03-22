@@ -1235,13 +1235,6 @@ export default function ProductosPage() {
                       placeholder="Precio por unidad en el combo"
                       className={`${input} flex-1`}
                     />
-                    {form.precio_compra && form.precio_promo && (
-                      <span className={`text-xs font-semibold whitespace-nowrap ${
-                        Number(form.precio_promo) < Number(form.precio_compra) ? 'text-rose-500' : 'text-emerald-600'
-                      }`}>
-                        {(Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 10000) / 100).toFixed(2)}% margen
-                      </span>
-                    )}
                   </div>
                   {form.precio_promo && form.precio_venta && (
                     <p className="text-xs text-zinc-400 mt-1">
