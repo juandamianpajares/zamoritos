@@ -51,6 +51,19 @@ function fmt(n: number) {
   return `$${Math.round(n).toLocaleString('es-CL')}`;
 }
 
+const MEDIO_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo', tarjeta: 'VISA', oca: 'OCA',
+  master: 'MasterCard', anda: 'ANDA', cabal: 'CABAL',
+  transferencia: 'Transferencia', otro: 'Otro', sicfe: 'SICFE',
+};
+const MEDIO_COLOR: Record<string, string> = {
+  efectivo: 'bg-emerald-100 text-emerald-700', tarjeta: 'bg-blue-100 text-blue-700',
+  oca: 'bg-orange-100 text-orange-700', master: 'bg-orange-100 text-orange-800',
+  anda: 'bg-cyan-100 text-cyan-700', cabal: 'bg-indigo-100 text-indigo-700',
+  transferencia: 'bg-violet-100 text-violet-700', otro: 'bg-zinc-100 text-zinc-600',
+  sicfe: 'bg-zinc-100 text-zinc-500',
+};
+
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
@@ -376,6 +389,7 @@ function POSPanel() {
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
                   const esPromo        = !!p.en_promo && !!p.precio_promo;
+                  const esCombo        = !!p.es_combo;
                   const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
                   return (
                     <div
@@ -383,6 +397,8 @@ function POSPanel() {
                       className={`relative flex flex-col rounded-2xl border transition-all duration-150 ${
                         agotado
                           ? 'opacity-40 bg-white border-zinc-100'
+                          : esCombo
+                          ? 'bg-violet-50/40 border-violet-200 hover:border-violet-400 hover:shadow-md'
                           : esPromo
                           ? 'bg-rose-50/40 border-rose-200 hover:border-rose-400 hover:shadow-md'
                           : esFraccionado
@@ -392,14 +408,20 @@ function POSPanel() {
                           : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md'
                       }`}
                     >
+                      {/* Badge combo */}
+                      {esCombo && (
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">
+                          COMBO
+                        </span>
+                      )}
                       {/* Badge fraccionado */}
-                      {esFraccionado && (
+                      {esFraccionado && !esCombo && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
                           FRAC.
                         </span>
                       )}
                       {/* Badge promo */}
-                      {esPromo && !esFraccionado && (
+                      {esPromo && !esFraccionado && !esCombo && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-0.5">
                           <svg width="7" height="7" fill="currentColor" viewBox="0 0 24 24"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
                           PROMO
@@ -1426,8 +1448,8 @@ function HistorialPanel() {
                       </td>
                       <td className="px-4 py-3">
                         {v.medio_pago ? (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                            {v.medio_pago}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
                         ) : <span className="text-zinc-300">—</span>}
                       </td>
@@ -1484,8 +1506,8 @@ function HistorialPanel() {
                       </div>
                       <div className="flex items-center gap-2">
                         {v.medio_pago && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                            {v.medio_pago}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
                         )}
                       </div>
@@ -1525,13 +1547,13 @@ function HistorialPanel() {
                 ['Fecha',     new Date(detalle.fecha).toLocaleDateString('es-CL')],
                 ['Total',     fmt(detalle.total)],
                 ['Tipo pago', detalle.tipo_pago],
-                ['Medio',     detalle.medio_pago ?? '—'],
+                ['Medio',     (detalle.medio_pago ? (MEDIO_LABEL[detalle.medio_pago] ?? detalle.medio_pago) : '—')],
                 ['Estado',    detalle.estado],
                 ['Moneda',    detalle.moneda],
               ].map(([k, v]) => (
                 <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
                   <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">{k}</p>
-                  <p className="text-zinc-800 font-semibold capitalize">{v}</p>
+                  <p className="text-zinc-800 font-semibold">{v}</p>
                 </div>
               ))}
             </div>
