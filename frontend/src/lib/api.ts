@@ -61,6 +61,7 @@ export interface Producto {
   stock: number;
   activo: boolean;
   notificar_stock_bajo?: boolean;
+  destacado?: boolean;
   fraccionado_de?: number;
   fraccionable?: boolean;
   es_combo?: boolean;

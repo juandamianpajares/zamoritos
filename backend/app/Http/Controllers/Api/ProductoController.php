@@ -46,6 +46,7 @@ class ProductoController extends Controller
 
         $productos = $query
             ->addSelect(DB::raw('(SELECT COALESCE(SUM(dv.cantidad),0) FROM detalle_ventas dv JOIN ventas v ON v.id = dv.venta_id WHERE dv.producto_id = productos.id AND v.estado = "confirmada") as veces_vendido'))
+            ->orderByDesc('destacado')
             ->orderByDesc('veces_vendido')
             ->orderBy('nombre')
             ->get();
@@ -87,6 +88,7 @@ class ProductoController extends Controller
             'precio_promo'      => 'nullable|integer|min:0',
             'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
+            'destacado'         => 'nullable|boolean',
             'combo_items'                       => 'nullable|array',
             'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
             'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
@@ -128,6 +130,7 @@ class ProductoController extends Controller
             'precio_promo'      => 'nullable|integer|min:0',
             'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
+            'destacado'         => 'nullable|boolean',
             'combo_items'                       => 'nullable|array',
             'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
             'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
@@ -164,6 +167,12 @@ class ProductoController extends Controller
     public function toggleNotificacion(Producto $producto): JsonResponse
     {
         $producto->update(['notificar_stock_bajo' => !$producto->notificar_stock_bajo]);
+        return response()->json($producto);
+    }
+
+    public function toggleDestacado(Producto $producto): JsonResponse
+    {
+        $producto->update(['destacado' => !$producto->destacado]);
         return response()->json($producto);
     }
 

@@ -18,7 +18,7 @@ class Producto extends Model
         'fraccionado_de', 'fraccionable', 'es_combo',
         'en_promo', 'precio_promo', 'promo_producto_id',
         'foto', 'thumb', 'foto_url',
-        'notificar_stock_bajo',
+        'notificar_stock_bajo', 'destacado',
     ];
 
     protected $casts = [
@@ -32,6 +32,7 @@ class Producto extends Model
         'en_promo'            => 'boolean',
         'precio_promo'        => 'integer',
         'notificar_stock_bajo'=> 'boolean',
+        'destacado'           => 'boolean',
     ];
 
     public function fraccionadoDe(): BelongsTo

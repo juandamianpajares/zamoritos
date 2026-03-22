@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
+import Toast from '@/components/Toast';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -119,6 +120,57 @@ export default function VentasPage() {
   );
 }
 
+// ─── Paleta de colores por categoría ──────────────────────────────────────────
+type CatIcon = 'zamoritos' | 'paw' | 'conejo' | 'pez' | 'ave' | 'caballo' | null;
+interface CatStyle { idle: string; activeBg: string; icon: CatIcon }
+
+function getCatStyle(nombre: string): CatStyle {
+  const n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // ── Animales domésticos — colores radiantes ──────────────────────────────
+  if (n.includes('perro') || n.includes('canino'))
+    return { idle: 'bg-violet-50 text-violet-700 border-violet-200 hover:border-violet-500', activeBg: '#7C3AED', icon: 'zamoritos' };
+  if (n.includes('gato') || n.includes('felino'))
+    return { idle: 'bg-orange-50 text-orange-600 border-orange-200 hover:border-orange-500', activeBg: '#EA580C', icon: 'zamoritos' };
+  if (n.includes('conejo'))
+    return { idle: 'bg-pink-50 text-pink-600 border-pink-200 hover:border-pink-500', activeBg: '#DB2777', icon: 'conejo' };
+  if (n.includes('pez') || n.includes('acuario') || n.includes('pecera'))
+    return { idle: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:border-cyan-500', activeBg: '#0891B2', icon: 'pez' };
+
+  // ── Granja / caballos — pasteles suaves ──────────────────────────────────
+  if (n.includes('caballo') || n.includes('equino') || n.includes('yegua') || n.includes('potro'))
+    return { idle: 'bg-lime-50 text-lime-700 border-lime-200 hover:border-lime-400', activeBg: '#65A30D', icon: 'caballo' };
+  if (n.includes('bovino') || n.includes('vaca') || n.includes('ternero'))
+    return { idle: 'bg-stone-50 text-stone-600 border-stone-200 hover:border-stone-400', activeBg: '#78716C', icon: null };
+  if (n.includes('cerdo') || n.includes('porcino'))
+    return { idle: 'bg-rose-50 text-rose-500 border-rose-200 hover:border-rose-300', activeBg: '#F43F5E', icon: null };
+  if (n.includes('aves') || n.includes('ave') || n.includes('gallina') || n.includes('pollo') || n.includes('pajaro') || n.includes('loro'))
+    return { idle: 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:border-yellow-400', activeBg: '#CA8A04', icon: 'ave' };
+
+  // ── Categorías de producto ────────────────────────────────────────────────
+  if (n.includes('alimento') || n.includes('comida'))
+    return { idle: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400', activeBg: '#059669', icon: null };
+  if (n.includes('snack') || n.includes('premio'))
+    return { idle: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400', activeBg: '#D97706', icon: null };
+  if (n.includes('higiene'))
+    return { idle: 'bg-sky-50 text-sky-600 border-sky-200 hover:border-sky-400', activeBg: '#0284C7', icon: null };
+  if (n.includes('estetica') || n.includes('grooming'))
+    return { idle: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200 hover:border-fuchsia-400', activeBg: '#A21CAF', icon: null };
+  if (n.includes('limpieza'))
+    return { idle: 'bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-400', activeBg: '#2563EB', icon: null };
+  if (n.includes('veneno') || n.includes('raticida') || n.includes('insect'))
+    return { idle: 'bg-red-50 text-red-600 border-red-200 hover:border-red-400', activeBg: '#DC2626', icon: null };
+  if (n.includes('paseo') || n.includes('collar') || n.includes('correa'))
+    return { idle: 'bg-green-50 text-green-600 border-green-200 hover:border-green-400', activeBg: '#16A34A', icon: null };
+  if (n.includes('ropa') || n.includes('vestimenta'))
+    return { idle: 'bg-purple-50 text-purple-600 border-purple-200 hover:border-purple-400', activeBg: '#9333EA', icon: null };
+  if (n.includes('comedero') || n.includes('bebedero'))
+    return { idle: 'bg-teal-50 text-teal-600 border-teal-200 hover:border-teal-400', activeBg: '#0D9488', icon: null };
+
+  // ── Default ───────────────────────────────────────────────────────────────
+  return { idle: 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400', activeBg: 'var(--brand-purple)', icon: null };
+}
+
 // ─── Panel POS ────────────────────────────────────────────────────────────────
 
 function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClearCanje: () => void }) {
@@ -157,7 +209,7 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
     searchRef.current?.focus();
   }, [recargarProductos]);
 
-  // Productos filtrados
+  // Productos filtrados — orden: destacado → más vendidos → stock desc → sin stock al fondo
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
     if (catActiva === -1) lista = lista.filter(p => p.en_promo);
@@ -170,6 +222,14 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
         (p.marca ?? '').toLowerCase().includes(q) ||
         String(p.precio_venta).includes(q)
       );
+    }
+    // El backend ya ordena por destacado DESC, veces_vendido DESC, nombre ASC.
+    // En el cliente separamos con stock > 0 primero, luego sin stock.
+    if (!q) {
+      lista = [
+        ...lista.filter(p => p.stock > 0),
+        ...lista.filter(p => p.stock <= 0),
+      ];
     }
     return lista;
   }, [productos, catActiva, busqueda]);
@@ -311,23 +371,15 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
 
+      {/* ── Toasts flotantes ── */}
+      {success && <Toast message={success} type="success" onClose={() => setSuccess('')} />}
+      {error   && <Toast message={error}   type="error"   onClose={() => setError('')}   duration={5000} />}
+
       {/* ── Left: productos ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Búsqueda + filtros */}
         <div className="px-4 pt-4 pb-3 bg-white border-b border-zinc-100 space-y-3 shrink-0">
-
-          {/* Toasts */}
-          {success && (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-2.5 rounded-xl">
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 8 6 13 15 4"/></svg>
-              {success}
-            </div>
-          )}
-          {error && (
-
-            <div className="bg-rose-50 border border-rose-200 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</div>
-          )}
 
           {/* Barra de búsqueda */}
           <div className="flex gap-2">
@@ -377,22 +429,23 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
             <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => setCatActiva(null)}
-                className={`shrink-0 px-3 py-1 text-xs font-medium rounded-lg border transition-colors ${
+                className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
                   catActiva === null
-                    ? 'text-white border-transparent'
+                    ? 'text-white border-transparent shadow-sm'
                     : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
                 }`}
                 style={catActiva === null ? { background: 'var(--brand-purple)' } : {}}
               >
                 Todos
               </button>
-              {/* Categoría virtual: Promos */}
+
+              {/* Promos */}
               <button
                 onClick={() => setCatActiva(catActiva === -1 ? null : -1)}
-                className={`shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
                   catActiva === -1
-                    ? 'text-white border-transparent'
-                    : 'bg-white text-rose-500 border-rose-200 hover:border-rose-400'
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400'
                 }`}
                 style={catActiva === -1 ? { background: '#e11d48' } : {}}
               >
@@ -401,20 +454,54 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                 </svg>
                 Promos
               </button>
-              {categorias.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setCatActiva(catActiva === c.id ? null : c.id)}
-                  className={`shrink-0 px-3 py-1 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
-                    catActiva === c.id
-                      ? 'text-white border-transparent'
-                      : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
-                  }`}
-                  style={catActiva === c.id ? { background: 'var(--brand-purple)' } : {}}
-                >
-                  {c.nombre}
-                </button>
-              ))}
+
+              {categorias.map(c => {
+                const cs = getCatStyle(c.nombre);
+                const activo = catActiva === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setCatActiva(activo ? null : c.id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
+                      activo ? 'text-white border-transparent shadow-sm' : cs.idle
+                    }`}
+                    style={activo ? { background: cs.activeBg } : {}}
+                  >
+                    {cs.icon === 'zamoritos' && (
+                      <img src="/logo.png" alt="" className="w-4 h-4 object-contain" />
+                    )}
+                    {cs.icon === 'paw' && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <ellipse cx="6" cy="7" rx="2.5" ry="3.5"/><ellipse cx="18" cy="7" rx="2.5" ry="3.5"/>
+                        <ellipse cx="10" cy="3.5" rx="2" ry="3"/><ellipse cx="14" cy="3.5" rx="2" ry="3"/>
+                        <path d="M12 10c-4 0-7 2.5-7 5.5 0 2 1.5 3.5 3.5 3.5.8 0 1.5-.2 2-.5l1.5-.8 1.5.8c.5.3 1.2.5 2 .5 2 0 3.5-1.5 3.5-3.5 0-3-3-5.5-7-5.5z"/>
+                      </svg>
+                    )}
+                    {cs.icon === 'conejo' && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <ellipse cx="12" cy="15" rx="5" ry="6"/><ellipse cx="8" cy="7" rx="2" ry="5"/><ellipse cx="16" cy="7" rx="2" ry="5"/>
+                      </svg>
+                    )}
+                    {cs.icon === 'pez' && (
+                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="15" cy="10" r="1.5" fill="white"/>
+                        <path d="M22 7l-2 5 2 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                    {cs.icon === 'ave' && (
+                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 3C8 3 4 6 4 9c0 2 1 3.5 2.5 4.5L4 20h16l-2.5-6.5C19 12.5 20 11 20 9c0-3-4-6-8-6z"/>
+                      </svg>
+                    )}
+                    {cs.icon === 'caballo' && (
+                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 3h4l2 4h3l2-2 1 5-3 1-1 9H9l-1-8-3-1L4 6l3-1V3z"/>
+                      </svg>
+                    )}
+                    {c.nombre}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -461,6 +548,10 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                           : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md'
                       }`}
                     >
+                      {/* Badge destacado */}
+                      {p.destacado && !esCombo && !esPromo && !esFraccionado && (
+                        <span className="absolute top-1.5 left-1.5 text-[10px]" title="Destacado">⭐</span>
+                      )}
                       {/* Badge combo */}
                       {esCombo && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">
@@ -666,7 +757,6 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
             setFraccionando(null);
             recargarProductos();
             setSuccess(`✓ ${resultado.unidades_generadas} kg generados · código ${resultado.codigo_fraccionado}`);
-            setTimeout(() => setSuccess(''), 5000);
           }}
         />
       )}

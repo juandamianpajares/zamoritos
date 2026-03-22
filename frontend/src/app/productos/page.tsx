@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Producto, type Categoria, type ComboItem } from '@/lib/api';
 import Modal from '@/components/Modal';
+import Toast from '@/components/Toast';
 
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
@@ -16,19 +17,12 @@ function efectivaFoto(p: Producto, preferThumb = false): string | null {
 
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
-  unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '',
-  fraccionable: false, es_combo: false,
+  unidad_medida: 'unidad', peso: '', precio_venta: '',
+  fraccionable: false, es_combo: false, destacado: false,
   en_promo: false, precio_promo: '', promo_producto_id: '',
   foto_url: '',
 };
 
-function calcPrecioVenta(precioCompra: number, pct: number): number {
-  return Math.ceil(precioCompra * (1 + pct / 100));
-}
-function calcPct(precioCompra: number, precioVenta: number): number {
-  if (precioCompra <= 0) return 0;
-  return Math.round(((precioVenta / precioCompra) - 1) * 10000) / 100; // 2 decimales
-}
 
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
@@ -626,9 +620,9 @@ export default function ProductosPage() {
   const [editId,       setEditId]       = useState<number | null>(null);
   const [form,         setForm]         = useState({ ...emptyForm });
   const [error,        setError]        = useState('');
+  const [toastMsg,     setToastMsg]     = useState('');
   const [fotoFile,     setFotoFile]     = useState<File | null>(null);
   const [fotoPreview,  setFotoPreview]  = useState<string | null>(null);
-  const [pctGanancia,  setPctGanancia]  = useState<string>('');
   const [ajusteP,      setAjusteP]      = useState<Producto | null>(null);
   const [notifLoading, setNotifLoading] = useState<number | null>(null);
   const [comboItems,   setComboItems]   = useState<{ componente_producto_id: string; cantidad: string }[]>([]);
@@ -658,25 +652,22 @@ export default function ProductosPage() {
 
   const openCreate = () => {
     setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError('');
-    setPctGanancia(''); resetFoto(); setComboItems([]); setModalOpen(true);
+    resetFoto(); setComboItems([]); setModalOpen(true);
   };
 
   const openEdit = (p: Producto) => {
     setEditId(p.id);
-    const pc = p.precio_compra ?? 0;
     setForm({
       nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
       categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
-      precio_compra: pc > 0 ? String(pc) : '',
-      fraccionable: !!p.fraccionable,
+      fraccionable: !!p.fraccionable, destacado: !!p.destacado,
       es_combo: !!p.es_combo,
       en_promo: !!p.en_promo,
       precio_promo: p.precio_promo != null ? String(p.precio_promo) : '',
       promo_producto_id: p.promo_producto_id != null ? String(p.promo_producto_id) : '',
       foto_url: p.foto_url ?? '',
     });
-    setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
     setComboItems(
       (p.combo_items ?? []).map(ci => ({
         componente_producto_id: String(ci.componente_producto_id),
@@ -727,35 +718,19 @@ export default function ProductosPage() {
     setFotoPreview(URL.createObjectURL(file));
   };
 
-  const handlePctChange = (val: string) => {
-    setPctGanancia(val);
-    const pc = parseFloat(form.precio_compra);
-    const pct = parseFloat(val);
-    if (pc > 0 && !isNaN(pct)) {
-      setForm(prev => ({ ...prev, precio_venta: String(calcPrecioVenta(pc, pct)) }));
-    }
-  };
-
-  const precioVentaCalculado = (() => {
-    const pc = parseFloat(form.precio_compra);
-    const pct = parseFloat(pctGanancia);
-    if (editId && pc > 0 && !isNaN(pct)) return calcPrecioVenta(pc, pct);
-    return null;
-  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const pvFinal = precioVentaCalculado ?? Number(form.precio_venta);
     const body: Record<string, unknown> = {
       nombre: form.nombre, codigo_barras: form.codigo_barras || null,
       marca: form.marca || null,
       categoria_id: form.categoria_id ? Number(form.categoria_id) : null,
       unidad_medida: form.unidad_medida,
       peso: form.peso ? Number(form.peso) : null,
-      precio_venta: pvFinal,
-      precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
+      precio_venta: Number(form.precio_venta),
       fraccionable: form.fraccionable,
+      destacado: form.destacado,
       es_combo: form.es_combo,
       en_promo: form.en_promo,
       precio_promo: form.en_promo && form.precio_promo ? Number(form.precio_promo) : null,
@@ -785,6 +760,7 @@ export default function ProductosPage() {
       setModalOpen(false);
       resetFoto();
       load();
+      setToastMsg(editId ? 'Producto actualizado' : 'Producto creado');
     } catch (e: unknown) { setError((e as Error).message); }
   };
 
@@ -809,6 +785,7 @@ export default function ProductosPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
+      {toastMsg && <Toast message={toastMsg} type="success" onClose={() => setToastMsg('')} />}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Productos</h1>
@@ -935,6 +912,17 @@ export default function ProductosPage() {
                             </svg>
                           </button>
                         </div>
+                      </td>
+                      {/* Destacado toggle */}
+                      <td className="px-1 py-3">
+                        <button
+                          onClick={async () => {
+                            await api.patch(`/productos/${p.id}/destacado`, {});
+                            setProductos(prev => prev.map(x => x.id === p.id ? { ...x, destacado: !x.destacado } : x));
+                          }}
+                          title={p.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
+                          className={`text-lg leading-none transition-opacity ${p.destacado ? 'opacity-100' : 'opacity-25 hover:opacity-60'}`}
+                        >⭐</button>
                       </td>
                       {/* Notificación stock bajo toggle */}
                       <td className="px-3 py-3">
@@ -1079,89 +1067,27 @@ export default function ProductosPage() {
                 placeholder="Ej: 22 (kg)" className={input} />
             </div>
 
-            {editId ? (
-              /* ── Modo edición: precio_compra read-only + % ganancia → precio_venta ── */
-              <>
-                <div>
-                  <label className={label}>Precio de compra (última compra)</label>
-                  <div className={`${input} bg-zinc-50 text-zinc-500 select-none cursor-default`}>
-                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Sin precio de compra'}
-                  </div>
-                </div>
-                <div>
-                  <label className={label}>% Ganancia</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" step="any" min="-100" max="9999" value={pctGanancia}
-                      onChange={e => handlePctChange(e.target.value)}
-                      placeholder="Ej: 30"
-                      className={`${input} w-28`}
-                      disabled={!form.precio_compra}
-                    />
-                    {precioVentaCalculado != null && (
-                      <span className="text-sm text-zinc-600">
-                        → <strong className="text-zinc-900">${precioVentaCalculado.toLocaleString('es-CL')}</strong>
-                      </span>
-                    )}
-                  </div>
-                  {!form.precio_compra && (
-                    <div className="mt-2">
-                      <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio de venta *</label>
-                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* ── Modo creación: precio_compra libre + % → precio_venta ── */
-              <>
-                <div>
-                  <label className={label}>Precio de compra</label>
-                  <input
-                    type="number" step="any" min="0" value={form.precio_compra}
-                    onChange={e => {
-                      const pc = e.target.value;
-                      setForm(prev => ({ ...prev, precio_compra: pc }));
-                      const pct = parseFloat(pctGanancia);
-                      const pcNum = parseFloat(pc);
-                      if (pcNum > 0 && !isNaN(pct)) {
-                        setForm(prev => ({ ...prev, precio_compra: pc, precio_venta: String(calcPrecioVenta(pcNum, pct)) }));
-                      }
-                    }}
-                    placeholder="Costo de referencia" className={input}
-                  />
-                </div>
-                <div>
-                  <label className={label}>% Ganancia</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" step="any" min="-100" max="9999" value={pctGanancia}
-                      onChange={e => handlePctChange(e.target.value)}
-                      placeholder="Ej: 30"
-                      className={`${input} w-28`}
-                      disabled={!form.precio_compra}
-                    />
-                    {form.precio_compra && pctGanancia !== '' && !isNaN(parseFloat(pctGanancia)) && (
-                      <span className="text-sm text-zinc-600">
-                        → <strong className="text-zinc-900">${calcPrecioVenta(parseFloat(form.precio_compra), parseFloat(pctGanancia)).toLocaleString('es-CL')}</strong>
-                      </span>
-                    )}
-                  </div>
-                  {!form.precio_compra && (
-                    <div className="mt-2">
-                      <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio de venta *</label>
-                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
-                    </div>
-                  )}
-                  {form.precio_compra && (
-                    <div className="mt-1.5">
-                      <label className="block text-xs font-medium text-zinc-500 mb-1">Precio de venta resultante *</label>
-                      <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')} className={input} />
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+            <div>
+              <label className={label}>Precio de venta *</label>
+              <input required type="number" step="1" min="0" value={form.precio_venta} onChange={f('precio_venta')}
+                placeholder="Ej: 1500" className={input} />
+              <p className="text-xs text-zinc-400 mt-1">El precio de compra y stock se actualizan desde <strong>Compras</strong>.</p>
+            </div>
+
+            {/* Destacado */}
+            <div className="flex items-center justify-between border border-amber-100 bg-amber-50/60 rounded-xl px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-zinc-800">Producto destacado</p>
+                <p className="text-xs text-zinc-400">Aparece primero en el POS y en reportes</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, destacado: !p.destacado }))}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.destacado ? 'bg-amber-400' : 'bg-zinc-200'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.destacado ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
 
           </div>
 
