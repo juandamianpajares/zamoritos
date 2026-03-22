@@ -103,9 +103,251 @@ function AjusteStockModal({ producto, onClose, onDone }: { producto: Producto; o
   );
 }
 
-// ─── Importar CSV modal ───────────────────────────────────────────────────────
+// ─── Tipos importación ────────────────────────────────────────────────────────
 type ImportResult = { creados: number; actualizados: number; errores: { fila: number; error: string }[]; total_filas: number };
 
+const COLUMNAS_EJEMPLO = `| Campo | Descripción | Ejemplo |
+|---|---|---|
+| nombre * | Nombre del producto | Lager 10kg |
+| precio_venta * | Precio de venta (entero) | 1200 |
+| unidad_medida * | unidad / kg / lt / g | unidad |
+| codigo_barras | EAN-13 o código interno | 7730918030044 |
+| marca | Nombre de marca | LAGER |
+| categoria | Nombre exacto de categoría | ALIMENTOS |
+| peso | Peso en kg (decimal) | 10.5 |
+| precio_compra | Costo de compra | 900 |
+| fraccionable | 1 = sí, 0 = no | 0 |
+| en_promo | 1 = sí, 0 = no | 0 |
+| precio_promo | Precio especial si en_promo=1 | 1100 |`;
+
+// ─── Modal Detectar por Foto (IA) ────────────────────────────────────────────
+type DetectResult = { nombre?: string; marca?: string; codigo_barras?: string; peso?: number; unidad_medida?: string; categoria?: string; descripcion_breve?: string; error?: string };
+
+function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (data: DetectResult) => void }) {
+  const [preview,  setPreview]  = useState<string | null>(null);
+  const [b64,      setB64]      = useState('');
+  const [mtype,    setMtype]    = useState('image/jpeg');
+  const [loading,  setLoading]  = useState(false);
+  const [result,   setResult]   = useState<DetectResult | null>(null);
+  const [error,    setError]    = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onFile = (file: File) => {
+    setMtype(file.type || 'image/jpeg');
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target?.result as string;
+      setPreview(dataUrl);
+      setB64(dataUrl.split(',')[1]);
+      setResult(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const detectar = async () => {
+    if (!b64) return;
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/detectar-producto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: b64, mediaType: mtype }),
+      });
+      const data: DetectResult = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Detectar producto por foto · IA">
+      <div className="space-y-4 text-sm">
+        {/* Upload */}
+        <div
+          onClick={() => inputRef.current?.click()}
+          className="border-2 border-dashed border-zinc-200 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-colors"
+        >
+          {preview ? (
+            <img src={preview} alt="preview" className="max-h-48 rounded-lg object-contain" />
+          ) : (
+            <>
+              <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-300" viewBox="0 0 24 24">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <p className="text-xs text-zinc-400">Tocá para sacar una foto o elegir imagen</p>
+            </>
+          )}
+        </div>
+        <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={e => { if (e.target.files?.[0]) onFile(e.target.files[0]); }} />
+
+        {/* Resultado */}
+        {result && (
+          <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
+            {[
+              ['Nombre',      result.nombre],
+              ['Marca',       result.marca],
+              ['Código',      result.codigo_barras],
+              ['Peso',        result.peso ? `${result.peso} ${result.unidad_medida ?? ''}` : null],
+              ['Categoría',   result.categoria],
+              ['Descripción', result.descripcion_breve],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k as string} className="flex gap-2 px-3 py-2">
+                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide w-20 shrink-0 pt-0.5">{k}</span>
+                <span className="text-xs text-zinc-700">{v as string}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
+
+        <div className="flex gap-2 pt-1 border-t border-zinc-100">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+          {!result ? (
+            <button
+              onClick={detectar}
+              disabled={!b64 || loading}
+              className="flex-1 py-2.5 font-semibold rounded-xl text-white disabled:opacity-40"
+              style={{ background: 'var(--brand-purple)' }}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
+                  Analizando…
+                </span>
+              ) : 'Detectar con IA'}
+            </button>
+          ) : (
+            <button
+              onClick={() => onUsar(result)}
+              className="flex-1 py-2.5 font-semibold rounded-xl text-white"
+              style={{ background: 'var(--brand-teal)' }}
+            >
+              Usar estos datos
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal Google Sheets ─────────────────────────────────────────────────────
+function ImportarSheetsModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [url,       setUrl]      = useState('');
+  const [loading,   setLoading]  = useState(false);
+  const [resultado, setResult]   = useState<ImportResult | null>(null);
+  const [errorMsg,  setError]    = useState('');
+  const [showCols,  setShowCols] = useState(false);
+
+  const importar = async () => {
+    if (!url.trim()) return;
+    setLoading(true); setError('');
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const res = await fetch(`${apiBase}/productos/importar-sheets`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Error en el servidor');
+      setResult(data as ImportResult);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar desde Google Sheets">
+      <div className="space-y-4 text-sm">
+        {resultado ? (
+          <div className="space-y-3">
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 space-y-1">
+              <p className="font-semibold text-emerald-800">Importación completada</p>
+              <p className="text-xs text-emerald-700">✓ Creados: <strong>{resultado.creados}</strong> · Actualizados: <strong>{resultado.actualizados}</strong> · Total filas: {resultado.total_filas}</p>
+            </div>
+            {resultado.errores.length > 0 && (
+              <div className="bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-semibold text-rose-700 mb-2">Errores ({resultado.errores.length}):</p>
+                {resultado.errores.map((e, i) => (
+                  <p key={i} className="text-xs text-rose-600">Fila {e.fila}: {e.error}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={onDone} className="flex-1 py-2.5 font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800">Ver productos</button>
+              <button onClick={() => setResult(null)} className="px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Otra URL</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Instrucciones */}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1">
+              <p className="font-semibold text-blue-800 text-xs uppercase tracking-wide">Cómo obtener la URL</p>
+              <ol className="text-xs text-blue-700 space-y-0.5 list-decimal list-inside">
+                <li>Abrí tu Google Sheet</li>
+                <li>Menú <strong>Archivo → Compartir → Publicar en la web</strong></li>
+                <li>Elegí la hoja y formato <strong>CSV</strong></li>
+                <li>Hacé clic en <strong>Publicar</strong> y copiá el enlace</li>
+              </ol>
+              <p className="text-xs text-blue-600 mt-1">También funciona con URLs de edición del sheet.</p>
+            </div>
+
+            {/* Botón columnas */}
+            <button
+              onClick={() => setShowCols(p => !p)}
+              className="w-full text-left text-xs text-violet-600 border border-violet-200 rounded-xl px-3 py-2 hover:bg-violet-50 flex items-center justify-between"
+            >
+              <span>📋 Ver columnas esperadas y ejemplos</span>
+              <span>{showCols ? '▲' : '▼'}</span>
+            </button>
+            {showCols && (
+              <div className="bg-zinc-50 rounded-xl border border-zinc-100 overflow-x-auto">
+                <pre className="text-[10px] text-zinc-600 p-3 whitespace-pre-wrap leading-relaxed">{COLUMNAS_EJEMPLO}</pre>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1.5">URL del Google Sheet *</label>
+              <input
+                type="url"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400"
+              />
+            </div>
+
+            {errorMsg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{errorMsg}</p>}
+
+            <div className="flex gap-2 pt-2 border-t border-zinc-100">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+              <button
+                onClick={importar}
+                disabled={!url.trim() || loading}
+                className="flex-1 py-2.5 font-semibold rounded-xl text-white disabled:opacity-40"
+                style={{ background: 'var(--brand-teal)' }}
+              >
+                {loading ? 'Importando…' : 'Importar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal importar CSV ───────────────────────────────────────────────────────
 function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [archivo,    setArchivo]    = useState<File | null>(null);
   const [loading,    setLoading]    = useState(false);
@@ -247,6 +489,8 @@ export default function ProductosPage() {
   const [scanning,     setScanning]     = useState(false);
   const [scanError,    setScanError]    = useState('');
   const [importOpen,   setImportOpen]   = useState(false);
+  const [sheetsOpen,   setSheetsOpen]   = useState(false);
+  const [fotoIaOpen,   setFotoIaOpen]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -424,8 +668,16 @@ export default function ProductosPage() {
           <p className="text-sm text-zinc-400 mt-0.5">{productos.length} registrados</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => { openCreate(); setFotoIaOpen(true); }} className="border border-violet-200 text-violet-700 text-sm px-4 py-2 rounded-xl hover:bg-violet-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Foto · IA
+          </button>
+          <button onClick={() => setSheetsOpen(true)} className="border border-emerald-200 text-emerald-700 text-sm px-4 py-2 rounded-xl hover:bg-emerald-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3l5 5h-3v4h-4v-4H7l5-5z"/></svg>
+            Google Sheets
+          </button>
           <button onClick={() => setImportOpen(true)} className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors">
-            ↑ Importar CSV
+            ↑ CSV
           </button>
           <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
             + Nuevo producto
@@ -968,6 +1220,35 @@ export default function ProductosPage() {
         <ImportarCsvModal
           onClose={() => setImportOpen(false)}
           onDone={() => { setImportOpen(false); load(); }}
+        />
+      )}
+
+      {/* ── Modal Google Sheets ── */}
+      {sheetsOpen && (
+        <ImportarSheetsModal
+          onClose={() => setSheetsOpen(false)}
+          onDone={() => { setSheetsOpen(false); load(); }}
+        />
+      )}
+
+      {/* ── Modal Foto IA ── */}
+      {fotoIaOpen && (
+        <DetectarFotoModal
+          onClose={() => setFotoIaOpen(false)}
+          onUsar={(data) => {
+            setFotoIaOpen(false);
+            const catMatch = categorias.find(c => c.nombre.toUpperCase() === (data.categoria ?? '').toUpperCase());
+            setForm(prev => ({
+              ...prev,
+              nombre:        data.nombre        ?? prev.nombre,
+              codigo_barras: data.codigo_barras ?? prev.codigo_barras,
+              marca:         data.marca         ?? prev.marca,
+              peso:          data.peso           ? String(data.peso) : prev.peso,
+              unidad_medida: data.unidad_medida ?? prev.unidad_medida,
+              categoria_id:  catMatch            ? String(catMatch.id) : prev.categoria_id,
+            }));
+            setModalOpen(true);
+          }}
         />
       )}
     </div>

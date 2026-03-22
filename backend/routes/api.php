@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\MarcaController;
 use App\Http\Controllers\Api\CompraController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ImportarCatalogoController;
@@ -20,18 +21,22 @@ Route::get('dashboard/caja',           [DashboardController::class, 'caja']);
 Route::get('dashboard/arqueo',         [DashboardController::class, 'arqueo']);
 Route::post('dashboard/arqueo',        [DashboardController::class, 'guardarArqueo']);
 
+Route::get('categorias/tree',   [CategoriaController::class, 'tree']);
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
+Route::get('marcas',             [MarcaController::class, 'index']);
 // Rutas explícitas ANTES del apiResource para evitar conflictos de model binding
 Route::post('productos/importar',              [ImportarCatalogoController::class, 'store']);
+Route::post('productos/importar-sheets',      [ImportarCatalogoController::class, 'fromSheets']);
 Route::apiResource('productos', ProductoController::class);
 Route::post('productos/{producto}/fraccionar', [ProductoController::class, 'fraccionar']);
 Route::post('productos/{producto}/foto',       [ProductoController::class, 'uploadFoto']);
 Route::apiResource('proveedores', ProveedorController::class);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 
-Route::get('stock/movimientos', [StockController::class, 'index']);
-Route::post('stock/ajuste', [StockController::class, 'ajuste']);
-Route::get('stock/bajo', [StockController::class, 'bajo']);
+Route::get('stock/movimientos',       [StockController::class, 'index']);
+Route::post('stock/ajuste',           [StockController::class, 'ajuste']);
+Route::get('stock/bajo',              [StockController::class, 'bajo']);
+Route::get('stock/balance-categorias',[StockController::class, 'balanceCategorias']);
 
 Route::get('lotes', [LoteController::class, 'index']);
 

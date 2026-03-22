@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { api, type MovimientoStock, type Producto } from '@/lib/api';
+import { api, type MovimientoStock, type Producto, type BalanceCategoria } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 const tipoBadge: Record<string, string> = {
@@ -15,7 +15,7 @@ const tipoBadge: Record<string, string> = {
 const inputCls = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const labelCls = 'block text-xs font-medium text-zinc-500 mb-1.5';
 
-type Vista = 'movimientos' | 'alertas' | 'fraccionados';
+type Vista = 'movimientos' | 'alertas' | 'fraccionados' | 'categorias';
 
 export default function StockPage() {
   const [vista, setVista] = useState<Vista>('movimientos');
@@ -27,7 +27,9 @@ export default function StockPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ producto_id: '', cantidad: '', observacion: '' });
-  const [toggling, setToggling] = useState<number | null>(null);
+  const [toggling, setToggling]           = useState<number | null>(null);
+  const [balance,  setBalance]            = useState<BalanceCategoria[]>([]);
+  const [catOpen,  setCatOpen]            = useState<Record<string, boolean>>({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -35,7 +37,8 @@ export default function StockPage() {
     Promise.all([
       api.get<MovimientoStock[]>(`/stock/movimientos${params}`),
       api.get<Producto[]>('/productos'),
-    ]).then(([m, p]) => { setMovimientos(m); setProductos(p); setLoading(false); });
+      api.get<BalanceCategoria[]>('/stock/balance-categorias'),
+    ]).then(([m, p, b]) => { setMovimientos(m); setProductos(p); setBalance(b); setLoading(false); });
   }, [filtroProducto]);
 
   useEffect(() => { load(); }, [load]);
@@ -97,6 +100,7 @@ export default function StockPage() {
               { key: 'movimientos',  label: 'Movimientos' },
               { key: 'alertas',      label: 'Alertas' },
               { key: 'fraccionados', label: 'Fraccionados' },
+              { key: 'categorias',   label: 'Por Categoría' },
             ] as { key: Vista; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
@@ -317,6 +321,68 @@ export default function StockPage() {
           </div>
         );
       })()}
+
+      {/* ── Por Categoría ── */}
+      {vista === 'categorias' && (
+        <div className="space-y-3">
+          {balance.length === 0 && !loading && (
+            <div className="bg-white rounded-2xl border border-zinc-100 px-6 py-12 text-center text-sm text-zinc-400">Sin datos de stock</div>
+          )}
+          {balance.map(cat => {
+            const isOpen = !!catOpen[cat.categoria];
+            const fmtVal = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+            return (
+              <div key={cat.categoria} className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                {/* Cabecera categoría */}
+                <button
+                  onClick={() => setCatOpen(p => ({ ...p, [cat.categoria]: !p[cat.categoria] }))}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 transition-colors text-left"
+                >
+                  <svg className={`text-zinc-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="5 1 12 7 5 13"/></svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-zinc-800">{cat.categoria}</p>
+                    <p className="text-xs text-zinc-400">{cat.total_productos} productos · stock: {cat.stock_total.toFixed(1)} · valor: {fmtVal(cat.valor_inventario)}</p>
+                  </div>
+                  {cat.agotados > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">{cat.agotados} agotados</span>
+                  )}
+                </button>
+                {/* Subcategorías */}
+                {isOpen && (
+                  <div className="border-t border-zinc-50">
+                    {cat.subcategorias.map(sub => (
+                      <div key={sub.nombre} className="border-b border-zinc-50 last:border-0">
+                        <div className="flex items-center gap-3 px-5 py-2.5 bg-zinc-50/50">
+                          <svg className="text-zinc-300 shrink-0" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 2v8h8"/></svg>
+                          <p className="text-xs font-semibold text-zinc-600 flex-1">{sub.nombre}</p>
+                          <p className="text-xs text-zinc-400">{sub.total_productos} prods · {fmtVal(sub.valor_inventario)}</p>
+                          {sub.agotados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-500">{sub.agotados} agotados</span>}
+                        </div>
+                        {sub.productos.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 px-5 py-2 pl-10 hover:bg-zinc-50/60 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-zinc-700 truncate">{p.nombre}</p>
+                              {p.codigo_barras && <p className="text-[10px] text-zinc-400 font-mono">{p.codigo_barras}</p>}
+                            </div>
+                            <span className={`text-xs font-semibold tabular-nums w-16 text-right ${p.stock <= 0 ? 'text-rose-600' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                              {p.stock} {p.unidad_medida}
+                            </span>
+                            <span className="text-xs text-zinc-400 tabular-nums w-20 text-right">{fmtVal(p.precio_venta)}</span>
+                            <button
+                              onClick={() => { setForm({ producto_id: String(p.id), cantidad: '', observacion: '' }); setError(''); setModalOpen(true); }}
+                              className="text-[10px] text-zinc-500 border border-zinc-200 rounded-lg px-2 py-1 hover:bg-zinc-100 transition-colors shrink-0"
+                            >Ajustar</button>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Ajuste manual de stock" size="sm">
         <form onSubmit={handleAjuste} className="space-y-4">

@@ -146,4 +146,43 @@ class ImportarCatalogoController extends Controller
             'total_filas' => $fila - 1,
         ]);
     }
+
+    /**
+     * Importa desde URL pública de Google Sheets (CSV export).
+     * El frontend envía la URL del sheet; este endpoint la descarga y parsea.
+     *
+     * Para obtener la URL desde Google Sheets:
+     *   Archivo → Compartir → Publicar en la web → CSV → Copiar enlace
+     */
+    public function fromSheets(Request $request): JsonResponse
+    {
+        $request->validate(['url' => 'required|url']);
+
+        // Convertir URL de edición a URL de exportación CSV si es necesario
+        $url = $request->url;
+        // Formato: https://docs.google.com/spreadsheets/d/{id}/edit → /export?format=csv
+        if (preg_match('#/spreadsheets/d/([^/]+)#', $url, $m)) {
+            $sheetId = $m[1];
+            // Extraer gid si existe
+            $gid = '';
+            if (preg_match('/[#&?]gid=(\d+)/', $url, $g)) {
+                $gid = '&gid=' . $g[1];
+            }
+            $url = "https://docs.google.com/spreadsheets/d/{$sheetId}/export?format=csv{$gid}";
+        }
+
+        $csvContent = @file_get_contents($url);
+        if ($csvContent === false) {
+            return response()->json(['error' => 'No se pudo descargar el archivo. Verificá que el sheet sea público.'], 422);
+        }
+
+        // Guardar en archivo temporal y reutilizar la lógica de store()
+        $tmpPath = tempnam(sys_get_temp_dir(), 'sheets_');
+        file_put_contents($tmpPath, $csvContent);
+
+        $tmpFile = new \Illuminate\Http\UploadedFile($tmpPath, 'sheets.csv', 'text/csv', null, true);
+        $request->files->set('archivo', $tmpFile);
+
+        return $this->store($request);
+    }
 }

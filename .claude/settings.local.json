@@ -8,7 +8,8 @@
       "Bash(docker cp:*)",
       "Read(//c/Users/Juan/AppData/Local/Temp/claude/c--Users-Juan-Documents-GitHub-zamoritos/bc650d09-6197-436a-a47d-14ee90d7d675/tasks/**)",
       "Bash(node -e \"require\\(''next-pwa''\\)\")",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "mcp__claude_ai_Mermaid_Chart__validate_and_render_mermaid_diagram"
     ]
   }
 }

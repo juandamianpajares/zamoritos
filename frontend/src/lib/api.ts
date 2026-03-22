@@ -133,6 +133,34 @@ export interface Lote {
   cantidad_restante: number;
 }
 
+export interface BalanceCategoriaProducto {
+  id: number;
+  nombre: string;
+  codigo_barras?: string;
+  stock: number;
+  unidad_medida: string;
+  precio_compra?: number;
+  precio_venta: number;
+}
+
+export interface BalanceCategoriaSubcat {
+  nombre: string;
+  total_productos: number;
+  stock_total: number;
+  valor_inventario: number;
+  agotados: number;
+  productos: BalanceCategoriaProducto[];
+}
+
+export interface BalanceCategoria {
+  categoria: string;
+  total_productos: number;
+  stock_total: number;
+  valor_inventario: number;
+  agotados: number;
+  subcategorias: BalanceCategoriaSubcat[];
+}
+
 export interface DetalleVenta {
   id: number;
   venta_id: number;
