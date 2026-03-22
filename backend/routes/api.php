@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ImagenController;
+use App\Http\Controllers\Api\ImportarCategoriasController;
 use App\Http\Controllers\Api\MarcaController;
 use App\Http\Controllers\Api\CompraController;
 use App\Http\Controllers\Api\DashboardController;
@@ -22,7 +23,8 @@ Route::get('dashboard/caja',           [DashboardController::class, 'caja']);
 Route::get('dashboard/arqueo',         [DashboardController::class, 'arqueo']);
 Route::post('dashboard/arqueo',        [DashboardController::class, 'guardarArqueo']);
 
-Route::get('categorias/tree',   [CategoriaController::class, 'tree']);
+Route::get('categorias/tree',        [CategoriaController::class, 'tree']);
+Route::post('categorias/importar',   [ImportarCategoriasController::class, 'store']);
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 Route::get('marcas',             [MarcaController::class, 'index']);
 // Rutas explícitas ANTES del apiResource para evitar conflictos de model binding
