@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { api, type VentasDia, type TopProductos, type DashboardStats, type VentasSemanaItem, type GananciaDashboard } from '@/lib/api';
 
 type Periodo = 'hoy' | 'semana' | 'mes';
@@ -197,7 +198,6 @@ export default function DashboardPage() {
   const [periodo, setPeriodo] = useState<Periodo>('hoy');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cierreOpen, setCierreOpen] = useState(false);
 
   const loadTop = useCallback((p: Periodo) => {
     api.get<TopProductos>(`/dashboard/top-productos?periodo=${p}`)
@@ -262,8 +262,8 @@ export default function DashboardPage() {
             </svg>
             Nueva venta
           </a>
-          <button
-            onClick={() => setCierreOpen(true)}
+          <Link
+            href="/caja"
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
             style={{ background: 'var(--brand-purple)' }}
           >
@@ -272,7 +272,7 @@ export default function DashboardPage() {
               <line x1="5" y1="12" x2="5.01" y2="12" strokeWidth="3"/><line x1="19" y1="12" x2="19.01" y2="12" strokeWidth="3"/>
             </svg>
             Cierre de caja
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -587,10 +587,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Modal cierre de caja */}
-      {cierreOpen && ventasDia && (
-        <CierreCajaModal ventasDia={ventasDia} onClose={() => setCierreOpen(false)} />
-      )}
 
     </div>
   );

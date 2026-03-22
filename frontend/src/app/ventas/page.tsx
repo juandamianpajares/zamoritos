@@ -14,16 +14,12 @@ interface LineaCarrito {
 
 type Vista = 'pos' | 'historial';
 
-type MedioPago = 'efectivo' | 'tarjeta' | 'oca' | 'master' | 'anda' | 'cabal' | 'transferencia' | 'otro';
+type MedioPago = 'efectivo' | 'tarjeta' | 'master' | 'anda' | 'cabal' | 'transferencia' | 'otro';
 
 const MEDIOS_PAGO: { value: MedioPago; label: string; icon: React.ReactNode }[] = [
   {
     value: 'efectivo', label: 'Efectivo',
     icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="16" height="10" rx="2"/><circle cx="9" cy="9" r="2.5"/></svg>,
-  },
-  {
-    value: 'oca', label: 'OCA',
-    icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="7"/><path d="M6 9h6M9 6v6"/></svg>,
   },
   {
     value: 'tarjeta', label: 'VISA',

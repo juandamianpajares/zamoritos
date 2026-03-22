@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { api, type CajaDia } from '@/lib/api';
+import { api, type CajaDia, type ArqueoCaja } from '@/lib/api';
 
 // ── Denominaciones UYU ───────────────────────────────────────────────────────
 const BILLETES  = [2000, 1000, 500, 200, 100, 50, 20];
@@ -23,10 +23,12 @@ type Vista = 'arqueo' | 'compras';
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CajaPage() {
-  const [vista, setVista]     = useState<Vista>('arqueo');
-  const [fecha, setFecha]     = useState(new Date().toISOString().slice(0, 10));
-  const [datos, setDatos]     = useState<CajaDia | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [vista, setVista]         = useState<Vista>('arqueo');
+  const [fecha, setFecha]         = useState(new Date().toISOString().slice(0, 10));
+  const [datos, setDatos]         = useState<CajaDia | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [savedOk, setSavedOk]     = useState(false);
 
   // Denominaciones: { 2000: qty, 1000: qty, ... }
   const [cantidades, setCantidades] = useState<Record<number, string>>(
@@ -37,8 +39,22 @@ export default function CajaPage() {
 
   useEffect(() => {
     setLoading(true);
+    setSavedOk(false);
     api.get<CajaDia>(`/dashboard/caja?fecha=${fecha}`)
-      .then(setDatos)
+      .then(d => {
+        setDatos(d);
+        // Pre-cargar arqueo guardado si existe
+        if (d.arqueo) {
+          const dens = d.arqueo.denominaciones;
+          setCantidades(Object.fromEntries(
+            DENOMS.map(denom => [denom, dens[String(denom)] ? String(dens[String(denom)]) : ''])
+          ));
+          setCambio(d.arqueo.fondo_cambio > 0 ? String(d.arqueo.fondo_cambio) : '');
+        } else {
+          setCantidades(Object.fromEntries(DENOMS.map(d => [d, ''])));
+          setCambio('');
+        }
+      })
       .finally(() => setLoading(false));
   }, [fecha]);
 
@@ -75,7 +91,34 @@ export default function CajaPage() {
     setCambio('');
   };
 
-  const handlePrint = () => window.print();
+  const guardarArqueo = async () => {
+    setSaving(true);
+    setSavedOk(false);
+    const denominaciones: Record<string, number> = {};
+    DENOMS.forEach(d => {
+      const v = parseInt(cantidades[d] || '0') || 0;
+      if (v > 0) denominaciones[String(d)] = v;
+    });
+    try {
+      await api.post<ArqueoCaja>('/dashboard/arqueo', {
+        fecha,
+        denominaciones,
+        fondo_cambio:   fondoCambio,
+        total_contado:  suma,
+        total_esperado: esperado,
+        diferencia,
+      });
+      setSavedOk(true);
+      setTimeout(() => setSavedOk(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    await guardarArqueo();
+    window.print();
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
@@ -202,6 +245,26 @@ export default function CajaPage() {
               </button>
             ))}
           </div>
+          {savedOk && (
+            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 7 5 11 12 3"/></svg>
+              Arqueo guardado
+            </span>
+          )}
+          <button
+            onClick={guardarArqueo}
+            disabled={saving}
+            className="flex items-center gap-1.5 border border-zinc-200 text-zinc-700 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors disabled:opacity-50"
+          >
+            {saving ? (
+              <span className="w-3.5 h-3.5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+            ) : (
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+            )}
+            Guardar arqueo
+          </button>
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors"

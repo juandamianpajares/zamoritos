@@ -16,6 +16,9 @@ Route::get('dashboard/ventas-dia',     [DashboardController::class, 'ventasDia']
 Route::get('dashboard/ventas-semana',  [DashboardController::class, 'ventasSemana']);
 Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
 Route::get('dashboard/ganancia',       [DashboardController::class, 'ganancia']);
+Route::get('dashboard/caja',           [DashboardController::class, 'caja']);
+Route::get('dashboard/arqueo',         [DashboardController::class, 'arqueo']);
+Route::post('dashboard/arqueo',        [DashboardController::class, 'guardarArqueo']);
 
 Route::apiResource('categorias', CategoriaController::class)->except(['show']);
 // Rutas explícitas ANTES del apiResource para evitar conflictos de model binding
@@ -32,7 +35,9 @@ Route::get('stock/bajo', [StockController::class, 'bajo']);
 
 Route::get('lotes', [LoteController::class, 'index']);
 
-Route::get('ventas',                  [VentaController::class, 'index']);
-Route::post('ventas',                 [VentaController::class, 'store']);
-Route::get('ventas/{venta}',          [VentaController::class, 'show']);
-Route::patch('ventas/{venta}/anular', [VentaController::class, 'anular']);
+Route::get('ventas',                       [VentaController::class, 'index']);
+Route::post('ventas',                      [VentaController::class, 'store']);
+Route::post('ventas/importar-sicfe',       [VentaController::class, 'importarSicfe']);
+Route::get('ventas/{venta}',              [VentaController::class, 'show']);
+Route::patch('ventas/{venta}/anular',     [VentaController::class, 'anular']);
+Route::post('ventas/{venta}/devolucion',  [VentaController::class, 'devolucion']);

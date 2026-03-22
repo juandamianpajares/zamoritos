@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ArqueoCaja;
 use App\Models\Compra;
 use App\Models\DetalleVenta;
 use App\Models\Lote;
@@ -183,6 +184,78 @@ class DashboardController extends Controller
             'margen_pct'    => $margenPct,
             'por_proveedor' => $porProveedor,
         ]);
+    }
+
+    public function caja(Request $request): JsonResponse
+    {
+        $fecha = $request->get('fecha', now()->toDateString());
+
+        $ventas = Venta::whereDate('fecha', $fecha)
+            ->where('estado', 'confirmada')
+            ->get();
+
+        $porMedioPago = $ventas
+            ->groupBy(fn($v) => $v->medio_pago ?? 'sin especificar')
+            ->map(fn($grupo, $medio) => [
+                'medio'    => $medio,
+                'total'    => round($grupo->sum('total'), 2),
+                'cantidad' => $grupo->count(),
+            ])
+            ->values();
+
+        $compras = Compra::with('proveedor', 'detalles.producto')
+            ->whereDate('fecha', $fecha)
+            ->get();
+
+        $porProveedor = $compras
+            ->groupBy(fn($c) => $c->proveedor?->nombre ?? 'Sin proveedor')
+            ->map(fn($grupo, $prov) => [
+                'proveedor' => $prov,
+                'total'     => round($grupo->sum('total'), 2),
+                'cantidad'  => $grupo->count(),
+            ])
+            ->values();
+
+        $arqueo = ArqueoCaja::whereDate('fecha', $fecha)->first();
+
+        return response()->json([
+            'fecha'            => $fecha,
+            'total_ventas'     => round($ventas->sum('total'), 2),
+            'cantidad_ventas'  => $ventas->count(),
+            'ventas_por_medio' => $porMedioPago,
+            'total_compras'    => round($compras->sum('total'), 2),
+            'cantidad_compras' => $compras->count(),
+            'compras_por_prov' => $porProveedor,
+            'compras'          => $compras,
+            'arqueo'           => $arqueo,
+        ]);
+    }
+
+    public function arqueo(Request $request): JsonResponse
+    {
+        $fecha  = $request->get('fecha', now()->toDateString());
+        $arqueo = ArqueoCaja::whereDate('fecha', $fecha)->first();
+        return response()->json($arqueo);
+    }
+
+    public function guardarArqueo(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'fecha'          => 'required|date',
+            'denominaciones' => 'required|array',
+            'fondo_cambio'   => 'required|numeric|min:0',
+            'total_contado'  => 'required|numeric|min:0',
+            'total_esperado' => 'required|numeric|min:0',
+            'diferencia'     => 'required|numeric',
+            'observacion'    => 'nullable|string|max:500',
+        ]);
+
+        $arqueo = ArqueoCaja::updateOrCreate(
+            ['fecha' => $data['fecha']],
+            $data
+        );
+
+        return response()->json($arqueo);
     }
 
     public function topProductos(Request $request): JsonResponse

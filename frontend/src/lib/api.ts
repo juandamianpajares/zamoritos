@@ -229,6 +229,17 @@ export interface CajaMedioPago {
   cantidad: number;
 }
 
+export interface ArqueoCaja {
+  id?: number;
+  fecha: string;
+  denominaciones: Record<string, number>;
+  fondo_cambio: number;
+  total_contado: number;
+  total_esperado: number;
+  diferencia: number;
+  observacion?: string;
+}
+
 export interface CajaDia {
   fecha: string;
   total_ventas: number;
@@ -238,6 +249,7 @@ export interface CajaDia {
   cantidad_compras: number;
   compras_por_prov: { proveedor: string; total: number; cantidad: number }[];
   compras: Compra[];
+  arqueo: ArqueoCaja | null;
 }
 
 export interface GananciaDashboard {
