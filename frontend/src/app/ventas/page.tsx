@@ -137,7 +137,11 @@ function POSPanel() {
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
+  const [promoModalOpen, setPromoModalOpen] = useState(false);
+  const [promoBusqueda, setPromoBusqueda] = useState('');
+  const [promoTab, setPromoTab]           = useState<'todos' | 'combo' | 'oferta'>('todos');
   const searchRef = useRef<HTMLInputElement>(null);
+  const promoBusquedaRef = useRef<HTMLInputElement>(null);
 
   const recargarProductos = useCallback(() => {
     api.get<Producto[]>('/productos').then(setProductos);
@@ -166,6 +170,16 @@ function POSPanel() {
     return lista;
   }, [productos, catActiva, busqueda]);
 
+  // Lista modal promo/combo
+  const promosFiltrados = useMemo(() => {
+    let lista = productos.filter(p => p.activo && (p.es_combo || (p.en_promo && p.precio_promo)));
+    if (promoTab === 'combo') lista = lista.filter(p => p.es_combo);
+    if (promoTab === 'oferta') lista = lista.filter(p => p.en_promo && !p.es_combo);
+    const q = promoBusqueda.trim().toLowerCase();
+    if (q) lista = lista.filter(p => p.nombre.toLowerCase().includes(q));
+    return lista;
+  }, [productos, promoTab, promoBusqueda]);
+
   const agregarAlCarrito = useCallback((p: Producto) => {
     setCarrito(prev => {
       const existente = prev.find(l => l.producto.id === p.id);
@@ -178,6 +192,30 @@ function POSPanel() {
     setTimeout(() => setAddedId(null), 600);
     setBusqueda('');
     searchRef.current?.focus();
+  }, []);
+
+  const agregarDesdePromoModal = useCallback((p: Producto) => {
+    const precio = (p.en_promo && p.precio_promo) ? p.precio_promo : p.precio_venta;
+    setCarrito(prev => {
+      let cart = prev;
+      const existe = cart.find(l => l.producto.id === p.id);
+      cart = existe
+        ? cart.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precio } : l)
+        : [...cart, { producto: p, cantidad: 1, precio_unitario: precio }];
+      // Si la promo tiene producto partner, también lo agrega
+      if (p.en_promo && p.promo_producto) {
+        const partner = p.promo_producto;
+        const existeP = cart.find(l => l.producto.id === partner.id);
+        cart = existeP
+          ? cart.map(l => l.producto.id === partner.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precio } : l)
+          : [...cart, { producto: partner, cantidad: 1, precio_unitario: precio }];
+      }
+      return cart;
+    });
+    setAddedId(p.id);
+    setTimeout(() => setAddedId(null), 600);
+    setPromoModalOpen(false);
+    setPromoBusqueda('');
   }, []);
 
   const cambiarCantidad = (id: number, delta: number) => {
@@ -316,6 +354,14 @@ function POSPanel() {
                 <path d="M2 7V4a1 1 0 0 1 1-1h3M18 7V4a1 1 0 0 0-1-1h-3M2 13v3a1 1 0 0 0 1 1h3M18 13v3a1 1 0 0 1-1 1h-3"/>
                 <rect x="6" y="7" width="8" height="6" rx="1"/>
               </svg>
+            </button>
+            <button
+              onClick={() => { setPromoModalOpen(true); setPromoBusqueda(''); setPromoTab('todos'); setTimeout(() => promoBusquedaRef.current?.focus(), 80); }}
+              className="h-10 px-3 flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 hover:bg-rose-100 hover:border-rose-400 transition-colors shrink-0 text-xs font-semibold whitespace-nowrap"
+              title="Agregar combo o producto en oferta"
+            >
+              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
+              Agregar promo
             </button>
           </div>
 
@@ -467,12 +513,16 @@ function POSPanel() {
                             {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
                           </p>
                         )}
-                        <p className={`text-xs mt-1 font-bold ${
-                          agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
-                        }`}>
-                          {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
-                          {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
-                        </p>
+                        {esPromo && !esFraccionado ? (
+                          <p className="text-[10px] mt-1 text-rose-300 font-medium">Oferta · sin stock mín.</p>
+                        ) : (
+                          <p className={`text-xs mt-1 font-bold ${
+                            agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
+                          }`}>
+                            {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
+                            {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
+                          </p>
+                        )}
                       </button>
 
                       {/* Botones inferiores */}
@@ -633,6 +683,110 @@ function POSPanel() {
           onConfirmar={() => { confirmarVenta(); }}
         />
       </Modal>
+
+      {/* ── Modal agregar promo / combo ── */}
+      {promoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPromoModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ maxHeight: '82vh' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+              <h2 className="font-bold text-zinc-900 flex items-center gap-2">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" className="text-rose-500"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
+                Agregar promo / combo
+              </h2>
+              <button onClick={() => setPromoModalOpen(false)} className="text-zinc-400 hover:text-zinc-700">
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="15" y2="15"/><line x1="15" y1="1" x2="1" y2="15"/></svg>
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="px-4 py-3 border-b border-zinc-100">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+                  width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="5.5" cy="5.5" r="4.5"/><line x1="9" y1="9" x2="13" y2="13"/>
+                </svg>
+                <input
+                  ref={promoBusquedaRef}
+                  value={promoBusqueda}
+                  onChange={e => setPromoBusqueda(e.target.value)}
+                  placeholder="Buscar por nombre…"
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-xl bg-zinc-50 focus:outline-none focus:border-[var(--brand-purple)] focus:bg-white transition-colors"
+                />
+                {promoBusqueda && (
+                  <button onClick={() => setPromoBusqueda('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 px-4 py-2 border-b border-zinc-100">
+              {(['todos', 'combo', 'oferta'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setPromoTab(t)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors capitalize ${
+                    promoTab === t ? 'text-white' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                  }`}
+                  style={promoTab === t ? { background: 'var(--brand-purple)' } : {}}
+                >
+                  {t === 'todos' ? 'Todos' : t === 'combo' ? 'Combos' : 'Ofertas'}
+                </button>
+              ))}
+              <span className="ml-auto text-xs text-zinc-400 self-center">{promosFiltrados.length} resultado{promosFiltrados.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {/* Lista */}
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-50">
+              {promosFiltrados.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-zinc-400">Sin resultados</div>
+              ) : promosFiltrados.map(p => {
+                const esComboItem = !!p.es_combo;
+                const precio = (p.en_promo && p.precio_promo) ? p.precio_promo : p.precio_venta;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => agregarDesdePromoModal(p)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 text-left transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {esComboItem ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-0.5">
+                            <svg width="6" height="6" fill="currentColor" viewBox="0 0 24 24"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
+                            PROMO
+                          </span>
+                        )}
+                        <p className="text-sm font-medium text-zinc-800 truncate">{p.nombre}</p>
+                      </div>
+                      {p.en_promo && p.promo_producto && (
+                        <p className="text-[10px] text-rose-400 truncate">+ {p.promo_producto.nombre}</p>
+                      )}
+                      {!esComboItem && p.en_promo && p.precio_venta !== precio && (
+                        <p className="text-[10px] text-zinc-400 line-through tabular-nums">{fmt(p.precio_venta)}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-sm font-bold tabular-nums ${esComboItem ? 'text-violet-700' : 'text-rose-600'}`}>{fmt(precio)}</p>
+                      {esComboItem && (
+                        <p className="text-[10px] text-zinc-400">{p.stock} uds</p>
+                      )}
+                    </div>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-zinc-300 shrink-0">
+                      <line x1="0" y1="7" x2="12" y2="7"/><polyline points="7 2 12 7 7 12"/>
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal número de factura ── */}
       {showFacturaModal && (
