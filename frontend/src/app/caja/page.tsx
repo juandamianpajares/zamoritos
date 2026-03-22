@@ -18,7 +18,6 @@ function medioLabel(m: string) { return MEDIO_LABEL[m] ?? m; }
 function fmt(n: number) {
   return `$${Math.round(n).toLocaleString('es-CL')}`;
 }
-}
 
 function fmtDiff(n: number) {
   if (n === 0) return { text: '$0', cls: 'text-emerald-600' };
