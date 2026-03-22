@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ComboItem;
 use App\Models\DetalleVenta;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
@@ -59,6 +60,7 @@ class VentaService
                 'descuento'       => 0,
                 'total'           => $subtotal,
                 'estado'          => 'confirmada',
+                'numero_factura'  => $data['numero_factura'] ?? null,
                 'usuario'         => $data['usuario'] ?? null,
                 'observacion'     => $data['observacion'] ?? null,
             ]);
@@ -75,16 +77,35 @@ class VentaService
                     'subtotal'        => $subtotalLinea,
                 ]);
 
-                $producto = Producto::findOrFail($d['producto_id']);
-                $producto->decrement('stock', $d['cantidad']);
+                $producto = Producto::with('comboItems')->findOrFail($d['producto_id']);
 
-                MovimientoStock::create([
-                    'producto_id' => $d['producto_id'],
-                    'tipo'        => 'venta',
-                    'cantidad'    => -$d['cantidad'],
-                    'referencia'  => 'venta #' . $venta->id,
-                    'usuario'     => $data['usuario'] ?? null,
-                ]);
+                if ($producto->es_combo) {
+                    // Descontar stock de cada componente del combo
+                    foreach ($producto->comboItems as $item) {
+                        $componente = Producto::findOrFail($item->componente_producto_id);
+                        $qtdComponente = $item->cantidad * $d['cantidad'];
+                        $componente->decrement('stock', $qtdComponente);
+
+                        MovimientoStock::create([
+                            'producto_id' => $item->componente_producto_id,
+                            'tipo'        => 'venta',
+                            'cantidad'    => -$qtdComponente,
+                            'referencia'  => 'venta #' . $venta->id . ' (combo ' . $producto->nombre . ')',
+                            'usuario'     => $data['usuario'] ?? null,
+                        ]);
+                    }
+                    // El combo en sí no tiene stock físico — no decrementar
+                } else {
+                    $producto->decrement('stock', $d['cantidad']);
+
+                    MovimientoStock::create([
+                        'producto_id' => $d['producto_id'],
+                        'tipo'        => 'venta',
+                        'cantidad'    => -$d['cantidad'],
+                        'referencia'  => 'venta #' . $venta->id,
+                        'usuario'     => $data['usuario'] ?? null,
+                    ]);
+                }
             }
 
             // TODO Kitfe v2: KitfeAdapter::export($venta)
@@ -130,12 +151,24 @@ class VentaService
         $errors = [];
 
         foreach ($detalles as $d) {
-            $producto = Producto::find($d['producto_id']);
+            $producto = Producto::with('comboItems')->find($d['producto_id']);
             if (!$producto) continue;
 
-            if ($producto->stock < $d['cantidad']) {
-                $errors["producto_{$d['producto_id']}"] =
-                    "Stock insuficiente para «{$producto->nombre}» (disponible: {$producto->stock} {$producto->unidad_medida}).";
+            if ($producto->es_combo) {
+                foreach ($producto->comboItems as $item) {
+                    $componente = Producto::find($item->componente_producto_id);
+                    if (!$componente) continue;
+                    $necesario = $item->cantidad * $d['cantidad'];
+                    if ($componente->stock < $necesario) {
+                        $errors["componente_{$item->componente_producto_id}"] =
+                            "Stock insuficiente para «{$componente->nombre}» (necesario: {$necesario}, disponible: {$componente->stock}).";
+                    }
+                }
+            } else {
+                if ($producto->stock < $d['cantidad']) {
+                    $errors["producto_{$d['producto_id']}"] =
+                        "Stock insuficiente para «{$producto->nombre}» (disponible: {$producto->stock} {$producto->unidad_medida}).";
+                }
             }
         }
 

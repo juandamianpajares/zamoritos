@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api, type Producto, type Categoria } from '@/lib/api';
+import { api, type Producto, type Categoria, type ComboItem } from '@/lib/api';
 import Modal from '@/components/Modal';
 
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
@@ -16,7 +16,7 @@ function efectivaFoto(p: Producto): string | null {
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
   unidad_medida: 'unidad', peso: '', precio_venta: '', precio_compra: '', stock: '',
-  fraccionable: false,
+  fraccionable: false, es_combo: false,
   en_promo: false, precio_promo: '', promo_producto_id: '',
   foto_url: '',
 };
@@ -26,7 +26,7 @@ function calcPrecioVenta(precioCompra: number, pct: number): number {
 }
 function calcPct(precioCompra: number, precioVenta: number): number {
   if (precioCompra <= 0) return 0;
-  return Math.round(((precioVenta / precioCompra) - 1) * 100);
+  return Math.round(((precioVenta / precioCompra) - 1) * 10000) / 100; // 2 decimales
 }
 
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
@@ -243,6 +243,7 @@ export default function ProductosPage() {
   const [pctGanancia,  setPctGanancia]  = useState<string>('');
   const [ajusteP,      setAjusteP]      = useState<Producto | null>(null);
   const [notifLoading, setNotifLoading] = useState<number | null>(null);
+  const [comboItems,   setComboItems]   = useState<{ componente_producto_id: string; cantidad: string }[]>([]);
   const [scanning,     setScanning]     = useState(false);
   const [scanError,    setScanError]    = useState('');
   const [importOpen,   setImportOpen]   = useState(false);
@@ -266,7 +267,7 @@ export default function ProductosPage() {
 
   const openCreate = () => {
     setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError('');
-    setPctGanancia(''); resetFoto(); setModalOpen(true);
+    setPctGanancia(''); resetFoto(); setComboItems([]); setModalOpen(true);
   };
 
   const openEdit = (p: Producto) => {
@@ -285,6 +286,13 @@ export default function ProductosPage() {
       foto_url: p.foto_url ?? '',
     });
     setPctGanancia(pc > 0 ? String(calcPct(pc, p.precio_venta)) : '');
+    setForm(prev => ({ ...prev, es_combo: !!p.es_combo }));
+    setComboItems(
+      (p.combo_items ?? []).map(ci => ({
+        componente_producto_id: String(ci.componente_producto_id),
+        cantidad: String(ci.cantidad),
+      }))
+    );
     setError('');
     setFotoFile(null);
     setFotoPreview(efectivaFoto(p));
@@ -349,7 +357,7 @@ export default function ProductosPage() {
     e.preventDefault();
     setError('');
     const pvFinal = precioVentaCalculado ?? Number(form.precio_venta);
-    const body = {
+    const body: Record<string, unknown> = {
       nombre: form.nombre, codigo_barras: form.codigo_barras || null,
       marca: form.marca || null,
       categoria_id: form.categoria_id ? Number(form.categoria_id) : null,
@@ -359,11 +367,19 @@ export default function ProductosPage() {
       precio_compra: form.precio_compra ? Number(form.precio_compra) : null,
       stock: form.stock ? Number(form.stock) : undefined,
       fraccionable: form.fraccionable,
+      es_combo: form.es_combo,
       en_promo: form.en_promo,
       precio_promo: form.en_promo && form.precio_promo ? Number(form.precio_promo) : null,
       promo_producto_id: form.en_promo && form.promo_producto_id ? Number(form.promo_producto_id) : null,
       foto_url: form.foto_url || null,
     };
+    if (form.es_combo) {
+      body.combo_items = comboItems
+        .filter(ci => ci.componente_producto_id && parseFloat(ci.cantidad) > 0)
+        .map(ci => ({ componente_producto_id: Number(ci.componente_producto_id), cantidad: parseFloat(ci.cantidad) }));
+    } else {
+      body.combo_items = [];
+    }
     try {
       let saved: Producto;
       if (editId) { saved = await api.put<Producto>(`/productos/${editId}`, body); }
@@ -499,7 +515,7 @@ export default function ProductosPage() {
                       </td>
                       <td className="px-3 py-3 font-medium tabular-nums">${Math.round(p.precio_venta).toLocaleString('es-CL')}</td>
                       <td className="px-3 py-3 text-zinc-500 tabular-nums">
-                        {p.precio_compra != null ? `$${Math.round(p.precio_compra).toLocaleString('es-CL')}` : '—'}
+                        {p.precio_compra != null ? `$${Number(p.precio_compra).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1">
@@ -668,14 +684,14 @@ export default function ProductosPage() {
                 <div>
                   <label className={label}>Precio de compra (última compra)</label>
                   <div className={`${input} bg-zinc-50 text-zinc-500 select-none cursor-default`}>
-                    {form.precio_compra ? `$${Math.round(Number(form.precio_compra)).toLocaleString('es-CL')}` : 'Sin precio de compra'}
+                    {form.precio_compra ? `$${Number(form.precio_compra).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Sin precio de compra'}
                   </div>
                 </div>
                 <div>
                   <label className={label}>% Ganancia</label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number" step="1" min="-100" max="9999" value={pctGanancia}
+                      type="number" step="0.01" min="-100" max="9999" value={pctGanancia}
                       onChange={e => handlePctChange(e.target.value)}
                       placeholder="Ej: 30"
                       className={`${input} w-28`}
@@ -718,7 +734,7 @@ export default function ProductosPage() {
                   <label className={label}>% Ganancia</label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number" step="1" min="-100" max="9999" value={pctGanancia}
+                      type="number" step="0.01" min="-100" max="9999" value={pctGanancia}
                       onChange={e => handlePctChange(e.target.value)}
                       placeholder="Ej: 30"
                       className={`${input} w-28`}
@@ -750,6 +766,109 @@ export default function ProductosPage() {
               <div>
                 <label className={label}>Stock inicial</label>
                 <input type="number" step="0.001" min="0" value={form.stock} onChange={f('stock')} className={input} />
+              </div>
+            )}
+          </div>
+
+          {/* ── Combo ── */}
+          <div className="border border-zinc-100 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-800">Combo de productos</p>
+                <p className="text-xs text-zinc-400">Al vender descuenta stock de los productos componentes</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !form.es_combo;
+                  setForm(p => ({ ...p, es_combo: next }));
+                  if (!next) setComboItems([]);
+                }}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.es_combo ? 'bg-violet-500' : 'bg-zinc-200'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.es_combo ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            {form.es_combo && (
+              <div className="space-y-3">
+                {/* Código auto */}
+                <p className="text-xs text-zinc-400">
+                  Código de barras: se genera automáticamente al elegir el primer componente (<strong>código del 1er producto + C</strong>)
+                </p>
+
+                {/* Lista de componentes */}
+                {comboItems.map((ci, idx) => {
+                  const comp = productos.find(p => p.id === Number(ci.componente_producto_id));
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <select
+                        value={ci.componente_producto_id}
+                        onChange={e => {
+                          const newItems = [...comboItems];
+                          newItems[idx] = { ...newItems[idx], componente_producto_id: e.target.value };
+                          setComboItems(newItems);
+                          // Auto-código si es el primer componente
+                          if (idx === 0 && e.target.value) {
+                            const p = productos.find(x => x.id === Number(e.target.value));
+                            if (p?.codigo_barras && !form.codigo_barras) {
+                              setForm(prev => ({ ...prev, codigo_barras: p.codigo_barras + 'C' }));
+                            }
+                          }
+                        }}
+                        className={`${input} flex-1`}
+                      >
+                        <option value="">Seleccionar producto…</option>
+                        {productos
+                          .filter(p => !p.es_combo)
+                          .map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
+                            </option>
+                          ))}
+                      </select>
+                      <input
+                        type="number" step="0.001" min="0.001"
+                        value={ci.cantidad}
+                        onChange={e => {
+                          const newItems = [...comboItems];
+                          newItems[idx] = { ...newItems[idx], cantidad: e.target.value };
+                          setComboItems(newItems);
+                        }}
+                        placeholder="Cant."
+                        className={`${input} w-24`}
+                        title={`Unidad: ${comp?.unidad_medida ?? ''}`}
+                      />
+                      {comp && <span className="text-xs text-zinc-400 whitespace-nowrap">{comp.unidad_medida}</span>}
+                      <button
+                        type="button"
+                        onClick={() => setComboItems(items => items.filter((_, i) => i !== idx))}
+                        className="text-rose-400 hover:text-rose-600 text-lg leading-none"
+                      >×</button>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setComboItems(items => [...items, { componente_producto_id: '', cantidad: '1' }])}
+                  className="text-xs text-violet-600 hover:text-violet-800 font-medium flex items-center gap-1"
+                >
+                  <span className="text-base leading-none">+</span> Agregar componente
+                </button>
+
+                {/* Código generado */}
+                {comboItems.length > 0 && comboItems[0].componente_producto_id && (
+                  <div>
+                    <label className={label}>Código de barras del combo</label>
+                    <input
+                      value={form.codigo_barras}
+                      onChange={f('codigo_barras')}
+                      placeholder="Auto-generado o ingresá manualmente"
+                      className={input}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -799,7 +918,7 @@ export default function ProductosPage() {
                       <span className={`text-xs font-semibold whitespace-nowrap ${
                         Number(form.precio_promo) < Number(form.precio_compra) ? 'text-rose-500' : 'text-emerald-600'
                       }`}>
-                        {Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 100)}% margen
+                        {(Math.round(((Number(form.precio_promo) / Number(form.precio_compra)) - 1) * 10000) / 100).toFixed(2)}% margen
                       </span>
                     )}
                   </div>

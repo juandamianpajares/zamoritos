@@ -376,6 +376,7 @@ function POSPanel() {
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
                   const esPromo        = !!p.en_promo && !!p.precio_promo;
+                  const esCombo        = !!p.es_combo;
                   const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
                   return (
                     <div
@@ -383,6 +384,8 @@ function POSPanel() {
                       className={`relative flex flex-col rounded-2xl border transition-all duration-150 ${
                         agotado
                           ? 'opacity-40 bg-white border-zinc-100'
+                          : esCombo
+                          ? 'bg-violet-50/40 border-violet-200 hover:border-violet-400 hover:shadow-md'
                           : esPromo
                           ? 'bg-rose-50/40 border-rose-200 hover:border-rose-400 hover:shadow-md'
                           : esFraccionado
@@ -392,14 +395,20 @@ function POSPanel() {
                           : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md'
                       }`}
                     >
+                      {/* Badge combo */}
+                      {esCombo && (
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">
+                          COMBO
+                        </span>
+                      )}
                       {/* Badge fraccionado */}
-                      {esFraccionado && (
+                      {esFraccionado && !esCombo && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
                           FRAC.
                         </span>
                       )}
                       {/* Badge promo */}
-                      {esPromo && !esFraccionado && (
+                      {esPromo && !esFraccionado && !esCombo && (
                         <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-0.5">
                           <svg width="7" height="7" fill="currentColor" viewBox="0 0 24 24"><path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/></svg>
                           PROMO

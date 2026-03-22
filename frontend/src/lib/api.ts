@@ -37,6 +37,13 @@ export interface Categoria {
   nombre: string;
 }
 
+export interface ComboItem {
+  id?: number;
+  componente_producto_id: number;
+  cantidad: number;
+  componente?: Producto;
+}
+
 export interface Producto {
   id: number;
   codigo_barras?: string;
@@ -53,6 +60,8 @@ export interface Producto {
   notificar_stock_bajo?: boolean;
   fraccionado_de?: number;
   fraccionable?: boolean;
+  es_combo?: boolean;
+  combo_items?: ComboItem[];
   en_promo?: boolean;
   precio_promo?: number;
   promo_producto_id?: number;

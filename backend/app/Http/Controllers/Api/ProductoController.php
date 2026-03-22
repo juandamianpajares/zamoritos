@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ComboItem;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
 use Illuminate\Http\JsonResponse;
@@ -14,7 +15,7 @@ class ProductoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Producto::with(['categoria', 'promoProducto'])->where('activo', true);
+        $query = Producto::with(['categoria', 'promoProducto', 'comboItems.componente'])->where('activo', true);
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -41,12 +42,25 @@ class ProductoController extends Controller
             $query->where('en_promo', true);
         }
 
-        return response()->json($query->orderBy('nombre')->get());
+        $productos = $query->orderBy('nombre')->get();
+
+        // Calcular stock virtual para combos
+        foreach ($productos as $producto) {
+            if ($producto->es_combo && $producto->comboItems->isNotEmpty()) {
+                $stockVirtual = $producto->comboItems->map(function ($item) {
+                    if (!$item->componente) return 0;
+                    return floor($item->componente->stock / $item->cantidad);
+                })->min();
+                $producto->stock = max(0, (int) $stockVirtual);
+            }
+        }
+
+        return response()->json($productos);
     }
 
     public function show(Producto $producto): JsonResponse
     {
-        return response()->json($producto->load(['categoria', 'promoProducto']));
+        return response()->json($producto->load(['categoria', 'promoProducto', 'comboItems.componente']));
     }
 
     public function store(Request $request): JsonResponse
@@ -59,16 +73,37 @@ class ProductoController extends Controller
             'peso'              => 'nullable|numeric|min:0',
             'unidad_medida'     => 'required|string',
             'precio_venta'      => 'required|integer|min:0',
-            'precio_compra'     => 'nullable|integer|min:0',
+            'precio_compra'     => 'nullable|numeric|min:0',
             'stock'             => 'nullable|numeric|min:0',
             'fraccionable'      => 'nullable|boolean',
+            'es_combo'          => 'nullable|boolean',
             'en_promo'          => 'nullable|boolean',
             'precio_promo'      => 'nullable|integer|min:0',
             'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
+            'combo_items'                       => 'nullable|array',
+            'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
+            'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
         ]);
 
-        return response()->json(Producto::create($data), 201);
+        return DB::transaction(function () use ($data) {
+            $comboItems = $data['combo_items'] ?? null;
+            unset($data['combo_items']);
+
+            $producto = Producto::create($data);
+
+            if ($comboItems) {
+                foreach ($comboItems as $item) {
+                    ComboItem::create([
+                        'combo_producto_id'     => $producto->id,
+                        'componente_producto_id'=> $item['componente_producto_id'],
+                        'cantidad'              => $item['cantidad'],
+                    ]);
+                }
+            }
+
+            return response()->json($producto->load(['categoria', 'comboItems.componente']), 201);
+        });
     }
 
     public function update(Request $request, Producto $producto): JsonResponse
@@ -82,14 +117,36 @@ class ProductoController extends Controller
             'unidad_medida'     => 'required|string',
             'precio_venta'      => 'required|integer|min:0',
             'fraccionable'      => 'nullable|boolean',
+            'es_combo'          => 'nullable|boolean',
             'en_promo'          => 'nullable|boolean',
             'precio_promo'      => 'nullable|integer|min:0',
             'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
+            'combo_items'                       => 'nullable|array',
+            'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
+            'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
         ]);
 
-        $producto->update($data);
-        return response()->json($producto->load(['categoria', 'promoProducto']));
+        return DB::transaction(function () use ($data, $producto) {
+            $comboItems = $data['combo_items'] ?? null;
+            unset($data['combo_items']);
+
+            $producto->update($data);
+
+            if ($comboItems !== null) {
+                // Reemplazar todos los combo_items
+                ComboItem::where('combo_producto_id', $producto->id)->delete();
+                foreach ($comboItems as $item) {
+                    ComboItem::create([
+                        'combo_producto_id'     => $producto->id,
+                        'componente_producto_id'=> $item['componente_producto_id'],
+                        'cantidad'              => $item['cantidad'],
+                    ]);
+                }
+            }
+
+            return response()->json($producto->load(['categoria', 'promoProducto', 'comboItems.componente']));
+        });
     }
 
     public function destroy(Producto $producto): JsonResponse
