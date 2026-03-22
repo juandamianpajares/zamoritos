@@ -114,7 +114,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       }`}
     >
       {/* Logo / brand */}
-      <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3">
+      <Link href="/" onClick={onClose} className="px-4 py-4 border-b border-white/10 flex items-center gap-3 hover:bg-white/5 transition-colors">
         <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-white/10 flex items-center justify-center">
           <Image
             src="/logo.png"
@@ -129,7 +129,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <h1 className="text-base font-bold text-white tracking-tight leading-tight">Zamoritos</h1>
           <p className="text-[10px] text-white/50 leading-tight">Agroveterinaria</p>
         </div>
-      </div>
+      </Link>
 
       <nav className="flex-1 py-3 space-y-0.5 px-2">
         {links.map(({ href, label, Icon, highlight }) => {

@@ -127,6 +127,25 @@ function CierreCajaModal({ ventasDia, onClose }: { ventasDia: VentasDia; onClose
             )}
           </div>
 
+          {/* Con / sin factura */}
+          {(ventasDia.con_factura.cantidad > 0 || ventasDia.sin_factura.cantidad > 0) && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">Con / sin factura</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-violet-50 rounded-xl p-3">
+                  <p className="text-[10px] text-violet-400 font-semibold uppercase mb-0.5">Con factura</p>
+                  <p className="text-sm font-bold text-violet-700">{fmt(ventasDia.con_factura.total)}</p>
+                  <p className="text-[10px] text-violet-400">{ventasDia.con_factura.cantidad} vta{ventasDia.con_factura.cantidad !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-zinc-50 rounded-xl p-3">
+                  <p className="text-[10px] text-zinc-400 font-semibold uppercase mb-0.5">Sin factura</p>
+                  <p className="text-sm font-bold text-zinc-700">{fmt(ventasDia.sin_factura.total)}</p>
+                  <p className="text-[10px] text-zinc-400">{ventasDia.sin_factura.cantidad} vta{ventasDia.sin_factura.cantidad !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Total final */}
           <div className="bg-zinc-950 rounded-2xl px-5 py-4 flex items-center justify-between">
             <div>
@@ -365,6 +384,25 @@ export default function DashboardPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Desglose con / sin factura */}
+            {ventasDia && (ventasDia.con_factura.cantidad > 0 || ventasDia.sin_factura.cantidad > 0) && (
+              <div className="mt-4 pt-4 border-t border-zinc-100">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">Con / sin factura</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-violet-50 rounded-xl p-3">
+                    <p className="text-[10px] text-violet-400 font-semibold uppercase tracking-wide mb-0.5">Con factura</p>
+                    <p className="text-sm font-bold text-violet-700">{fmt(ventasDia.con_factura.total)}</p>
+                    <p className="text-[10px] text-violet-400">{ventasDia.con_factura.cantidad} vta{ventasDia.con_factura.cantidad !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="bg-zinc-50 rounded-xl p-3">
+                    <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">Sin factura</p>
+                    <p className="text-sm font-bold text-zinc-700">{fmt(ventasDia.sin_factura.total)}</p>
+                    <p className="text-[10px] text-zinc-400">{ventasDia.sin_factura.cantidad} vta{ventasDia.sin_factura.cantidad !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

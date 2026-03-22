@@ -66,12 +66,17 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        $conFactura = $ventas->filter(fn($v) => !empty($v->numero_factura) && $v->numero_factura !== '0');
+        $sinFactura = $ventas->filter(fn($v) => empty($v->numero_factura) || $v->numero_factura === '0');
+
         return response()->json([
             'fecha'           => $hoy,
             'total'           => $total,
             'cantidad'        => $cantidad,
             'ticket_promedio' => $ticketProm,
             'por_medio_pago'  => $porMedioPago,
+            'con_factura'     => ['cantidad' => $conFactura->count(), 'total' => round($conFactura->sum('total'), 2)],
+            'sin_factura'     => ['cantidad' => $sinFactura->count(), 'total' => round($sinFactura->sum('total'), 2)],
             'ventas'          => $ventas,
         ]);
     }

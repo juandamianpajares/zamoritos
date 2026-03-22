@@ -153,6 +153,7 @@ export interface Venta {
   total: number;
   estado: 'confirmada' | 'anulada';
   tipo_comprobante?: string;  // Kitfe v2
+  numero_factura?: string;
   kitfe_id?: string;          // Kitfe v2
   usuario?: string;
   observacion?: string;
@@ -188,6 +189,8 @@ export interface VentasDia {
   cantidad: number;
   ticket_promedio: number;
   por_medio_pago: MedioPagoStat[];
+  con_factura: { cantidad: number; total: number };
+  sin_factura: { cantidad: number; total: number };
   ventas: Venta[];
 }
 

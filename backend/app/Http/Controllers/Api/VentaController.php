@@ -51,6 +51,7 @@ class VentaController extends Controller
             'medios_pago.*.medio'            => 'required_with:medios_pago|string',
             'medios_pago.*.monto'            => 'required_with:medios_pago|numeric|min:0',
             'receptor_nombre'                => 'nullable|string|max:200',
+            'numero_factura'                 => 'nullable|string|max:100',
             'usuario'                        => 'nullable|string|max:100',
             'observacion'                    => 'nullable|string',
             'detalles'                       => 'required|array|min:1',
@@ -80,6 +81,7 @@ class VentaController extends Controller
             'ventas.*.receptor_nombre'    => 'nullable|string|max:200',
             'ventas.*.total'              => 'required|numeric|min:0',
             'ventas.*.medio_pago'         => 'nullable|string|max:50',
+            'ventas.*.numero_factura'     => 'nullable|string|max:100',
         ]);
 
         $creadas = 0;
@@ -89,6 +91,7 @@ class VentaController extends Controller
                 'tipo_pago'         => 'contado',
                 'medio_pago'        => $v['medio_pago'] ?? 'sicfe',
                 'tipo_comprobante'  => $v['tipo_comprobante'] ?? 'e-Ticket',
+                'numero_factura'    => $v['numero_factura'] ?? null,
                 'receptor_nombre'   => $v['receptor_nombre'] ?? null,
                 'moneda'            => 'UYU',
                 'subtotal'          => $v['total'],

@@ -11,7 +11,7 @@ class Venta extends Model
         'fecha', 'tipo_pago', 'medio_pago', 'medios_pago',
         'receptor_nombre', 'receptor_rut', 'moneda',
         'subtotal', 'descuento', 'total',
-        'estado', 'tipo_comprobante', 'kitfe_id',
+        'estado', 'tipo_comprobante', 'numero_factura', 'kitfe_id',
         'usuario', 'observacion',
     ];
 

@@ -125,6 +125,9 @@ function POSPanel() {
   const [cartOpen, setCartOpen]         = useState(false);
   const [addedId, setAddedId]           = useState<number | null>(null);
   const [fraccionando, setFraccionando] = useState<Producto | null>(null);
+  const [showFacturaModal, setShowFacturaModal] = useState(false);
+  const [nroFactura, setNroFactura] = useState('');
+  const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const recargarProductos = useCallback(() => {
@@ -188,7 +191,7 @@ function POSPanel() {
   const total     = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
   const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
 
-  const confirmarVenta = async () => {
+  const confirmarVenta = () => {
     if (carrito.length === 0) return;
 
     // Validar pago combinado
@@ -204,27 +207,35 @@ function POSPanel() {
       }
     }
 
+    // Armar body pendiente y abrir modal de factura
+    const body: Record<string, unknown> = {
+      fecha:     new Date().toISOString().slice(0, 10),
+      tipo_pago: tipoPago,
+      detalles:  carrito.map(l => ({
+        producto_id:     l.producto.id,
+        cantidad:        l.cantidad,
+        precio_unitario: l.precio_unitario,
+      })),
+    };
+    if (modoPago === 'combinado' && pagos.length > 0) {
+      body.medios_pago = pagos.map(p => ({ medio: p.medio, monto: parseFloat(p.monto) || 0 }));
+    } else {
+      body.medio_pago = medioPago;
+    }
+    setPendingBody(body);
+    setNroFactura('');
+    setShowFacturaModal(true);
+  };
+
+  const ejecutarVenta = async (nroFact: string) => {
+    if (!pendingBody) return;
+    setShowFacturaModal(false);
     setSubmitting(true);
     setError('');
+    const body = { ...pendingBody };
+    if (nroFact && nroFact !== '0') body.numero_factura = nroFact;
     try {
-      const body: Record<string, unknown> = {
-        fecha:     new Date().toISOString().slice(0, 10),
-        tipo_pago: tipoPago,
-        detalles:  carrito.map(l => ({
-          producto_id:     l.producto.id,
-          cantidad:        l.cantidad,
-          precio_unitario: l.precio_unitario,
-        })),
-      };
-
-      if (modoPago === 'combinado' && pagos.length > 0) {
-        body.medios_pago = pagos.map(p => ({ medio: p.medio, monto: parseFloat(p.monto) || 0 }));
-      } else {
-        body.medio_pago = medioPago;
-      }
-
       await api.post<Venta>('/ventas', body);
-      // Detectar productos que quedarán con stock bajo tras la venta
       const alerts = carrito
         .filter(l => (l.producto.stock - l.cantidad) <= 3 && (l.producto.stock - l.cantidad) >= 0)
         .map(l => ({ nombre: l.producto.nombre, stock: l.producto.stock - l.cantidad }));
@@ -234,6 +245,7 @@ function POSPanel() {
       setCartOpen(false);
       setModoPago('unico');
       setPagos([]);
+      setPendingBody(null);
       recargarProductos();
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -603,6 +615,44 @@ function POSPanel() {
           onConfirmar={() => { confirmarVenta(); }}
         />
       </Modal>
+
+      {/* ── Modal número de factura ── */}
+      {showFacturaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFacturaModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div>
+              <h2 className="text-base font-bold text-zinc-900">¿Número de factura?</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">Ingresá el número o dejá en 0 si no tiene.</p>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={nroFactura}
+              onChange={e => setNroFactura(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') ejecutarVenta(nroFactura); }}
+              placeholder="Ej: 000123"
+              className="w-full px-4 py-3 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => ejecutarVenta('0')}
+                className="flex-1 py-3 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                Sin factura
+              </button>
+              <button
+                onClick={() => ejecutarVenta(nroFactura)}
+                className="flex-1 py-3 text-sm font-bold rounded-xl text-white transition-colors"
+                style={{ background: 'var(--brand-teal)' }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal venta exitosa ── */}
       {ventaModal && (
@@ -1557,10 +1607,11 @@ interface SicfeRow {
 }
 
 function SICFEImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [rows,     setRows]     = useState<SicfeRow[]>([]);
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [imported, setImported] = useState<number | null>(null);
+  const [rows,         setRows]         = useState<SicfeRow[]>([]);
+  const [nroFactura,   setNroFactura]   = useState('');
+  const [error,        setError]        = useState('');
+  const [loading,      setLoading]      = useState(false);
+  const [imported,     setImported]     = useState<number | null>(null);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1609,6 +1660,7 @@ function SICFEImportModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         receptor_nombre:  r.receptor_nombre || undefined,
         total:            parseFloat(r.total.replace(/\./g, '').replace(',', '.')),
         medio_pago:       r.medio_pago || 'efectivo',
+        numero_factura:   nroFactura || undefined,
       }));
       const res = await api.post<{ importadas: number }>('/ventas/importar-sicfe', { ventas });
       setImported(res.importadas);
@@ -1641,6 +1693,17 @@ function SICFEImportModal({ onClose, onDone }: { onClose: () => void; onDone: ()
               Archivo CSV con columnas: <strong>fecha, tipo_comprobante, receptor, total, medio_pago</strong><br />
               Formatos de fecha: <code className="bg-zinc-100 px-1 rounded">YYYY-MM-DD</code> o <code className="bg-zinc-100 px-1 rounded">DD/MM/YYYY</code>. Separador: coma o punto y coma.
             </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-500 mb-1.5">Número de factura (opcional)</label>
+              <input
+                type="text"
+                value={nroFactura}
+                onChange={e => setNroFactura(e.target.value)}
+                placeholder="Ej: 000123 — dejá vacío si no aplica"
+                className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
+              />
+            </div>
 
             <label className="flex flex-col items-center gap-2 border-2 border-dashed border-zinc-200 rounded-xl p-6 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
               <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300">
