@@ -14,10 +14,14 @@ function fmt(n: number) {
 
 const MEDIO_LABEL: Record<string, string> = {
   efectivo:      'Efectivo',
-  tarjeta:       'Tarjeta',
+  tarjeta:       'VISA',
   oca:           'OCA',
+  master:        'MasterCard',
+  anda:          'ANDA',
+  cabal:         'CABAL',
   transferencia: 'Transf.',
   otro:          'Otro',
+  sicfe:         'SICFE',
   'sin especificar': 'Sin especif.',
 };
 
@@ -25,8 +29,12 @@ const MEDIO_COLOR: Record<string, string> = {
   efectivo:      'bg-emerald-100 text-emerald-700',
   tarjeta:       'bg-blue-100 text-blue-700',
   oca:           'bg-orange-100 text-orange-700',
+  master:        'bg-orange-100 text-orange-800',
+  anda:          'bg-cyan-100 text-cyan-700',
+  cabal:         'bg-indigo-100 text-indigo-700',
   transferencia: 'bg-violet-100 text-violet-700',
   otro:          'bg-zinc-100 text-zinc-600',
+  sicfe:         'bg-zinc-100 text-zinc-500',
   'sin especificar': 'bg-zinc-100 text-zinc-500',
 };
 

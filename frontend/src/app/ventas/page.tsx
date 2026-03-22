@@ -51,6 +51,19 @@ function fmt(n: number) {
   return `$${Math.round(n).toLocaleString('es-CL')}`;
 }
 
+const MEDIO_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo', tarjeta: 'VISA', oca: 'OCA',
+  master: 'MasterCard', anda: 'ANDA', cabal: 'CABAL',
+  transferencia: 'Transferencia', otro: 'Otro', sicfe: 'SICFE',
+};
+const MEDIO_COLOR: Record<string, string> = {
+  efectivo: 'bg-emerald-100 text-emerald-700', tarjeta: 'bg-blue-100 text-blue-700',
+  oca: 'bg-orange-100 text-orange-700', master: 'bg-orange-100 text-orange-800',
+  anda: 'bg-cyan-100 text-cyan-700', cabal: 'bg-indigo-100 text-indigo-700',
+  transferencia: 'bg-violet-100 text-violet-700', otro: 'bg-zinc-100 text-zinc-600',
+  sicfe: 'bg-zinc-100 text-zinc-500',
+};
+
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
@@ -1435,8 +1448,8 @@ function HistorialPanel() {
                       </td>
                       <td className="px-4 py-3">
                         {v.medio_pago ? (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                            {v.medio_pago}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
                         ) : <span className="text-zinc-300">—</span>}
                       </td>
@@ -1493,8 +1506,8 @@ function HistorialPanel() {
                       </div>
                       <div className="flex items-center gap-2">
                         {v.medio_pago && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                            {v.medio_pago}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                            {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
                         )}
                       </div>
@@ -1534,13 +1547,13 @@ function HistorialPanel() {
                 ['Fecha',     new Date(detalle.fecha).toLocaleDateString('es-CL')],
                 ['Total',     fmt(detalle.total)],
                 ['Tipo pago', detalle.tipo_pago],
-                ['Medio',     detalle.medio_pago ?? '—'],
+                ['Medio',     (detalle.medio_pago ? (MEDIO_LABEL[detalle.medio_pago] ?? detalle.medio_pago) : '—')],
                 ['Estado',    detalle.estado],
                 ['Moneda',    detalle.moneda],
               ].map(([k, v]) => (
                 <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
                   <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">{k}</p>
-                  <p className="text-zinc-800 font-semibold capitalize">{v}</p>
+                  <p className="text-zinc-800 font-semibold">{v}</p>
                 </div>
               ))}
             </div>

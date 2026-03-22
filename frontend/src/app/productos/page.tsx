@@ -691,7 +691,7 @@ export default function ProductosPage() {
                   <label className={label}>% Ganancia</label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number" step="0.01" min="-100" max="9999" value={pctGanancia}
+                      type="number" step="any" min="-100" max="9999" value={pctGanancia}
                       onChange={e => handlePctChange(e.target.value)}
                       placeholder="Ej: 30"
                       className={`${input} w-28`}
@@ -717,7 +717,7 @@ export default function ProductosPage() {
                 <div>
                   <label className={label}>Precio de compra</label>
                   <input
-                    type="number" step="1" min="0" value={form.precio_compra}
+                    type="number" step="any" min="0" value={form.precio_compra}
                     onChange={e => {
                       const pc = e.target.value;
                       setForm(prev => ({ ...prev, precio_compra: pc }));
@@ -734,7 +734,7 @@ export default function ProductosPage() {
                   <label className={label}>% Ganancia</label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number" step="0.01" min="-100" max="9999" value={pctGanancia}
+                      type="number" step="any" min="-100" max="9999" value={pctGanancia}
                       onChange={e => handlePctChange(e.target.value)}
                       placeholder="Ej: 30"
                       className={`${input} w-28`}

@@ -8,8 +8,16 @@ const BILLETES  = [2000, 1000, 500, 200, 100, 50, 20];
 const MONEDAS   = [10, 5, 2, 1];
 const DENOMS    = [...BILLETES, ...MONEDAS];
 
+const MEDIO_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo', tarjeta: 'VISA', oca: 'OCA',
+  master: 'MasterCard', anda: 'ANDA', cabal: 'CABAL',
+  transferencia: 'Transferencia', otro: 'Otro', sicfe: 'SICFE',
+};
+function medioLabel(m: string) { return MEDIO_LABEL[m] ?? m; }
+
 function fmt(n: number) {
   return `$${Math.round(n).toLocaleString('es-CL')}`;
+}
 }
 
 function fmtDiff(n: number) {
@@ -138,7 +146,7 @@ export default function CajaPage() {
           <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Ventas del día</h2>
           {datos?.ventas_por_medio.map(m => (
             <div key={m.medio} className="flex justify-between text-sm py-0.5">
-              <span className="capitalize">{m.medio} ({m.cantidad} ventas)</span>
+              <span>{medioLabel(m.medio)} ({m.cantidad} ventas)</span>
               <span className="tabular-nums font-medium">{fmt(m.total)}</span>
             </div>
           ))}
@@ -410,7 +418,7 @@ export default function CajaPage() {
                   <div key={m.medio} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${m.medio === 'efectivo' ? 'bg-emerald-400' : 'bg-sky-400'}`} />
-                      <span className="text-sm text-zinc-600 capitalize">{m.medio}</span>
+                      <span className="text-sm text-zinc-600">{medioLabel(m.medio)}</span>
                       <span className="text-xs text-zinc-400">({m.cantidad})</span>
                     </div>
                     <span className="text-sm font-semibold tabular-nums text-zinc-800">{fmt(m.total)}</span>
