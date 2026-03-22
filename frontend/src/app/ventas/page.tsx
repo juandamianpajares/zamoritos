@@ -71,6 +71,7 @@ function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 export default function VentasPage() {
   const [vista, setVista] = useState<Vista>('pos');
+  const [creditoCanje, setCreditoCanje] = useState(0);
 
   return (
     <div className="h-full flex flex-col">
@@ -109,7 +110,10 @@ export default function VentasPage() {
       </div>
 
       <div className="flex-1 overflow-hidden bg-slate-50 flex flex-col">
-        {vista === 'pos' ? <POSPanel /> : <HistorialPanel />}
+        {vista === 'pos'
+          ? <POSPanel creditoCanje={creditoCanje} onClearCanje={() => setCreditoCanje(0)} />
+          : <HistorialPanel onIniciarCanje={(amt) => { setCreditoCanje(amt); setVista('pos'); }} />
+        }
       </div>
     </div>
   );
@@ -117,7 +121,7 @@ export default function VentasPage() {
 
 // ─── Panel POS ────────────────────────────────────────────────────────────────
 
-function POSPanel() {
+function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClearCanje: () => void }) {
   const [productos, setProductos]     = useState<Producto[]>([]);
   const [categorias, setCategorias]   = useState<Categoria[]>([]);
   const [catActiva, setCatActiva]     = useState<number | null>(null);
@@ -240,12 +244,13 @@ function POSPanel() {
 
   const confirmarVenta = () => {
     if (carrito.length === 0) return;
+    const totalAPagar = Math.max(0, total - creditoCanje);
 
     // Validar pago combinado
     if (modoPago === 'combinado') {
       const sumPagos = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-      if (Math.abs(sumPagos - total) > 0.01) {
-        setError(`Los pagos suman ${fmt(sumPagos)} pero el total es ${fmt(total)}.`);
+      if (Math.abs(sumPagos - totalAPagar) > 0.01) {
+        setError(`Los pagos suman ${fmt(sumPagos)} pero el total a pagar es ${fmt(totalAPagar)}.`);
         return;
       }
       if (pagos.length === 0) {
@@ -269,6 +274,7 @@ function POSPanel() {
     } else {
       body.medio_pago = medioPago;
     }
+    if (creditoCanje > 0) body.credito_devolucion = creditoCanje;
     setPendingBody(body);
     setNroFactura('');
     setShowFacturaModal(true);
@@ -293,6 +299,7 @@ function POSPanel() {
       setModoPago('unico');
       setPagos([]);
       setPendingBody(null);
+      onClearCanje();
       recargarProductos();
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -599,6 +606,8 @@ function POSPanel() {
           modoPago={modoPago}
           pagos={pagos}
           submitting={submitting}
+          creditoCanje={creditoCanje}
+          onClearCanje={onClearCanje}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
           onQuitarItem={quitarItem}
@@ -672,6 +681,8 @@ function POSPanel() {
           modoPago={modoPago}
           pagos={pagos}
           submitting={submitting}
+          creditoCanje={creditoCanje}
+          onClearCanje={onClearCanje}
           onCambiarCantidad={cambiarCantidad}
           onCambiarPrecio={cambiarPrecio}
           onQuitarItem={quitarItem}
@@ -906,6 +917,8 @@ interface CarritoPanelProps {
   modoPago:          'unico' | 'combinado';
   pagos:             PagoLinea[];
   submitting:        boolean;
+  creditoCanje:      number;
+  onClearCanje:      () => void;
   onCambiarCantidad: (id: number, delta: number) => void;
   onCambiarPrecio:   (id: number, precio: string) => void;
   onQuitarItem:      (id: number) => void;
@@ -919,13 +932,16 @@ interface CarritoPanelProps {
 
 const CarritoPanel = memo(function CarritoPanel({
   carrito, total, tipoPago, medioPago, modoPago, pagos, submitting,
+  creditoCanje, onClearCanje,
   onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar,
   onTipoPago, onMedioPago, onModoPago, onSetPagos, onConfirmar,
 }: CarritoPanelProps) {
-  const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
-  const sumPagos   = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
-  const restante   = Math.max(0, total - sumPagos);
-  const pagoOk     = modoPago === 'unico' || Math.abs(sumPagos - total) < 0.01;
+  const totalItems  = carrito.reduce((s, l) => s + l.cantidad, 0);
+  const totalAPagar = Math.max(0, total - creditoCanje);
+  const sobrante    = Math.max(0, creditoCanje - total);
+  const sumPagos    = pagos.reduce((s, p) => s + (parseFloat(p.monto) || 0), 0);
+  const restante    = Math.max(0, totalAPagar - sumPagos);
+  const pagoOk      = modoPago === 'unico' || Math.abs(sumPagos - totalAPagar) < 0.01;
 
   const addPago = () => {
     const medioDisponible = MEDIOS_PAGO.find(m => !pagos.some(p => p.medio === m.value))?.value ?? 'efectivo';
@@ -1172,11 +1188,37 @@ const CarritoPanel = memo(function CarritoPanel({
           )}
         </div>
 
+        {/* Crédito por devolución */}
+        {creditoCanje > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <svg width="13" height="13" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+                </svg>
+                <span className="text-xs font-semibold text-amber-800">Crédito por devolución</span>
+              </div>
+              <button onClick={onClearCanje} className="text-[9px] text-amber-500 hover:text-amber-700 border border-amber-200 rounded px-1.5 py-0.5">Quitar</button>
+            </div>
+            <div className="flex justify-between text-xs text-amber-700 font-mono">
+              <span>Mercadería</span><span>{fmt(total)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-amber-700 font-mono">
+              <span>− Crédito</span><span>−{fmt(creditoCanje)}</span>
+            </div>
+            {sobrante > 0 && (
+              <div className="flex justify-between text-xs text-emerald-700 font-mono border-t border-amber-200 pt-1">
+                <span>Sobrante caja</span><span>+{fmt(sobrante)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Total */}
         <div className="flex items-baseline justify-between py-1 px-1">
-          <span className="text-sm text-zinc-500 font-medium">Total</span>
+          <span className="text-sm text-zinc-500 font-medium">{creditoCanje > 0 ? 'A pagar' : 'Total'}</span>
           <span className="text-2xl font-bold tabular-nums text-zinc-900">
-            {fmt(total)}
+            {fmt(creditoCanje > 0 ? totalAPagar : total)}
           </span>
         </div>
 
@@ -1197,7 +1239,7 @@ const CarritoPanel = memo(function CarritoPanel({
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              {`Confirmar venta${carrito.length > 0 ? ' · ' + fmt(total) : ''}`}
+              {`Confirmar venta${carrito.length > 0 ? ' · ' + fmt(creditoCanje > 0 ? totalAPagar : total) : ''}`}
             </span>
           )}
         </button>
@@ -1432,7 +1474,7 @@ function FraccionarModal({
 
 type Periodo = 'hoy' | 'semana' | 'mes' | 'todo';
 
-function HistorialPanel() {
+function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number) => void }) {
   const [ventas,          setVentas]          = useState<Venta[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [detalle,         setDetalle]         = useState<Venta | null>(null);
@@ -1762,6 +1804,7 @@ function HistorialPanel() {
           venta={devolucionVenta}
           onClose={() => setDevolucionVenta(null)}
           onDone={() => { setDevolucionVenta(null); load(); }}
+          onIniciarCanje={(amt) => { setDevolucionVenta(null); load(); onIniciarCanje(amt); }}
         />
       )}
     </div>
@@ -1940,7 +1983,12 @@ interface DevolucionLinea {
   precio_unitario: number;
 }
 
-function DevolucionModal({ venta, onClose, onDone }: { venta: Venta; onClose: () => void; onDone: () => void }) {
+function DevolucionModal({ venta, onClose, onDone, onIniciarCanje }: {
+  venta: Venta;
+  onClose: () => void;
+  onDone: () => void;
+  onIniciarCanje: (amt: number) => void;
+}) {
   const [lineas,  setLineas]  = useState<DevolucionLinea[]>([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
@@ -2013,28 +2061,91 @@ function DevolucionModal({ venta, onClose, onDone }: { venta: Venta; onClose: ()
               <p className="text-center text-zinc-400 pt-1">Mercadería reintegrada al stock</p>
             </div>
 
-            {/* Crédito en efectivo */}
-            {venta.medio_pago === 'efectivo' && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3.5 space-y-1">
-                <div className="flex items-center gap-2">
-                  <svg width="16" height="16" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1" y="4" width="14" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2"/>
-                  </svg>
-                  <p className="text-sm font-semibold text-emerald-800">Devolución en efectivo</p>
-                </div>
-                <p className="text-xs text-emerald-700">
-                  La venta original fue cobrada en <strong>efectivo</strong>.
-                  Devolver al cliente: <strong className="text-base">{fmt(remito.total_devuelto)}</strong>
-                </p>
-                <p className="text-xs text-emerald-600 mt-1">
-                  Si el cliente compra mercadería nueva, aplicar como saldo a favor.
-                </p>
-              </div>
-            )}
+            {/* Opciones de devolución según medio de pago */}
+            {(() => {
+              const esEfectivo = venta.medio_pago === 'efectivo';
+              const esCombinado = !!(venta.medios_pago && venta.medios_pago.length > 1);
+              const esTarjeta = !esEfectivo && !esCombinado;
+              return (
+                <div className="space-y-2">
+                  {/* Efectivo puro → solo reembolso */}
+                  {esEfectivo && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3.5 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <svg width="16" height="16" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="1" y="4" width="14" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2"/>
+                        </svg>
+                        <p className="text-sm font-semibold text-emerald-800">Devolución en efectivo</p>
+                      </div>
+                      <p className="text-xs text-emerald-700">
+                        Devolver al cliente: <strong className="text-base">{fmt(remito.total_devuelto)}</strong>
+                      </p>
+                    </div>
+                  )}
 
-            <button onClick={onDone} className="w-full py-3 text-sm font-semibold text-white rounded-xl" style={{ background: 'var(--brand-teal)' }}>
-              Cerrar
-            </button>
+                  {/* Tarjeta → solo canje */}
+                  {esTarjeta && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <svg width="16" height="16" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+                        </svg>
+                        <p className="text-sm font-semibold text-amber-800">Canje por mercadería</p>
+                      </div>
+                      <p className="text-xs text-amber-700">
+                        La venta fue cobrada con <strong>{venta.medio_pago?.toUpperCase()}</strong>. El crédito de <strong>{fmt(remito.total_devuelto)}</strong> se aplica a la próxima compra.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Combinado → elegir */}
+                  {esCombinado && (
+                    <div className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 space-y-2">
+                      <p className="text-xs font-semibold text-zinc-600">Pago original combinado — elegí cómo devolver {fmt(remito.total_devuelto)}:</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    {(esEfectivo || esCombinado) && (
+                      <button
+                        onClick={onDone}
+                        className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-50 flex items-center justify-center gap-1.5"
+                      >
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="1" y="4" width="14" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2"/>
+                        </svg>
+                        Reembolso efectivo
+                      </button>
+                    )}
+                    {(esTarjeta || esCombinado) && (
+                      <button
+                        onClick={() => onIniciarCanje(remito.total_devuelto)}
+                        className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white flex items-center justify-center gap-1.5"
+                        style={{ background: 'var(--brand-teal)' }}
+                      >
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
+                        </svg>
+                        Iniciar canje
+                      </button>
+                    )}
+                    {esEfectivo && (
+                      <button
+                        onClick={() => onIniciarCanje(remito.total_devuelto)}
+                        className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white flex items-center justify-center gap-1.5"
+                        style={{ background: 'var(--brand-purple)' }}
+                      >
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                        </svg>
+                        Canjear por mercadería
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ) : lineas.length === 0 ? (
           <div className="py-8 text-center text-sm text-zinc-400">Cargando detalles…</div>
