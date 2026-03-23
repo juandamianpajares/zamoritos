@@ -52,6 +52,47 @@ const emptyForm = {
   foto_url: '',
 };
 
+// Genera preview de thumbnail (200×200 crop centrado, igual que el server)
+async function generarThumbPreview(file: File): Promise<string> {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const W = 200, H = 200;
+      const ratio = Math.max(W / img.width, H / img.height);
+      const nw = Math.round(img.width * ratio);
+      const nh = Math.round(img.height * ratio);
+      const cx = Math.round((nw - W) / 2);
+      const cy = Math.round((nh - H) / 2);
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(img, -cx, -cy, nw, nh);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/webp', 0.85));
+    };
+    img.src = url;
+  });
+}
+
+// Colores de marca basados en hash del nombre
+const MARCA_COLORS = [
+  'bg-blue-50 text-blue-700 border-blue-100',
+  'bg-violet-50 text-violet-700 border-violet-100',
+  'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'bg-amber-50 text-amber-700 border-amber-100',
+  'bg-rose-50 text-rose-700 border-rose-100',
+  'bg-cyan-50 text-cyan-700 border-cyan-100',
+  'bg-orange-50 text-orange-700 border-orange-100',
+  'bg-teal-50 text-teal-700 border-teal-100',
+];
+function marcaColor(marca: string) {
+  let h = 0; for (const c of marca) h = c.charCodeAt(0) + ((h << 5) - h);
+  return MARCA_COLORS[Math.abs(h) % MARCA_COLORS.length];
+}
+
 
 const unidades = ['unidad', 'kg', 'gramo', 'litro', 'mililitro'];
 const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
@@ -655,6 +696,7 @@ export default function ProductosPage() {
   const [toastMsg,     setToastMsg]     = useState('');
   const [fotoFile,     setFotoFile]     = useState<File | null>(null);
   const [fotoPreview,  setFotoPreview]  = useState<string | null>(null);
+  const [thumbPreview, setThumbPreview] = useState<string | null>(null);
   const [ajusteP,      setAjusteP]      = useState<Producto | null>(null);
   const [notifLoading, setNotifLoading] = useState<number | null>(null);
   const [scanning,     setScanning]     = useState(false);
@@ -694,7 +736,7 @@ export default function ProductosPage() {
 
   useEffect(() => { load(); }, [search, catFilter, marcaFilter]);
 
-  const resetFoto = () => { setFotoFile(null); setFotoPreview(null); };
+  const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
 
   const openCreate = () => {
     setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError('');
@@ -747,11 +789,12 @@ export default function ProductosPage() {
     }
   };
 
-  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFotoFile(file);
     setFotoPreview(URL.createObjectURL(file));
+    setThumbPreview(await generarThumbPreview(file));
   };
 
 
@@ -838,7 +881,8 @@ export default function ProductosPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      {/* ── Barra de búsqueda + categoría ───────────────────────────────── */}
+      <div className="flex gap-2 mb-3 flex-wrap">
         <div className="flex-1 min-w-48 relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="5.5" cy="5.5" r="4.5"/><line x1="9" y1="9" x2="13" y2="13"/>
@@ -854,8 +898,6 @@ export default function ProductosPage() {
             </button>
           )}
         </div>
-
-        {/* Filtro categoría */}
         <select
           value={catFilter} onChange={e => { setCatFilter(e.target.value); setMarcaFilter(''); }}
           className="w-44 border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-zinc-400"
@@ -863,71 +905,131 @@ export default function ProductosPage() {
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
-
-        {/* Filtro marca */}
-        <select
-          value={marcaFilter} onChange={e => setMarcaFilter(e.target.value)}
-          className="w-40 border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-zinc-400"
-        >
-          <option value="">Todas las marcas</option>
-          {marcas.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-
-        {/* Limpiar filtros activos */}
         {(catFilter || marcaFilter || search) && (
           <button
             onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); }}
-            className="px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50 whitespace-nowrap"
+            className="px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50 whitespace-nowrap flex items-center gap-1"
           >
-            Limpiar filtros
+            <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+            Limpiar
           </button>
         )}
       </div>
+
+      {/* ── Pills de marca (scroll horizontal) ──────────────────────────── */}
+      {marcas.length > 0 && (
+        <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+          <button
+            onClick={() => setMarcaFilter('')}
+            className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+              !marcaFilter
+                ? 'bg-zinc-900 text-white border-zinc-900'
+                : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
+            }`}
+          >
+            Todas ({productos.length})
+          </button>
+          {marcas.map(m => {
+            const count = productos.filter(p => p.marca === m).length;
+            const isActive = marcaFilter === m;
+            const col = marcaColor(m);
+            return (
+              <button
+                key={m}
+                onClick={() => setMarcaFilter(isActive ? '' : m)}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                  isActive
+                    ? col + ' ring-1 ring-offset-1 ring-current'
+                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                }`}
+              >
+                {m} <span className="opacity-60 ml-0.5">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
           <div className="p-12 flex items-center justify-center gap-2 text-sm text-zinc-400">
             <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" />
-            Cargando...
+            Cargando productos...
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100">
-                  {['', 'Código', 'Nombre', 'Marca', 'Categoría', 'P. Venta', 'P. Compra', 'Stock', 'Notif.', ''].map((h, i) => (
-                    <th key={i} className="text-left px-3 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                <tr className="bg-zinc-50/80 border-b border-zinc-100">
+                  {['', 'Producto', 'Marca', 'Categoría', 'Venta', 'Compra', 'Stock', '', ''].map((h, i) => (
+                    <th key={i} className="text-left px-3 py-2.5 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-50">
                 {productos.map(p => {
+                  const margenPct = p.precio_compra && p.precio_compra > 0
+                    ? Math.round(((p.precio_venta - p.precio_compra) / p.precio_compra) * 100)
+                    : null;
                   return (
-                    <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
-                      <td className="pl-3 py-2 w-12">
+                    <tr key={p.id} className="hover:bg-zinc-50/70 transition-colors group">
+                      {/* Thumb */}
+                      <td className="pl-3 pr-1 py-2 w-14">
                         <ThumbProducto producto={p} />
                       </td>
-                      <td className="px-3 py-3 text-zinc-400 text-xs font-mono">{p.codigo_barras ?? '—'}</td>
-                      <td className="px-3 py-3">
-                        <p className="font-medium text-zinc-800">{p.nombre}</p>
-                        {p.en_promo && p.precio_promo != null && (
-                          <span className="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded-full font-medium">
-                            Promo x2 · ${Math.round(p.precio_promo!).toLocaleString('es-CL')}
+
+                      {/* Nombre + código + badges */}
+                      <td className="px-2 py-2.5 max-w-xs">
+                        <p className="font-semibold text-zinc-800 leading-tight truncate">{p.nombre}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {p.codigo_barras && (
+                            <span className="text-[10px] font-mono text-zinc-400">{p.codigo_barras}</span>
+                          )}
+                          {p.en_promo && p.precio_promo != null && (
+                            <span className="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-px rounded-full font-medium border border-rose-100">
+                              Promo ${Math.round(p.precio_promo!).toLocaleString('es-CL')}
+                            </span>
+                          )}
+                          {p.fraccionado_de && (
+                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-px rounded-full font-medium border border-amber-100">Fraccionado</span>
+                          )}
+                          {p.destacado && (
+                            <span className="text-[10px]" title="Destacado">⭐</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Marca */}
+                      <td className="px-2 py-2.5">
+                        {p.marca ? (
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${marcaColor(p.marca)}`}>
+                            {p.marca}
                           </span>
-                        )}
-                        {p.fraccionado_de && (
-                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full font-medium ml-1">Fraccionado</span>
-                        )}
+                        ) : <span className="text-zinc-300 text-xs">—</span>}
                       </td>
-                      <td className="px-3 py-3 text-zinc-500">{p.marca ?? '—'}</td>
-                      <td className="px-3 py-3">
+
+                      {/* Categoría */}
+                      <td className="px-2 py-2.5">
                         {p.categoria ? (
-                          <span className="bg-zinc-100 text-zinc-600 text-xs px-2 py-0.5 rounded-full">{p.categoria.nombre}</span>
-                        ) : '—'}
+                          <span className="text-[11px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-medium">
+                            {p.categoria.nombre}
+                          </span>
+                        ) : <span className="text-zinc-300 text-xs">—</span>}
                       </td>
-                      <td className="px-3 py-3 font-medium tabular-nums">${Math.round(p.precio_venta).toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-3 text-zinc-500 tabular-nums">
-                        {p.precio_compra != null ? `$${Number(p.precio_compra).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+
+                      {/* Precio venta + margen */}
+                      <td className="px-2 py-2.5 whitespace-nowrap">
+                        <p className="font-semibold text-zinc-800 tabular-nums">${Math.round(p.precio_venta).toLocaleString('es-CL')}</p>
+                        {margenPct !== null && (
+                          <p className={`text-[10px] tabular-nums ${margenPct >= 30 ? 'text-emerald-500' : margenPct >= 10 ? 'text-amber-500' : 'text-rose-400'}`}>
+                            +{margenPct}% margen
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Precio compra */}
+                      <td className="px-2 py-2.5 text-zinc-400 tabular-nums text-xs">
+                        {p.precio_compra != null ? `$${Number(p.precio_compra).toLocaleString('es-CL')}` : '—'}
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-1">
@@ -960,41 +1062,52 @@ export default function ProductosPage() {
                           >+</button>
                         </div>
                       </td>
-                      {/* Destacado toggle */}
-                      <td className="px-1 py-3">
-                        <button
-                          onClick={async () => {
-                            await api.patch(`/productos/${p.id}/destacado`, {});
-                            setProductos(prev => prev.map(x => x.id === p.id ? { ...x, destacado: !x.destacado } : x));
-                          }}
-                          title={p.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
-                          className={`text-lg leading-none transition-opacity ${p.destacado ? 'opacity-100' : 'opacity-25 hover:opacity-60'}`}
-                        >⭐</button>
+                      {/* Destacado + notif */}
+                      <td className="px-2 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              await api.patch(`/productos/${p.id}/destacado`, {});
+                              setProductos(prev => prev.map(x => x.id === p.id ? { ...x, destacado: !x.destacado } : x));
+                            }}
+                            title={p.destacado ? 'Quitar destacado' : 'Marcar destacado'}
+                            className={`text-base leading-none transition-all ${p.destacado ? 'opacity-100 scale-110' : 'opacity-20 hover:opacity-50'}`}
+                          >⭐</button>
+                          <button
+                            onClick={() => toggleNotificacion(p)}
+                            disabled={notifLoading === p.id}
+                            title={p.notificar_stock_bajo ? 'Alerta stock activa' : 'Activar alerta stock'}
+                            className={`w-7 h-4 rounded-full transition-colors relative shrink-0 ${
+                              p.notificar_stock_bajo ? 'bg-amber-400' : 'bg-zinc-200'
+                            } ${notifLoading === p.id ? 'opacity-50' : ''}`}
+                          >
+                            <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${
+                              p.notificar_stock_bajo ? 'translate-x-3.5' : 'translate-x-0.5'
+                            }`} />
+                          </button>
+                        </div>
                       </td>
-                      {/* Notificación stock bajo toggle */}
-                      <td className="px-3 py-3">
-                        <button
-                          onClick={() => toggleNotificacion(p)}
-                          disabled={notifLoading === p.id}
-                          title={p.notificar_stock_bajo ? 'Desactivar alerta de stock bajo' : 'Activar alerta de stock bajo'}
-                          className={`w-8 h-5 rounded-full transition-colors relative ${
-                            p.notificar_stock_bajo ? 'bg-amber-400' : 'bg-zinc-200'
-                          } ${notifLoading === p.id ? 'opacity-50' : ''}`}
-                        >
-                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                            p.notificar_stock_bajo ? 'translate-x-3' : 'translate-x-0.5'
-                          }`} />
-                        </button>
-                      </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap">
-                        <button onClick={() => openEdit(p)} className="text-zinc-500 hover:text-zinc-800 text-xs mr-3 transition-colors">Editar</button>
-                        <button onClick={() => handleDelete(p.id)} className="text-rose-400 hover:text-rose-600 text-xs transition-colors">Eliminar</button>
+
+                      {/* Acciones */}
+                      <td className="px-2 py-2.5 text-right whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEdit(p)} className="text-zinc-400 hover:text-zinc-800 text-xs px-2 py-1 rounded-lg hover:bg-zinc-100 transition-colors mr-1">Editar</button>
+                        <button onClick={() => handleDelete(p.id)} className="text-rose-300 hover:text-rose-600 text-xs px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors">Eliminar</button>
                       </td>
                     </tr>
                   );
                 })}
                 {productos.length === 0 && (
-                  <tr><td colSpan={10} className="px-6 py-12 text-center text-sm text-zinc-400">Sin productos</td></tr>
+                  <tr>
+                    <td colSpan={9} className="px-6 py-16 text-center">
+                      <p className="text-zinc-400 text-sm">Sin productos{search || catFilter || marcaFilter ? ' para los filtros aplicados' : ''}</p>
+                      {(search || catFilter || marcaFilter) && (
+                        <button onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); }}
+                          className="mt-2 text-xs text-zinc-500 underline hover:text-zinc-700">
+                          Limpiar filtros
+                        </button>
+                      )}
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -1038,25 +1151,38 @@ export default function ProductosPage() {
               </button>
             </div>
             {scanError && <p className="text-xs text-rose-500 mb-2">{scanError}</p>}
-            <div className="flex items-start gap-4">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="relative w-24 h-24 rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 hover:border-zinc-400 hover:bg-zinc-100 transition-colors overflow-hidden flex items-center justify-center shrink-0"
-              >
-                {fotoPreview ? (
-                  <img src={fotoPreview} alt="preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-zinc-400">
-                    <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                      <rect x="3" y="3" width="18" height="18" rx="3"/>
-                      <circle cx="8.5" cy="8.5" r="1.5"/>
-                      <polyline points="21 15 16 10 5 21"/>
-                    </svg>
-                    <span className="text-[10px]">Subir foto</span>
+            <div className="flex items-start gap-3">
+              {/* Preview principal 800×800 */}
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="relative w-24 h-24 rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 hover:border-zinc-400 hover:bg-zinc-100 transition-colors overflow-hidden flex items-center justify-center shrink-0"
+                >
+                  {fotoPreview ? (
+                    <img src={fotoPreview} alt="preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-zinc-400">
+                      <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="3"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span className="text-[10px]">Subir foto</span>
+                    </div>
+                  )}
+                </button>
+                <span className="text-[9px] text-zinc-400">800×800</span>
+              </div>
+              {/* Preview thumbnail 200×200 */}
+              {thumbPreview && (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-zinc-200 shrink-0">
+                    <img src={thumbPreview} alt="thumb" className="w-full h-full object-cover" />
                   </div>
-                )}
-              </button>
+                  <span className="text-[9px] text-zinc-400">thumb</span>
+                </div>
+              )}
               <div className="flex-1 space-y-2">
                 <div>
                   <label className={label}>URL de imagen web</label>
