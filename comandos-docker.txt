@@ -44,7 +44,7 @@ docker compose exec backend php artisan db:seed --class=MarcaSeeder
 
 # Todos los seeders de una sola vez (cuidado: incluye productos/ventas de demo)
 docker compose exec backend php artisan db:seed
-docker compose exec backend php artisan db:seed --class=ZamoritorsCatalogoSeeder
+	
 The server just needs to run git pull and then rebuild. The commands for your server:
 
 
