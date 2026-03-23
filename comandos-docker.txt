@@ -1,0 +1,64 @@
+docker compose exec php php artisan config:clear
+docker compose exec php php artisan cache:clear
+
+
+# 5. Instalar dependencias PHP si hay cambios en composer
+docker compose exec php composer install --no-interaction
+
+# 6. Correr migraciones
+docker compose exec php php artisan migrate
+
+# 7. Limpiar caché de Laravel
+docker compose exec php php artisan config:clear
+docker compose exec php php artisan cache:clear
+
+# 8. Instalar dependencias JS si hay cambios en package.json
+docker compose exec node npm install
+
+# 9. Build del frontend
+docker compose exec node npm run build
+
+
+ARTIASN
+# Solo categorías y marcas (seguro, usa firstOrCreate — no duplica)
+docker compose exec php php artisan db:seed --class=CategoriaSeeder
+docker compose exec php php artisan db:seed --class=MarcaSeeder
+
+# Todos los seeders de una sola vez (cuidado: incluye productos/ventas de demo)
+docker compose exec php php artisan db:seed
+
+# Solo si querés resetear TODO y empezar de cero
+docker compose exec php php artisan migrate:fresh --seed
+# Solo categorías y marcas (seguro, usa firstOrCreate — no duplica)
+docker compose exec php php artisan db:seed --class=CategoriaSeeder
+docker compose exec php php artisan db:seed --class=MarcaSeeder
+
+# Todos los seeders de una sola vez (cuidado: incluye productos/ventas de demo)
+docker compose exec php php artisan db:seed
+
+# Solo si querés resetear TODO y empezar de cero
+docker compose exec backend php artisan migrate:fresh --seed
+ Solo categorías y marcas (seguro, usa firstOrCreate — no duplica)
+docker compose exec backend  php artisan db:seed --class=CategoriaSeeder
+docker compose exec backend php artisan db:seed --class=MarcaSeeder
+
+# Todos los seeders de una sola vez (cuidado: incluye productos/ventas de demo)
+docker compose exec backend php artisan db:seed
+docker compose exec backend php artisan db:seed --class=ZamoritorsCatalogoSeeder
+The server just needs to run git pull and then rebuild. The commands for your server:
+
+
+docker compose down
+git pull
+docker compose up -d
+docker compose exec backend php artisan migrate
+docker compose exec frontend npm run build
+If the server is still showing the old error, it may be running a cached build. After git pull, force a rebuild:
+
+
+docker compose down
+git pull
+docker compose up -d --build
+docker compose exec backend php artisan migrate
+
+docker compose exec backend php artisan tinker --execute="echo App\Models\Producto::whereNotNull('foto')->count() . ' con foto\n'; echo App\Models\Producto::whereNotNull('foto_url')->count() . ' con foto_url\n';"
