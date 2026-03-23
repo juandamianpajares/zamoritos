@@ -9,63 +9,70 @@ class CategoriaSeeder extends Seeder
 {
     public function run(): void
     {
-        // ── Categorías raíz ──────────────────────────────────────────────────
-        $raices = [
-            'LIMPIEZA', 'HIGIENE', 'ESTETICA', 'PASEO', 'ROPA',
-            'COMEDEROS', 'VARIOS', 'ALIMENTOS', 'SNACK', 'VENENO',
+        // [nombre, parent_nombre|null]
+        $tree = [
+            // ── Raíces ────────────────────────────────────────────────────────
+            ['LIMPIEZA',          null],
+            ['HIGENE',            null],
+            ['ESTETICA',          null],
+            ['PASEO',             null],
+            ['ROPA',              null],
+            ['COMEDEROS',         null],
+            ['VARIOS',            null],
+            ['ALIMENTOS',         null],
+            ['SNACK',             null],
+            ['JUGETE',            null],
+            ['VENENO',            null],
+
+            // ── ALIMENTOS ─────────────────────────────────────────────────────
+            ['GATO',              'ALIMENTOS'],
+            ['PERRO',             'ALIMENTOS'],
+            ['CONEJO',            'ALIMENTOS'],
+            ['AVES',              'ALIMENTOS'],
+            ['PEZ',               'ALIMENTOS'],
+            ['GENERICO',          'ALIMENTOS'],
+
+            // ── ALIMENTOS > PERRO ─────────────────────────────────────────────
+            ['RAZA PEQUEÑA',      'PERRO'],
+            ['RAZA MEDIANA',      'PERRO'],
+            ['RAZA GRANDE',       'PERRO'],
+            ['LIGHT',             'PERRO'],
+            ['LIGHT RAZA PEQUEÑA','PERRO'],
+            ['SENIOR',            'PERRO'],
+            ['CACHORRO',          'PERRO'],
+
+            // ── ALIMENTOS > GATO ──────────────────────────────────────────────
+            ['BEBE',              'GATO'],
+            ['ADULTO',            'GATO'],
+            ['CASTRADO',          'GATO'],
+            ['URINARY',           'GATO'],
+
+            // ── ALIMENTOS > AVES ──────────────────────────────────────────────
+            ['POLLITO BEBE',      'AVES'],
+            ['ENGORDE',           'AVES'],
+            ['PONEDORA',          'AVES'],
+            ['MIX',               'AVES'],
+            ['CRECIMIENTO',       'AVES'],
+            ['MAIZ QUEBRADO',     'AVES'],
+            ['MAIZ ENTERO',       'AVES'],
+            ['MONTE',             'AVES'],
+            ['ALPISTE',           'AVES'],
+            ['TRIGO',             'AVES'],
         ];
 
-        foreach ($raices as $nombre) {
-            Categoria::firstOrCreate(['nombre' => $nombre, 'parent_id' => null]);
-        }
+        // Cache de IDs por nombre para resolver parent_id
+        $cache = [];
 
-        // ── Sub-categoría ANIMAL (hijos de raíces que aplican) ───────────────
-        $animales = ['GATO', 'PERRO', 'CONEJO', 'AVES', 'PEZ', 'GENERICO'];
-        $raicesConAnimal = ['ALIMENTOS', 'SNACK', 'HIGIENE', 'ESTETICA', 'PASEO', 'ROPA', 'COMEDEROS'];
+        foreach ($tree as [$nombre, $parentNombre]) {
+            $parentId = $parentNombre ? ($cache[$parentNombre] ?? null) : null;
 
-        foreach ($raicesConAnimal as $nombreRaiz) {
-            $raiz = Categoria::where('nombre', $nombreRaiz)->whereNull('parent_id')->first();
-            if (!$raiz) continue;
-            foreach ($animales as $animal) {
-                Categoria::firstOrCreate(['nombre' => $animal, 'parent_id' => $raiz->id]);
-            }
-        }
+            $cat = Categoria::firstOrCreate(
+                ['nombre' => $nombre, 'parent_id' => $parentId]
+            );
 
-        // ── ALIMENTOS/PERRO ─────────────────────────────────────────────────
-        $alimentos   = Categoria::where('nombre', 'ALIMENTOS')->whereNull('parent_id')->first();
-        $perroEnAlim = $alimentos ? Categoria::where('nombre', 'PERRO')->where('parent_id', $alimentos->id)->first() : null;
-
-        if ($perroEnAlim) {
-            foreach (['RAZA PEQUEÑA', 'RAZA MEDIANA', 'RAZA GRANDE', 'LIGHT', 'LIGHT RAZA PEQUEÑA', 'SENIOR'] as $sub) {
-                Categoria::firstOrCreate(['nombre' => $sub, 'parent_id' => $perroEnAlim->id]);
-            }
-            $tamano = Categoria::firstOrCreate(['nombre' => 'TAMAÑO', 'parent_id' => $perroEnAlim->id]);
-            foreach (['CACHORRO', 'RAZA PEQUEÑA', 'RAZA MEDIANA', 'RAZA GRANDE'] as $sub) {
-                Categoria::firstOrCreate(['nombre' => $sub, 'parent_id' => $tamano->id]);
-            }
-        }
-
-        // ── ALIMENTOS/GATO ──────────────────────────────────────────────────
-        $gatoEnAlim = $alimentos ? Categoria::where('nombre', 'GATO')->where('parent_id', $alimentos->id)->first() : null;
-
-        if ($gatoEnAlim) {
-            foreach (['BEBE', 'ADULTO'] as $sub) {
-                Categoria::firstOrCreate(['nombre' => $sub, 'parent_id' => $gatoEnAlim->id]);
-            }
-            $tipo = Categoria::firstOrCreate(['nombre' => 'TIPO', 'parent_id' => $gatoEnAlim->id]);
-            foreach (['CASTRADO', 'URINARY'] as $sub) {
-                Categoria::firstOrCreate(['nombre' => $sub, 'parent_id' => $tipo->id]);
-            }
-        }
-
-        // ── ALIMENTOS/AVES ──────────────────────────────────────────────────
-        $avesEnAlim = $alimentos ? Categoria::where('nombre', 'AVES')->where('parent_id', $alimentos->id)->first() : null;
-
-        if ($avesEnAlim) {
-            foreach (['POLLITO BEBE', 'ENGORDE', 'PONEDORA', 'MIX', 'CRECIMIENTO',
-                      'MAIZ QUEBRADO', 'MAIZ ENTERO', 'MONTE', 'ALPISTE', 'TRIGO'] as $sub) {
-                Categoria::firstOrCreate(['nombre' => $sub, 'parent_id' => $avesEnAlim->id]);
-            }
+            // Solo guardamos en cache la primera vez que aparece el nombre
+            // (para que PERRO apunte a ALIMENTOS>PERRO, no a otra raíz)
+            $cache[$nombre] ??= $cat->id;
         }
     }
 }
