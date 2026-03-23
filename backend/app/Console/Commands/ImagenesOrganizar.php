@@ -10,11 +10,12 @@ use Illuminate\Support\Facades\Storage;
 /**
  * php artisan imagenes:organizar {directorio}
  *
- * Convención estricta: cada imagen DEBE llamarse exactamente igual al
- * código de barras del producto con extensión .webp
+ * Convención: cada imagen DEBE llamarse con el código de barras del producto.
+ * Formatos aceptados: webp, jpg, jpeg, png
  *
- *   Ejemplo correcto:   7730918030044.webp
- *   Ejemplo incorrecto: perro_lager.jpg  ← será rechazado
+ *   Ejemplo correcto:   7730918030044.jpg
+ *                       7730918030044.webp
+ *   Ejemplo incorrecto: perro_lager.txt  ← será rechazado
  *
  * Opciones:
  *   --dry-run   Muestra matches sin procesar ni modificar nada
@@ -22,12 +23,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class ImagenesOrganizar extends Command
 {
+    private const FORMATOS = ['webp', 'jpg', 'jpeg', 'png'];
+
     protected $signature = 'imagenes:organizar
                             {directorio : Ruta absoluta al directorio con imágenes}
                             {--dry-run  : Mostrar resultado sin procesar}
                             {--force    : Reemplazar fotos ya existentes}';
 
-    protected $description = 'Procesa imágenes {codigo_barras}.webp y las asigna a productos.';
+    protected $description = 'Procesa imágenes {codigo_barras}.{webp|jpg|png} y las asigna a productos.';
 
     public function handle(ImagenService $img): int
     {
@@ -48,15 +51,16 @@ class ImagenesOrganizar extends Command
             ->get()
             ->keyBy('codigo_barras');
 
-        // Solo archivos .webp
+        // Archivos con formato soportado, ordenados por nombre
         $archivos = array_values(array_filter(
             scandir($dir),
-            fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'webp'
+            fn($f) => in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), self::FORMATOS)
         ));
 
         if (empty($archivos)) {
-            $this->warn('No se encontraron archivos .webp en el directorio.');
-            $this->line("Convención esperada: <fg=yellow>{codigo_barras}.webp</>");
+            $this->warn('No se encontraron imágenes en el directorio.');
+            $this->line("Formatos aceptados: <fg=yellow>" . implode(', ', self::FORMATOS) . "</>");
+            $this->line("Convención esperada: <fg=yellow>{codigo_barras}.jpg</>");
             return 0;
         }
 

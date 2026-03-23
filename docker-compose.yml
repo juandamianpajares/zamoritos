@@ -88,8 +88,10 @@ services:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # Acceso a archivos estáticos de Laravel (storage, public/)
+      # Acceso a archivos estáticos de Laravel (public/)
       - ./backend:/var/www/html:ro
+      # Montaje explícito del storage — evita depender del symlink storage:link
+      - ./backend/storage/app/public:/var/www/html/public/storage:ro
     depends_on:
       backend:
         condition: service_healthy
