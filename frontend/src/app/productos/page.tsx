@@ -48,7 +48,7 @@ function ThumbProducto({ producto }: { producto: Producto }) {
 const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
   unidad_medida: 'unidad', peso: '', precio_venta: '',
-  fraccionable: false, destacado: false,
+  fraccionable: false, modo_fraccion: 'kg' as 'kg' | 'unidad', destacado: false,
   foto_url: '',
 };
 
@@ -181,6 +181,7 @@ const COLUMNAS_EJEMPLO = `| Campo | Descripción | Ejemplo |
 | categoria | Nombre exacto de categoría | ALIMENTOS |
 | peso | Peso en kg (decimal) | 10.5 |
 | fraccionable | 1 = sí, 0 = no | 0 |
+| modo_fraccion | kg (bolsas) / unidad (blisters) | kg |
 | destacado | 1 = aparece primero en POS | 0 |
 
 Precio de compra y stock → importar en Compras.`;
@@ -756,7 +757,9 @@ export default function ProductosPage() {
       nombre: p.nombre, codigo_barras: p.codigo_barras ?? '', marca: p.marca ?? '',
       categoria_id: String(p.categoria_id ?? ''), unidad_medida: p.unidad_medida,
       peso: String(p.peso ?? ''), precio_venta: String(p.precio_venta),
-      fraccionable: !!p.fraccionable, destacado: !!p.destacado,
+      fraccionable: !!p.fraccionable,
+      modo_fraccion: p.modo_fraccion ?? 'kg',
+      destacado: !!p.destacado,
       foto_url: p.foto_url ?? '',
     });
     setError('');
@@ -816,6 +819,7 @@ export default function ProductosPage() {
       peso: form.peso ? Number(form.peso) : null,
       precio_venta: Number(form.precio_venta),
       fraccionable: form.fraccionable,
+      modo_fraccion: form.modo_fraccion,
       destacado: form.destacado,
       foto_url: form.foto_url || null,
     };
@@ -1311,18 +1315,46 @@ export default function ProductosPage() {
           </div>
 
           {/* ── Fraccionable ── */}
-          <div className="flex items-center justify-between border border-zinc-100 rounded-xl px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-zinc-800">¿Es fraccionable?</p>
-              <p className="text-xs text-zinc-400">Permite dividir el producto en unidades menores (ej: bolsa → kg)</p>
+          <div className="border border-zinc-100 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-zinc-800">¿Es fraccionable?</p>
+                <p className="text-xs text-zinc-400">
+                  {form.fraccionable
+                    ? form.modo_fraccion === 'kg' ? 'Bolsa/alimento → se divide por kg' : 'Blister/caja → se divide por unidad'
+                    : 'El producto se vende entero, sin subdivisión'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, fraccionable: !p.fraccionable }))}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.fraccionable ? 'bg-amber-500' : 'bg-zinc-200'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.fraccionable ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm(p => ({ ...p, fraccionable: !p.fraccionable }))}
-              className={`w-10 h-6 rounded-full transition-colors relative ${form.fraccionable ? 'bg-amber-500' : 'bg-zinc-200'}`}
-            >
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.fraccionable ? 'translate-x-5' : 'translate-x-1'}`} />
-            </button>
+            {form.fraccionable && (
+              <div className="border-t border-zinc-100 px-4 py-3 bg-amber-50/40 flex gap-2">
+                {([
+                  { value: 'kg',     label: 'Por kg',      desc: 'Bolsas, alimentos' },
+                  { value: 'unidad', label: 'Por unidad',  desc: 'Blisters, pastillas' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, modo_fraccion: opt.value }))}
+                    className={`flex-1 text-left px-3 py-2 rounded-lg border transition-colors ${
+                      form.modo_fraccion === opt.value
+                        ? 'border-amber-400 bg-amber-50 text-amber-800'
+                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    <p className="text-xs font-semibold">{opt.label}</p>
+                    <p className="text-[10px] text-zinc-400">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-zinc-100">

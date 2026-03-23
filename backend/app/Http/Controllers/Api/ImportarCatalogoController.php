@@ -15,7 +15,7 @@ class ImportarCatalogoController extends Controller
      *
      * Columnas esperadas (cabecera obligatoria en fila 1):
      *   codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ;
-     *   precio_venta ; fraccionable ; destacado
+     *   precio_venta ; fraccionable ; modo_fraccion ; destacado
      *
      * Reglas:
      *  - fraccionable / destacado: 1 = sí, 0 o vacío = no
@@ -98,6 +98,8 @@ class ImportarCatalogoController extends Controller
             $fraccionable = in_array(trim($data['fraccionable'] ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
             $destacado    = in_array(trim($data['destacado']    ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
             $peso         = isset($data['peso']) && $data['peso'] !== '' ? self::normalizeDecimal($data['peso']) : null;
+            $modoFracRaw  = strtolower(trim($data['modo_fraccion'] ?? ''));
+            $modoFraccion = in_array($modoFracRaw, ['unidad', 'u']) ? 'unidad' : 'kg';
 
             $attrs = [
                 'nombre'        => $data['nombre'],
@@ -107,6 +109,7 @@ class ImportarCatalogoController extends Controller
                 'unidad_medida' => $data['unidad_medida'] ?: 'unidad',
                 'precio_venta'  => $pv,
                 'fraccionable'  => $fraccionable,
+                'modo_fraccion' => $modoFraccion,
                 'destacado'     => $destacado,
                 'activo'        => true,
             ];

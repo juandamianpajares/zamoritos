@@ -84,94 +84,107 @@ function CierreCajaModal({
   const generarImagenCanvas = async (): Promise<string> => {
     const W = 600;
     const PAD = 32;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
 
-    // Medir altura necesaria
-    const rows = 6 + grupos.length + (datos.total_compras > 0 ? 3 : 0);
-    canvas.width = W;
-    canvas.height = 120 + rows * 36 + 80;
+    // ── Paso 1: dibujar en canvas grande para calcular altura real ─────────────
+    const draft = document.createElement('canvas');
+    draft.width  = W;
+    draft.height = 2000; // suficiente para cualquier cierre
+    const ctx = draft.getContext('2d')!;
 
-    // Fondo blanco
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, canvas.height);
+    const drawContent = (ctx: CanvasRenderingContext2D) => {
+      // Fondo blanco
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, draft.height);
 
-    // Header morado
-    const grad = ctx.createLinearGradient(0, 0, W, 80);
-    grad.addColorStop(0, '#7B2D8B');
-    grad.addColorStop(1, '#5E1F6C');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, 80);
+      // Header morado
+      const grad = ctx.createLinearGradient(0, 0, W, 80);
+      grad.addColorStop(0, '#7B2D8B');
+      grad.addColorStop(1, '#5E1F6C');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, 80);
 
-    // Título
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillText('CIERRE DE CAJA', PAD, 38);
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText(fechaLabel.toUpperCase(), PAD, 60);
+      // Título
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px system-ui, sans-serif';
+      ctx.fillText('CIERRE DE CAJA', PAD, 38);
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.fillText(fechaLabel.toUpperCase(), PAD, 60);
 
-    let y = 100;
-    const row = (label: string, value: string, bold = false, color = '#18181b') => {
-      ctx.font = bold ? 'bold 14px system-ui, sans-serif' : '14px system-ui, sans-serif';
+      let y = 108;
+
+      const row = (label: string, value: string, bold = false, color = '#18181b') => {
+        ctx.font = bold ? 'bold 14px system-ui, sans-serif' : '14px system-ui, sans-serif';
+        ctx.fillStyle = '#71717a';
+        ctx.fillText(label, PAD, y);
+        ctx.fillStyle = color;
+        ctx.font = bold ? 'bold 15px system-ui, sans-serif' : '15px system-ui, sans-serif';
+        const tw = ctx.measureText(value).width;
+        ctx.fillText(value, W - PAD - tw, y);
+        y += 34;
+      };
+
+      const sep = (label: string) => {
+        ctx.fillStyle = '#e4e4e7';
+        ctx.fillRect(PAD, y - 2, W - PAD * 2, 1);
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText(label.toUpperCase(), PAD, y + 14);
+        y += 28;
+      };
+
+      sep('VENTAS DEL DÍA');
+      grupos.forEach(g => row(`${g.label} (${g.cantidad})`, fmt(g.total)));
+      row('Total ventas', fmt(datos.total_ventas), true, '#059669');
+      y += 10;
+
+      if (datos.total_compras > 0) {
+        sep('EGRESOS CONTADO');
+        row('Total egresado', fmt(datos.total_compras), true, '#e11d48');
+        y += 10;
+      }
+
+      sep('ARQUEO');
+      row('Contado en caja', fmt(suma));
+      row('Esperado en caja', fmt(esperado));
+      const diffColor = diferencia === 0 ? '#059669' : Math.abs(diferencia) <= 50 ? '#d97706' : '#e11d48';
+      row(`Diferencia`, `${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`, false, diffColor);
+      y += 12;
+
+      // Resultado neto — caja redondeada
+      const boxH = 60;
+      ctx.fillStyle = resultado >= 0 ? '#f0fdf4' : '#fff1f2';
+      ctx.beginPath();
+      ctx.roundRect(PAD, y, W - PAD * 2, boxH, 12);
+      ctx.fill();
+      ctx.font = '12px system-ui, sans-serif';
       ctx.fillStyle = '#71717a';
-      ctx.fillText(label, PAD, y);
-      ctx.fillStyle = color;
-      ctx.font = bold ? 'bold 15px system-ui, sans-serif' : '15px system-ui, sans-serif';
-      const tw = ctx.measureText(value).width;
-      ctx.fillText(value, W - PAD - tw, y);
-      y += 34;
+      ctx.fillText('Resultado del día (ventas − egresos)', PAD + 16, y + 22);
+      ctx.font = 'bold 22px system-ui, sans-serif';
+      ctx.fillStyle = resultado >= 0 ? '#16a34a' : '#dc2626';
+      const resStr = `${resultado >= 0 ? '+' : ''}${fmt(resultado)}`;
+      const resW = ctx.measureText(resStr).width;
+      ctx.fillText(resStr, W - PAD - resW - 16, y + 42);
+      y += boxH + 16;
+
+      // Footer
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillStyle = '#d4d4d8';
+      ctx.fillText(`Zamoritos · ${new Date().toLocaleString('es-CL')}`, PAD, y);
+      y += 20;
+
+      return y;
     };
-    const sep = (label: string) => {
-      ctx.fillStyle = '#f4f4f5';
-      ctx.fillRect(PAD, y - 6, W - PAD * 2, 1);
-      ctx.font = 'bold 10px system-ui, sans-serif';
-      ctx.fillStyle = '#a1a1aa';
-      ctx.fillText(label.toUpperCase(), PAD, y + 10);
-      y += 26;
-    };
 
-    sep('VENTAS DEL DÍA');
-    grupos.forEach(g => row(`${g.label} (${g.cantidad})`, fmt(g.total)));
-    row('Total ventas', fmt(datos.total_ventas), true, '#059669');
-    y += 8;
+    // Paso 1: medir altura real
+    const finalH = drawContent(ctx);
 
-    if (datos.total_compras > 0) {
-      sep('EGRESOS CONTADO');
-      row('Total egresado', fmt(datos.total_compras), true, '#e11d48');
-      y += 8;
-    }
+    // Paso 2: canvas del tamaño exacto, dibujar de nuevo
+    const canvas = document.createElement('canvas');
+    canvas.width  = W;
+    canvas.height = finalH;
+    drawContent(canvas.getContext('2d')!);
 
-    sep('ARQUEO');
-    row('Contado en caja', fmt(suma));
-    row('Esperado', fmt(esperado));
-    const diffColor = diferencia === 0 ? '#059669' : Math.abs(diferencia) <= 50 ? '#d97706' : '#e11d48';
-    row('Diferencia', `${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`, false, diffColor);
-    y += 8;
-
-    // Resultado neto
-    ctx.fillStyle = resultado >= 0 ? '#f0fdf4' : '#fff1f2';
-    ctx.beginPath();
-    ctx.roundRect(PAD, y, W - PAD * 2, 56, 12);
-    ctx.fill();
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillStyle = '#71717a';
-    ctx.fillText('Resultado del día', PAD + 16, y + 22);
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillStyle = resultado >= 0 ? '#16a34a' : '#dc2626';
-    const resStr = `${resultado >= 0 ? '+' : ''}${fmt(resultado)}`;
-    const resW = ctx.measureText(resStr).width;
-    ctx.fillText(resStr, W - PAD - resW - 16, y + 38);
-    y += 72;
-
-    // Footer
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.fillStyle = '#d4d4d8';
-    const stamp = `Zamoritos · ${new Date().toLocaleString('es-CL')}`;
-    ctx.fillText(stamp, PAD, y);
-
-    // Ajustar altura real
-    canvas.height = y + 20;
     return canvas.toDataURL('image/webp', 0.92);
   };
 

@@ -16,7 +16,7 @@ class Producto extends Model
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'marca_id', 'categoria_id',
         'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock', 'activo',
-        'fraccionado_de', 'fraccionable', 'es_combo',
+        'fraccionado_de', 'fraccionable', 'modo_fraccion', 'es_combo',
         'en_promo', 'precio_promo', 'promo_producto_id',
         'foto', 'thumb', 'foto_externa',
         'notificar_stock_bajo', 'destacado',

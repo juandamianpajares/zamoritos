@@ -91,6 +91,7 @@ class ProductoController extends Controller
             'precio_venta'      => 'required|integer|min:0',
             'stock'             => 'nullable|numeric|min:0',
             'fraccionable'      => 'nullable|boolean',
+            'modo_fraccion'     => 'nullable|in:kg,unidad',
             'es_combo'          => 'nullable|boolean',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
@@ -130,6 +131,7 @@ class ProductoController extends Controller
             'unidad_medida'     => 'required|string',
             'precio_venta'      => 'required|integer|min:0',
             'fraccionable'      => 'nullable|boolean',
+            'modo_fraccion'     => 'nullable|in:kg,unidad',
             'es_combo'          => 'nullable|boolean',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
@@ -231,7 +233,7 @@ class ProductoController extends Controller
             ]);
         }
 
-        $modo         = $data['modo_fraccion'] ?? 'kg';
+        $modo         = $data['modo_fraccion'] ?? ($producto->modo_fraccion ?? 'kg');
         $unidadFrac   = $modo === 'unidad' ? 'unidad' : 'kg';
         $cantPorEnv   = $producto->peso ?? 1;            // kg por bolsa  ó  pastillas por caja
         $unidadesAlta = round($data['cantidad_bolsas'] * $cantPorEnv, 3);

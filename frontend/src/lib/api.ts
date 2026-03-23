@@ -65,6 +65,7 @@ export interface Producto {
   destacado?: boolean;
   fraccionado_de?: number;
   fraccionable?: boolean;
+  modo_fraccion?: 'kg' | 'unidad';
   es_combo?: boolean;
   combo_items?: ComboItem[];
   en_promo?: boolean;
