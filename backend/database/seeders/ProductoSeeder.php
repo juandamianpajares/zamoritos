@@ -24,9 +24,11 @@ class ProductoSeeder extends Seeder
 {
     public function run(): void
     {
-        $alimentos = Categoria::where('nombre', 'ALIMENTOS')->whereNull('parent_id')->value('id');
-        $catCombo  = Categoria::where('nombre', 'COMBO')->whereNull('parent_id')->value('id');
-        $catOferta = Categoria::where('nombre', 'OFERTA')->whereNull('parent_id')->value('id');
+        $alimentos   = Categoria::where('nombre', 'ALIMENTOS')->whereNull('parent_id')->value('id');
+        $perro       = Categoria::where('nombre', 'PERRO')->where('parent_id', $alimentos)->value('id');
+        $perroAdulto = Categoria::where('nombre', 'ADULTO')->where('parent_id', $perro)->value('id');
+        $catCombo    = Categoria::where('nombre', 'COMBO')->whereNull('parent_id')->value('id');
+        $catOferta   = Categoria::where('nombre', 'OFERTA')->whereNull('parent_id')->value('id');
 
         // ── Productos individuales ────────────────────────────────────────────
         $items = [
@@ -50,7 +52,7 @@ class ProductoSeeder extends Seeder
                 [
                     'nombre'        => $nom,
                     'marca'         => $marca,
-                    'categoria_id'  => $alimentos,
+                    'categoria_id'  => $perroAdulto ?? $perro ?? $alimentos,
                     'peso'          => $peso,
                     'unidad_medida' => $um,
                     'precio_compra' => $pc,
