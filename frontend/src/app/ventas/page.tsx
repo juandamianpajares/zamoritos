@@ -238,6 +238,12 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
     return lista;
   }, [productos, catActiva, busqueda]);
 
+  // Categorías que tienen al menos un producto activo
+  const categoriasConProductos = useMemo(() => {
+    const ids = new Set(productos.filter(p => p.activo && p.categoria_id).map(p => p.categoria_id!));
+    return categorias.filter(c => ids.has(c.id));
+  }, [productos, categorias]);
+
   // Lista modal combos existentes
   const promosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo && p.es_combo);
@@ -477,7 +483,7 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                 Promos
               </button>
 
-              {categorias.map(c => {
+              {categoriasConProductos.map(c => {
                 const cs = getCatStyle(c.nombre);
                 const activo = catActiva === c.id;
                 return (
