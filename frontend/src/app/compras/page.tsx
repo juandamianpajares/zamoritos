@@ -317,23 +317,42 @@ export default function ComprasPage() {
                   <input value={form.referencia_pago} onChange={e => setForm(p => ({ ...p, referencia_pago: e.target.value }))} placeholder="Opcional" className={input} />
                 </div>
               </div>
-            ) : (
-              <div>
-                <label className={label}>Plazo</label>
-                <div className="flex gap-2">
-                  {(['30', '45', '60'] as string[]).map(d => (
-                    <button key={d} type="button"
-                      onClick={() => setForm(p => ({ ...p, dias_plazo: d }))}
-                      className={`flex-1 py-2 text-sm font-semibold rounded-xl border-2 transition-all ${
-                        form.dias_plazo === d
-                          ? 'bg-amber-500 border-amber-500 text-white'
-                          : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400'
-                      }`}
-                    >{d} días</button>
-                  ))}
+            ) : (() => {
+              const venc = form.fecha
+                ? new Date(new Date(form.fecha).getTime() + Number(form.dias_plazo) * 86_400_000)
+                    .toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : null;
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <label className={label}>Plazo</label>
+                    <div className="flex gap-2">
+                      {(['30', '45', '60'] as string[]).map(d => (
+                        <button key={d} type="button"
+                          onClick={() => setForm(p => ({ ...p, dias_plazo: d }))}
+                          className={`flex-1 py-2 text-sm font-semibold rounded-xl border-2 transition-all ${
+                            form.dias_plazo === d
+                              ? 'bg-amber-500 border-amber-500 text-white'
+                              : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400'
+                          }`}
+                        >{d} días</button>
+                      ))}
+                    </div>
+                  </div>
+                  {venc && (
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16" className="text-amber-500 shrink-0">
+                        <circle cx="8" cy="8" r="6.5"/><polyline points="8 4.5 8 8 10.5 10"/>
+                      </svg>
+                      <span className="text-sm text-amber-800">
+                        Vence el <strong>{venc}</strong>
+                        <span className="text-amber-600 ml-2 text-xs">({form.dias_plazo} días desde la fecha de compra)</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div>
@@ -351,12 +370,20 @@ export default function ComprasPage() {
             <div className="text-sm">
               <span className="text-zinc-500">Total:</span>
               <span className="ml-2 font-semibold text-zinc-900 text-base tabular-nums">${Math.round(total).toLocaleString('es-CL')}</span>
+              {form.tipo_pago === 'contado'
+                ? <span className="ml-3 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wide">Contado</span>
+                : <span className="ml-3 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 uppercase tracking-wide">{form.dias_plazo}d diferido</span>
+              }
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => setModalOpen(false)}
                 className="px-4 py-2 text-sm text-zinc-600 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">Cancelar</button>
               <button type="submit"
-                className="px-4 py-2 text-sm bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 transition-colors">Registrar compra</button>
+                className={`px-4 py-2 text-sm text-white rounded-xl transition-colors ${
+                  form.tipo_pago === 'contado' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'
+                }`}>
+                {form.tipo_pago === 'contado' ? 'Registrar · Contado' : `Registrar · ${form.dias_plazo}d`}
+              </button>
             </div>
           </div>
         </form>
