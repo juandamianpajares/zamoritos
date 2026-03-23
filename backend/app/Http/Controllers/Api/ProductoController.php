@@ -50,7 +50,7 @@ class ProductoController extends Controller
         }
 
         $productos = $query
-            ->addSelect(DB::raw('(SELECT COALESCE(SUM(dv.cantidad),0) FROM detalle_ventas dv JOIN ventas v ON v.id = dv.venta_id WHERE dv.producto_id = productos.id AND v.estado = "confirmada") as veces_vendido'))
+            ->select(['productos.*', DB::raw('(SELECT COALESCE(SUM(dv.cantidad),0) FROM detalle_ventas dv JOIN ventas v ON v.id = dv.venta_id WHERE dv.producto_id = productos.id AND v.estado = "confirmada") as veces_vendido')])
             ->orderByDesc('destacado')
             ->orderByDesc('veces_vendido')
             ->orderBy('nombre')
