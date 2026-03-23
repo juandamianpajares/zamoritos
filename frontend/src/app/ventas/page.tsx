@@ -437,7 +437,7 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
               </svg>
             </button>
             <button
-              onClick={() => { setPromoModalOpen(true); setPromoBusqueda(''); setPromoTab('todos'); setTimeout(() => promoBusquedaRef.current?.focus(), 80); }}
+              onClick={() => { setPromoModalOpen(true); setPromoBusqueda(''); setPromoTab('existentes'); setTimeout(() => promoBusquedaRef.current?.focus(), 80); }}
               className="h-10 px-3 flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 hover:bg-rose-100 hover:border-rose-400 transition-colors shrink-0 text-xs font-semibold whitespace-nowrap"
               title="Agregar combo o producto en oferta"
             >
