@@ -238,7 +238,7 @@ function DetalleCat({
 
   const color    = getCatColor(cat.nombre);
   const hijos    = cat.children ?? [];
-  const foto     = cat.foto ? fotoUrl(cat.foto) : null;
+  const foto     = cat.foto_url ?? (cat.foto ? fotoUrl(cat.foto) : null);
 
   return (
     <div className="space-y-5">
