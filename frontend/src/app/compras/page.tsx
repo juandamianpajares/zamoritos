@@ -366,12 +366,12 @@ function ImportarComprasModal({ onClose, onDone }: { onClose: () => void; onDone
     }
   };
 
-  const FORMATO = `factura ; fecha ; proveedor ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
+  const FORMATO = `factura ; fecha ; rut ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
 
 Ejemplo:
-CF-0123;2024-03-01;Proveedor SA;7730900660761;10;1200;
-CF-0123;2024-03-01;Proveedor SA;7730900660488;5;800;2025-06-01
-CF-0124;2024-03-02;Otro Prov;1234;20;500;
+CF-0123;2024-03-01;212345670;7730900660761;10;1200;
+CF-0123;2024-03-01;212345670;7730900660488;5;800;2025-06-01
+CF-0124;2024-03-02;211234560;1234;20;500;
 
 Reglas:
 • Filas con el mismo número de factura → una sola compra
@@ -379,7 +379,8 @@ Reglas:
 • El precio de compra se actualiza en el producto
 • Stock se incrementa automáticamente
 • Se crea un lote por cada línea (para seguimiento de vencimientos)
-• proveedor y fecha_vencimiento son opcionales`;
+• rut debe coincidir exactamente con el RUT del proveedor en el sistema
+• rut y fecha_vencimiento son opcionales`;
 
   return (
     <Modal isOpen onClose={onClose} title="Importar compras desde CSV" size="lg">

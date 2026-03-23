@@ -17,13 +17,13 @@ use Illuminate\Support\Facades\DB;
  * Importa compras desde CSV.
  *
  * Columnas (separador ;):
- *   factura ; fecha ; proveedor ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
+ *   factura ; fecha ; rut ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
  *
  * Reglas:
  *  - Filas con el mismo `factura` → una sola Compra (agrupadas)
  *  - Si `factura` está vacío → una Compra por fila
  *  - Si la factura ya existe en la base de datos → se omite (idempotente)
- *  - `proveedor` matchea por nombre (case insensitive); si no existe → null
+ *  - `rut` matchea por RUT exacto en proveedores; si no existe → null
  *  - `codigo_barras` debe existir en productos
  *  - Cada fila genera: DetalleCompra + incremento de stock + MovimientoStock + Lote
  */
@@ -58,7 +58,7 @@ class ImportarComprasController extends Controller
         }
 
         // Cache
-        $provCache     = Proveedor::all()->keyBy(fn($p) => mb_strtolower($p->nombre));
+        $provCache     = Proveedor::all()->keyBy('rut');
         $prodPorCodigo = Producto::where('activo', true)->whereNotNull('codigo_barras')
                                   ->get()->keyBy('codigo_barras');
 
@@ -80,7 +80,7 @@ class ImportarComprasController extends Controller
                 $grupos[$key] = [
                     'factura'   => $facturaRaw ?: null,
                     'fecha'     => $data['fecha'] ?? date('Y-m-d'),
-                    'proveedor' => $data['proveedor'] ?? '',
+                    'rut'       => $data['rut'] ?? '',
                     'filas'     => [],
                 ];
             }
@@ -99,9 +99,9 @@ class ImportarComprasController extends Controller
                 continue;
             }
 
-            // Resolver proveedor
-            $provNombre  = mb_strtolower($grupo['proveedor']);
-            $proveedor   = $provNombre ? $provCache->get($provNombre) : null;
+            // Resolver proveedor por RUT
+            $rut         = trim($grupo['rut']);
+            $proveedor   = $rut ? $provCache->get($rut) : null;
             $proveedorId = $proveedor?->id;
 
             // Validar y construir detalles

@@ -48,7 +48,7 @@ class ImportarCatalogoController extends Controller
         $cabecera = array_map(fn($c) => mb_strtolower(trim($c)), $cabecera);
 
         // Campos requeridos
-        $requeridos = ['nombre', 'precio_venta', 'unidad_medida'];
+        $requeridos = ['nombre', 'precio_venta'];
         $faltantes  = array_diff($requeridos, $cabecera);
         if ($faltantes) {
             fclose($handle);
