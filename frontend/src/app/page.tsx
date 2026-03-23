@@ -43,26 +43,47 @@ const MEDIO_COLOR: Record<string, string> = {
 function BarChart({ data }: { data: VentasSemanaItem[] }) {
   const max = Math.max(...data.map(d => d.total), 1);
   const dias = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+  const [hovered, setHovered] = useState<number | null>(null);
 
   return (
-    <div className="flex items-end gap-1.5 h-24 w-full px-1">
+    <div className="flex items-end gap-1.5 w-full px-1" style={{ height: 108 }}>
       {data.map((d, i) => {
-        const pct = Math.max(4, Math.round((d.total / max) * 88));
+        const barH = Math.max(6, Math.round((d.total / max) * 76));
         const isToday = i === data.length - 1;
+        const isHov   = hovered === i;
         const diaSemana = dias[new Date(d.fecha + 'T12:00:00').getDay()];
         return (
-          <div key={d.fecha} className="flex-1 flex flex-col items-center gap-1" title={`${d.fecha}: ${fmt(d.total)}`}>
-            <div className="w-full flex flex-col justify-end" style={{ height: 88 }}>
+          <div
+            key={d.fecha}
+            className="flex-1 flex flex-col items-center gap-1 cursor-default relative group"
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            {/* Tooltip */}
+            {isHov && d.total > 0 && (
+              <div className="absolute bottom-full mb-1 z-10 bg-zinc-900 text-white text-[10px] font-semibold rounded-lg px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none">
+                {fmt(d.total)}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
+            )}
+            {/* Barra */}
+            <div className="w-full flex flex-col justify-end" style={{ height: 80 }}>
               <div
-                className="w-full rounded-t-lg transition-all"
+                className="w-full rounded-t-lg transition-all duration-150"
                 style={{
-                  height: `${pct}px`,
-                  background: isToday ? 'var(--brand-purple)' : 'var(--brand-teal)',
-                  opacity: d.total === 0 ? 0.18 : 1,
+                  height: `${barH}px`,
+                  background: isToday
+                    ? 'var(--brand-purple)'
+                    : isHov
+                    ? 'var(--brand-teal)'
+                    : 'color-mix(in srgb, var(--brand-teal) 60%, white)',
+                  opacity: d.total === 0 ? 0.15 : 1,
+                  transform: isHov ? 'scaleY(1.04)' : 'scaleY(1)',
+                  transformOrigin: 'bottom',
                 }}
               />
             </div>
-            <span className={`text-[9px] font-medium ${isToday ? 'text-[var(--brand-purple)]' : 'text-zinc-400'}`}>
+            <span className={`text-[9px] font-semibold ${isToday ? 'text-[var(--brand-purple)]' : 'text-zinc-400'}`}>
               {diaSemana}
             </span>
           </div>
@@ -248,6 +269,11 @@ export default function DashboardPage() {
     </div>
   );
 
+  const ayerTotal  = ventasSemana[ventasSemana.length - 2]?.total ?? 0;
+  const deltaVsAyer: number | null = periodo === 'hoy' && ayerTotal > 0
+    ? Math.round(((ventasSemana[ventasSemana.length - 1]?.total ?? 0) - ayerTotal) / ayerTotal * 100)
+    : null;
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl space-y-6 overflow-y-auto flex-1">
 
@@ -313,6 +339,7 @@ export default function DashboardPage() {
             sub={periodo === 'hoy' ? `${ventasDia?.cantidad ?? 0} ventas` : undefined}
             accent="text-[#7B2D8B]"
             bar
+            delta={deltaVsAyer}
           />
           <KpiCard
             label="Total compras"
@@ -602,8 +629,8 @@ export default function DashboardPage() {
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, accent, bar }: {
-  label: string; value: string; sub?: string; accent: string; bar?: boolean;
+function KpiCard({ label, value, sub, accent, bar, delta }: {
+  label: string; value: string; sub?: string; accent: string; bar?: boolean; delta?: number | null;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-zinc-100 p-5 relative overflow-hidden">
@@ -614,7 +641,21 @@ function KpiCard({ label, value, sub, accent, bar }: {
         />
       )}
       <p className="text-xs text-zinc-400 font-medium uppercase tracking-wide mb-2">{label}</p>
-      <p className={`text-2xl font-bold tracking-tight ${accent}`}>{value}</p>
+      <div className="flex items-end gap-2">
+        <p className={`text-2xl font-bold tracking-tight ${accent}`}>{value}</p>
+        {delta != null && (
+          <span
+            title="vs ayer"
+            className={`mb-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full cursor-default ${
+              delta > 0  ? 'bg-emerald-50 text-emerald-600' :
+              delta < 0  ? 'bg-rose-50 text-rose-600' :
+                           'bg-zinc-100 text-zinc-500'
+            }`}
+          >
+            {delta > 0 ? '▲' : delta < 0 ? '▼' : '—'} {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
       {sub && <p className="text-xs text-zinc-400 mt-1">{sub}</p>}
     </div>
   );
