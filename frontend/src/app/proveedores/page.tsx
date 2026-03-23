@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type Proveedor, type Compra } from '@/lib/api';
 import Modal from '@/components/Modal';
 
@@ -13,7 +13,8 @@ export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [importOpen,  setImportOpen]  = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [error, setError] = useState('');
@@ -70,9 +71,18 @@ export default function ProveedoresPage() {
           <h1 className="text-xl font-semibold text-zinc-900">Proveedores</h1>
           <p className="text-sm text-zinc-400 mt-0.5">{proveedores.length} registrados</p>
         </div>
-        <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
-          + Nuevo proveedor
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setImportOpen(true)}
+            className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Importar CSV
+          </button>
+          <button onClick={openCreate} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
+            + Nuevo proveedor
+          </button>
+        </div>
       </div>
 
       <input
@@ -203,6 +213,141 @@ export default function ProveedoresPage() {
           </div>
         )}
       </Modal>
+
+      {importOpen && (
+        <ImportarProveedoresModal
+          onClose={() => setImportOpen(false)}
+          onDone={() => { setImportOpen(false); load(); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Modal importar proveedores CSV ──────────────────────────────────────────
+type ImportResult = {
+  creados: number; actualizados: number; omitidos: number;
+  errores: { fila: number; error: string }[]; total_filas: number;
+};
+
+function ImportarProveedoresModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [archivo,   setArchivo]   = useState<File | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [resultado, setResultado] = useState<ImportResult | null>(null);
+  const [errorMsg,  setErrorMsg]  = useState('');
+  const [showFmt,   setShowFmt]   = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const apiBase  = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+
+  const importar = async () => {
+    if (!archivo) return;
+    setLoading(true); setErrorMsg('');
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    try {
+      const res = await fetch(`${apiBase}/proveedores/importar`, {
+        method: 'POST', headers: { Accept: 'application/json' }, body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Error en el servidor');
+      setResultado(data as ImportResult);
+    } catch (e: unknown) {
+      setErrorMsg((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const FORMATO = `rut ; nombre ; telefono ; email ; direccion ; contacto ; notas
+
+Ejemplo:
+212345670;DISTRIBUIDORA LAGER SA;099123456;lager@mail.com;Av. Italia 1234;Carlos Lopez;Entrega lunes
+211234560;PRIMOCAO URUGUAY;098654321;;;Ana Martinez;
+
+Reglas:
+• rut y nombre son obligatorios
+• Si el RUT ya existe → actualiza datos de contacto (idempotente)
+• Si el RUT no existe → crea el proveedor
+• Compatible con RUT SICFE (sin puntos ni guión, ej: 212345670)
+• Los campos de contacto vacíos no sobreescriben datos existentes`;
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar proveedores desde CSV" size="lg">
+      <div className="space-y-4 text-sm">
+        {resultado ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{resultado.creados}</p>
+                <p className="text-xs text-emerald-500 mt-0.5">Creados</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-blue-600">{resultado.actualizados}</p>
+                <p className="text-xs text-blue-500 mt-0.5">Actualizados</p>
+              </div>
+              <div className="bg-rose-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-rose-600">{resultado.errores.length}</p>
+                <p className="text-xs text-rose-500 mt-0.5">Errores</p>
+              </div>
+            </div>
+            {resultado.errores.length > 0 && (
+              <div className="max-h-36 overflow-y-auto space-y-1">
+                {resultado.errores.map((e, i) => (
+                  <p key={i} className="text-xs text-rose-500 bg-rose-50 px-2 py-1 rounded">
+                    Fila {e.fila}: {e.error}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cerrar</button>
+              <button onClick={onDone}  className="flex-1 py-2.5 font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800">Ver proveedores</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button onClick={() => setShowFmt(v => !v)}
+              className="w-full text-left text-xs text-violet-600 border border-violet-200 rounded-xl px-3 py-2 hover:bg-violet-50 flex items-center justify-between">
+              <span>📋 Ver formato y ejemplo</span>
+              <span>{showFmt ? '▲' : '▼'}</span>
+            </button>
+            {showFmt && (
+              <div className="bg-zinc-50 rounded-xl border border-zinc-100 overflow-x-auto">
+                <pre className="text-[10px] text-zinc-600 p-3 whitespace-pre-wrap leading-relaxed">{FORMATO}</pre>
+              </div>
+            )}
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-1">
+              <p className="font-semibold text-blue-800">Compatibilidad SICFE</p>
+              <p>El campo <code className="bg-blue-100 px-1 rounded">rut</code> es el identificador único. Al importar compras vía SICFE, el sistema cruza proveedores por RUT automáticamente. Usá el RUT sin puntos ni guión (ej: <code className="bg-blue-100 px-1 rounded">212345670</code>).</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1.5">Archivo CSV</label>
+              <div onClick={() => inputRef.current?.click()}
+                className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-zinc-400 transition-colors">
+                {archivo ? (
+                  <p className="text-sm font-medium text-zinc-700">{archivo.name} ({(archivo.size / 1024).toFixed(1)} KB)</p>
+                ) : (
+                  <p className="text-sm text-zinc-400">Hacé clic para elegir el archivo CSV</p>
+                )}
+              </div>
+              <input ref={inputRef} type="file" accept=".csv,.txt" className="hidden"
+                onChange={e => setArchivo(e.target.files?.[0] ?? null)} />
+            </div>
+
+            {errorMsg && <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl">{errorMsg}</div>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+              <button onClick={importar} disabled={!archivo || loading}
+                className="flex-1 py-2.5 font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40">
+                {loading ? 'Importando…' : 'Importar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }

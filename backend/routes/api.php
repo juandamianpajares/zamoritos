@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ImportarCatalogoController;
 use App\Http\Controllers\Api\LoteController;
 use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\ImportarProveedoresController;
 use App\Http\Controllers\Api\ProveedorController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\VentaController;
@@ -39,6 +40,7 @@ Route::patch('productos/{producto}/destacado',         [ProductoController::clas
 
 Route::get('imagenes/requisitos',   [ImagenController::class, 'requisitos']);
 Route::post('imagenes/importar',    [ImagenController::class, 'importar']);
+Route::post('proveedores/importar', [ImportarProveedoresController::class, 'store']);
 Route::apiResource('proveedores', ProveedorController::class);
 Route::post('compras/importar', [ImportarComprasController::class, 'store']);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
