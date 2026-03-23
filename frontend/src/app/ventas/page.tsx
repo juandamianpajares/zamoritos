@@ -568,7 +568,7 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                       }`}
                     >
                       {/* Badge destacado */}
-                      {p.destacado && !esCombo && !esPromo && !esFraccionado && (
+                      {p.destacado && !esCombo && !esFraccionado && (
                         <span className="absolute top-1.5 left-1.5 text-[10px]" title="Destacado">⭐</span>
                       )}
                       {/* Badge combo */}
