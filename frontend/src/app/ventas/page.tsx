@@ -609,84 +609,31 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                         {p.marca && (
                           <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
                         )}
-                        {esPromo ? (
-                          <div>
-                            <p className="text-base font-bold tabular-nums text-rose-600">{fmt(p.precio_promo!)}</p>
-                            {p.promo_producto
-                              ? <p className="text-[10px] text-rose-400 truncate">+ {p.promo_producto.nombre}</p>
-                              : <p className="text-[10px] line-through text-zinc-400 tabular-nums">{fmt(p.precio_venta)}</p>
-                            }
-                          </div>
-                        ) : (
-                          <p className="text-base font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>
-                            {fmt(p.precio_venta)}
-                            {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
-                          </p>
-                        )}
-                        {esPromo && !esFraccionado ? (
-                          <p className="text-[10px] mt-1 text-rose-300 font-medium">Oferta · sin stock mín.</p>
-                        ) : (
-                          <p className={`text-xs mt-1 font-bold ${
-                            agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
-                          }`}>
-                            {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
-                            {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
-                          </p>
-                        )}
+                        <p className="text-base font-bold tabular-nums" style={{ color: esCombo ? 'var(--brand-purple)' : 'var(--brand-purple)' }}>
+                          {fmt(p.precio_venta)}
+                          {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
+                        </p>
+                        <p className={`text-xs mt-1 font-bold ${
+                          agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
+                        }`}>
+                          {agotado ? 'Sin stock' : `${p.stock} ${p.unidad_medida}`}
+                          {esFraccionado && !agotado && <span className="text-zinc-300"> · frac.</span>}
+                        </p>
                       </button>
 
-                      {/* Botones inferiores */}
-                      {(puedeFraccionar || (esPromo && !agotado)) && (
-                        <div className={`flex border-t border-zinc-100 rounded-b-2xl overflow-hidden ${puedeFraccionar && esPromo ? 'divide-x divide-zinc-100' : ''}`}>
-                          {puedeFraccionar && (
-                            <button
-                              onClick={() => setFraccionando(p)}
-                              title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                            >
-                              <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <path d="M7 1L1 7M1 1l6 6"/><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-                              </svg>
-                              Fraccionar
-                            </button>
-                          )}
-                          {esPromo && !agotado && (
-                            <button
-                              onClick={() => {
-                                const precioCombo = p.precio_promo!;
-                                const partner = p.promo_producto;
-                                setCarrito(prev => {
-                                  let cart = prev;
-                                  if (partner) {
-                                    // Combo con otro producto: 1 de cada uno
-                                    const existeMain = cart.find(l => l.producto.id === p.id);
-                                    cart = existeMain
-                                      ? cart.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precioCombo } : l)
-                                      : [...cart, { producto: p, cantidad: 1, precio_unitario: precioCombo }];
-                                    const existePartner = cart.find(l => l.producto.id === partner.id);
-                                    cart = existePartner
-                                      ? cart.map(l => l.producto.id === partner.id ? { ...l, cantidad: l.cantidad + 1, precio_unitario: precioCombo } : l)
-                                      : [...cart, { producto: partner, cantidad: 1, precio_unitario: precioCombo }];
-                                  } else {
-                                    // Combo mismo producto × 2
-                                    const existe = cart.find(l => l.producto.id === p.id);
-                                    cart = existe
-                                      ? cart.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 2, precio_unitario: precioCombo } : l)
-                                      : [...cart, { producto: p, cantidad: 2, precio_unitario: precioCombo }];
-                                  }
-                                  return cart;
-                                });
-                                setAddedId(p.id);
-                                setTimeout(() => setAddedId(null), 600);
-                              }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-50 transition-colors"
-                            >
-                              <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/>
-                              </svg>
-                              {p.promo_producto_id ? 'Combo' : 'Combo x2'}
-                            </button>
-                          )}
+                      {/* Botón fraccionar */}
+                      {puedeFraccionar && (
+                        <div className="flex border-t border-zinc-100 rounded-b-2xl overflow-hidden">
+                          <button
+                            onClick={() => setFraccionando(p)}
+                            title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
+                            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                          >
+                            <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M7 1L1 7M1 1l6 6"/><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+                            </svg>
+                            Fraccionar
+                          </button>
                         </div>
                       )}
                     </div>
