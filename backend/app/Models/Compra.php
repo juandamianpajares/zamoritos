@@ -11,12 +11,24 @@ class Compra extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['fecha', 'proveedor_id', 'factura', 'total', 'usuario', 'nota'];
+    protected $fillable = [
+        'fecha', 'proveedor_id', 'factura', 'total', 'usuario', 'nota',
+        'tipo_pago', 'dias_plazo', 'fecha_vencimiento', 'estado_pago', 'monto_pagado',
+    ];
 
     protected $casts = [
-        'fecha' => 'datetime',
-        'total' => 'float',
+        'fecha'            => 'datetime',
+        'fecha_vencimiento'=> 'date',
+        'total'            => 'float',
+        'monto_pagado'     => 'float',
+        'dias_plazo'       => 'integer',
     ];
+
+    /** Saldo pendiente de pago. */
+    public function getSaldoAttribute(): float
+    {
+        return round($this->total - $this->monto_pagado, 2);
+    }
 
     public function proveedor(): BelongsTo
     {
@@ -31,5 +43,10 @@ class Compra extends Model
     public function lotes(): HasMany
     {
         return $this->hasMany(Lote::class);
+    }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(PagoProveedor::class);
     }
 }

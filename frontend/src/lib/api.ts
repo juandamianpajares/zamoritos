@@ -103,6 +103,21 @@ export interface DetalleCompra {
   subtotal: number;
 }
 
+export interface PagoProveedor {
+  id: number;
+  proveedor_id: number;
+  proveedor?: Proveedor;
+  compra_id?: number;
+  compra?: Compra;
+  tipo: 'pre_compra' | 'contado' | 'cuota';
+  monto: number;
+  fecha: string;
+  medio_pago: 'efectivo' | 'transferencia' | 'cheque' | 'otro';
+  referencia?: string;
+  nota?: string;
+  usuario?: string;
+}
+
 export interface Compra {
   id: number;
   fecha: string;
@@ -112,7 +127,19 @@ export interface Compra {
   total: number;
   usuario?: string;
   nota?: string;
+  tipo_pago: 'contado' | 'diferido';
+  dias_plazo: number;
+  fecha_vencimiento?: string;
+  estado_pago: 'pagado' | 'pendiente' | 'parcial';
+  monto_pagado: number;
+  saldo?: number;
   detalles?: DetalleCompra[];
+  pagos?: PagoProveedor[];
+}
+
+export interface CuentasPagar {
+  total_pendiente: number;
+  compras: (Compra & { saldo: number })[];
 }
 
 export interface MovimientoStock {

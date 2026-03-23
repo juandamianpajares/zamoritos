@@ -30,6 +30,7 @@ export default function ComprasPage() {
 
   const [form, setForm] = useState({
     proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '',
+    tipo_pago: 'contado', dias_plazo: '30', medio_pago: 'efectivo', referencia_pago: '',
   });
   const [lineas, setLineas] = useState<DetalleLine[]>([emptyLine()]);
 
@@ -71,7 +72,7 @@ export default function ComprasPage() {
   };
 
   const openNew = () => {
-    setForm({ proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '' });
+    setForm({ proveedor_id: '', fecha: new Date().toISOString().slice(0, 10), factura: '', usuario: '', nota: '', tipo_pago: 'contado', dias_plazo: '30', medio_pago: 'efectivo', referencia_pago: '' });
     setLineas([emptyLine()]);
     setError('');
     setModalOpen(true);
@@ -91,6 +92,10 @@ export default function ComprasPage() {
         proveedor_id: form.proveedor_id ? Number(form.proveedor_id) : null,
         fecha: form.fecha, factura: form.factura || null, usuario: form.usuario || null,
         nota: form.nota || null,
+        tipo_pago: form.tipo_pago,
+        dias_plazo: form.tipo_pago === 'diferido' ? Number(form.dias_plazo) : 0,
+        medio_pago: form.tipo_pago === 'contado' ? form.medio_pago : undefined,
+        referencia_pago: form.referencia_pago || null,
         detalles,
       });
       setModalOpen(false);
@@ -112,6 +117,13 @@ export default function ComprasPage() {
           <p className="text-sm text-zinc-400 mt-0.5">{compras.length} registradas</p>
         </div>
         <div className="flex gap-2">
+          <a href="/cuentas-pagar"
+            className="border border-amber-200 text-amber-700 text-sm px-4 py-2 rounded-xl hover:bg-amber-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 6v6l4 2"/>
+            </svg>
+            Cuentas a pagar
+          </a>
           <button onClick={() => setImportOpen(true)}
             className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors flex items-center gap-1.5">
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -136,26 +148,43 @@ export default function ComprasPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['#', 'Fecha', 'Proveedor', 'Factura', 'Total', ''].map(h => (
+                  {['#', 'Fecha', 'Proveedor', 'Factura', 'Pago', 'Total', 'Estado', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {compras.map(c => (
+                {compras.map(c => {
+                  const estadoColor = c.estado_pago === 'pagado'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : c.estado_pago === 'parcial'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-rose-50 text-rose-600';
+                  return (
                   <tr key={c.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
                     <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{c.id}</td>
-                    <td className="px-4 py-3 text-zinc-600">{new Date(c.fecha).toLocaleDateString('es-CL')}</td>
-                    <td className="px-4 py-3 font-medium text-zinc-800">{c.proveedor?.nombre ?? <span className="text-zinc-400">Sin proveedor</span>}</td>
+                    <td className="px-4 py-3 text-zinc-600 text-xs">{new Date(c.fecha).toLocaleDateString('es-CL')}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-800">{c.proveedor?.nombre ?? <span className="text-zinc-400">—</span>}</td>
                     <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{c.factura ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {c.tipo_pago === 'diferido'
+                        ? <span className="text-amber-700">{c.dias_plazo}d · {c.fecha_vencimiento ? new Date(c.fecha_vencimiento).toLocaleDateString('es-CL') : '—'}</span>
+                        : <span className="text-zinc-500">Contado</span>}
+                    </td>
                     <td className="px-4 py-3 font-semibold tabular-nums">${Math.round(c.total).toLocaleString('es-CL')}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${estadoColor}`}>
+                        {c.estado_pago ?? 'pagado'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => verDetalle(c.id)} className="text-zinc-500 hover:text-zinc-800 text-xs transition-colors">Ver detalle</button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {compras.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-400">Sin compras registradas</td></tr>
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-zinc-400">Sin compras registradas</td></tr>
                 )}
               </tbody>
             </table>
@@ -254,12 +283,65 @@ export default function ComprasPage() {
             </div>
           </div>
 
+          {/* ── Condiciones de pago ── */}
+          <div className="border border-zinc-100 rounded-xl p-4 space-y-3 bg-zinc-50/50">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Condición de pago</p>
+            <div className="flex gap-2">
+              {([['contado', 'Contado'], ['diferido', 'Diferido']] as [string, string][]).map(([v, lbl]) => (
+                <button key={v} type="button"
+                  onClick={() => setForm(p => ({ ...p, tipo_pago: v }))}
+                  className={`flex-1 py-2 text-sm font-medium rounded-xl border-2 transition-all ${
+                    form.tipo_pago === v
+                      ? v === 'contado'
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-amber-500 border-amber-500 text-white'
+                      : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400'
+                  }`}
+                >{lbl}</button>
+              ))}
+            </div>
+
+            {form.tipo_pago === 'contado' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={label}>Medio de pago</label>
+                  <select value={form.medio_pago} onChange={e => setForm(p => ({ ...p, medio_pago: e.target.value }))} className={input}>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={label}>Referencia / N° cheque</label>
+                  <input value={form.referencia_pago} onChange={e => setForm(p => ({ ...p, referencia_pago: e.target.value }))} placeholder="Opcional" className={input} />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className={label}>Plazo</label>
+                <div className="flex gap-2">
+                  {(['30', '45', '60'] as string[]).map(d => (
+                    <button key={d} type="button"
+                      onClick={() => setForm(p => ({ ...p, dias_plazo: d }))}
+                      className={`flex-1 py-2 text-sm font-semibold rounded-xl border-2 transition-all ${
+                        form.dias_plazo === d
+                          ? 'bg-amber-500 border-amber-500 text-white'
+                          : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400'
+                      }`}
+                    >{d} días</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className={label}>Nota del pedido</label>
             <textarea
               value={form.nota}
               onChange={e => setForm(p => ({ ...p, nota: e.target.value }))}
-              rows={3}
+              rows={2}
               placeholder="Condiciones acordadas, observaciones, próxima entrega..."
               className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400 resize-none leading-relaxed"
             />

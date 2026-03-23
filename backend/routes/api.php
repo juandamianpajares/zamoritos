@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\ImportarProveedoresController;
 use App\Http\Controllers\Api\ProveedorController;
 use App\Http\Controllers\Api\StockController;
+use App\Http\Controllers\Api\PagoProveedorController;
 use App\Http\Controllers\Api\VentaController;
 use Illuminate\Support\Facades\Route;
 
@@ -44,6 +45,12 @@ Route::post('proveedores/importar', [ImportarProveedoresController::class, 'stor
 Route::apiResource('proveedores', ProveedorController::class);
 Route::post('compras/importar', [ImportarComprasController::class, 'store']);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
+
+// Pagos a proveedores
+Route::get('cuentas-pagar',                              [PagoProveedorController::class, 'cuentasPagar']);
+Route::get('pagos-proveedores',                          [PagoProveedorController::class, 'index']);
+Route::post('pagos-proveedores',                         [PagoProveedorController::class, 'store']);
+Route::post('pagos-proveedores/{pagoProveedor}/asociar', [PagoProveedorController::class, 'asociar']);
 
 Route::get('stock/movimientos',       [StockController::class, 'index']);
 Route::post('stock/ajuste',           [StockController::class, 'ajuste']);

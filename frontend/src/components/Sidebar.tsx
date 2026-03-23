@@ -86,16 +86,24 @@ interface NavLink {
   highlight?: boolean;
 }
 
+const ClockIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6.5" />
+    <polyline points="8 4.5 8 8 10.5 10" />
+  </svg>
+);
+
 const links: NavLink[] = [
-  { href: '/',            label: 'Dashboard',   Icon: DashboardIcon },
-  { href: '/ventas',      label: 'Ventas',      Icon: CashIcon,     highlight: true },
-  { href: '/caja',        label: 'Caja',        Icon: DrawerIcon },
-  { href: '/productos',   label: 'Productos',   Icon: BoxIcon },
-  { href: '/categorias',  label: 'Categorías',  Icon: TagIcon },
-  { href: '/proveedores', label: 'Proveedores', Icon: TruckIcon },
-  { href: '/compras',     label: 'Compras',     Icon: BagIcon },
-  { href: '/stock',       label: 'Stock',       Icon: ChartIcon },
-  { href: '/lotes',       label: 'Lotes',       Icon: CalendarIcon },
+  { href: '/',               label: 'Dashboard',      Icon: DashboardIcon },
+  { href: '/ventas',         label: 'Ventas',         Icon: CashIcon,    highlight: true },
+  { href: '/caja',           label: 'Caja',           Icon: DrawerIcon },
+  { href: '/productos',      label: 'Productos',      Icon: BoxIcon },
+  { href: '/categorias',     label: 'Categorías',     Icon: TagIcon },
+  { href: '/proveedores',    label: 'Proveedores',    Icon: TruckIcon },
+  { href: '/compras',        label: 'Compras',        Icon: BagIcon },
+  { href: '/cuentas-pagar',  label: 'Cuentas a pagar', Icon: ClockIcon },
+  { href: '/stock',          label: 'Stock',          Icon: ChartIcon },
+  { href: '/lotes',          label: 'Lotes',          Icon: CalendarIcon },
 ];
 
 interface SidebarProps {

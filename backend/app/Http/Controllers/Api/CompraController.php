@@ -7,7 +7,9 @@ use App\Models\Compra;
 use App\Models\DetalleCompra;
 use App\Models\Lote;
 use App\Models\MovimientoStock;
+use App\Models\PagoProveedor;
 use App\Models\Producto;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,43 +24,81 @@ class CompraController extends Controller
             $query->where('proveedor_id', $request->proveedor_id);
         }
 
+        if ($request->filled('estado_pago')) {
+            $query->where('estado_pago', $request->estado_pago);
+        }
+
         return response()->json($query->get());
     }
 
     public function show(Compra $compra): JsonResponse
     {
         return response()->json(
-            $compra->load('proveedor', 'detalles.producto')
+            $compra->load('proveedor', 'detalles.producto', 'pagos')
         );
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'proveedor_id'                      => 'nullable|exists:proveedores,id',
-            'fecha'                             => 'required|date',
-            'factura'                           => 'nullable|string',
-            'usuario'                           => 'nullable|string',
-            'nota'                              => 'nullable|string',
-            'detalles'                          => 'required|array|min:1',
-            'detalles.*.producto_id'            => 'required|exists:productos,id',
-            'detalles.*.cantidad'               => 'required|numeric|min:0.001',
-            'detalles.*.precio_compra'          => 'required|numeric|min:0',
-            'detalles.*.fecha_vencimiento'      => 'nullable|date',
+            'proveedor_id'                 => 'nullable|exists:proveedores,id',
+            'fecha'                        => 'required|date',
+            'factura'                      => 'nullable|string',
+            'usuario'                      => 'nullable|string',
+            'nota'                         => 'nullable|string',
+            // Pago
+            'tipo_pago'                    => 'required|in:contado,diferido',
+            'dias_plazo'                   => 'required_if:tipo_pago,diferido|in:0,30,45,60|integer',
+            'medio_pago'                   => 'nullable|in:efectivo,transferencia,cheque,otro',
+            'referencia_pago'              => 'nullable|string|max:200',
+            // Ítems
+            'detalles'                     => 'required|array|min:1',
+            'detalles.*.producto_id'       => 'required|exists:productos,id',
+            'detalles.*.cantidad'          => 'required|numeric|min:0.001',
+            'detalles.*.precio_compra'     => 'required|numeric|min:0',
+            'detalles.*.fecha_vencimiento' => 'nullable|date',
         ]);
 
         return DB::transaction(function () use ($data) {
-            $total = collect($data['detalles'])
-                ->sum(fn($d) => $d['cantidad'] * $d['precio_compra']);
+            $total     = collect($data['detalles'])->sum(fn($d) => $d['cantidad'] * $d['precio_compra']);
+            $tipoPago  = $data['tipo_pago'];
+            $diasPlazo = $tipoPago === 'diferido' ? (int) ($data['dias_plazo'] ?? 30) : 0;
+
+            $fechaVencimiento = $tipoPago === 'diferido'
+                ? Carbon::parse($data['fecha'])->addDays($diasPlazo)->toDateString()
+                : null;
+
+            // Contado → ya está pagado; diferido → pendiente
+            $estadoPago  = $tipoPago === 'contado' ? 'pagado' : 'pendiente';
+            $montoPagado = $tipoPago === 'contado' ? $total : 0;
 
             $compra = Compra::create([
-                'proveedor_id' => $data['proveedor_id'] ?? null,
-                'fecha'        => $data['fecha'],
-                'factura'      => $data['factura'] ?? null,
-                'usuario'      => $data['usuario'] ?? null,
-                'nota'         => $data['nota'] ?? null,
-                'total'        => $total,
+                'proveedor_id'      => $data['proveedor_id'] ?? null,
+                'fecha'             => $data['fecha'],
+                'factura'           => $data['factura'] ?? null,
+                'usuario'           => $data['usuario'] ?? null,
+                'nota'              => $data['nota'] ?? null,
+                'total'             => $total,
+                'tipo_pago'         => $tipoPago,
+                'dias_plazo'        => $diasPlazo,
+                'fecha_vencimiento' => $fechaVencimiento,
+                'estado_pago'       => $estadoPago,
+                'monto_pagado'      => $montoPagado,
             ]);
+
+            // Pago automático para compras contado
+            if ($tipoPago === 'contado' && $data['proveedor_id'] ?? null) {
+                PagoProveedor::create([
+                    'proveedor_id' => $data['proveedor_id'],
+                    'compra_id'    => $compra->id,
+                    'tipo'         => 'contado',
+                    'monto'        => $total,
+                    'fecha'        => $data['fecha'],
+                    'medio_pago'   => $data['medio_pago'] ?? 'efectivo',
+                    'referencia'   => $data['referencia_pago'] ?? null,
+                    'usuario'      => $data['usuario'] ?? null,
+                ]);
+            }
 
             foreach ($data['detalles'] as $d) {
                 $subtotal = $d['cantidad'] * $d['precio_compra'];
@@ -73,6 +113,7 @@ class CompraController extends Controller
 
                 $producto = Producto::findOrFail($d['producto_id']);
                 $producto->increment('stock', $d['cantidad']);
+                $producto->update(['precio_compra' => $d['precio_compra']]);
 
                 MovimientoStock::create([
                     'producto_id' => $d['producto_id'],
@@ -92,7 +133,7 @@ class CompraController extends Controller
                 ]);
             }
 
-            return response()->json($compra->load('proveedor', 'detalles.producto'), 201);
+            return response()->json($compra->load('proveedor', 'detalles.producto', 'pagos'), 201);
         });
     }
 }
