@@ -15,11 +15,11 @@ class ImportarCatalogoController extends Controller
      *
      * Columnas esperadas (cabecera obligatoria en fila 1):
      *   codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ;
-     *   precio_compra ; precio_venta ; fraccionable ; en_promo ; precio_promo
+     *   precio_venta ; fraccionable ; destacado
      *
      * Reglas:
-     *  - fraccionable / en_promo: 1 = sí, 0 o vacío = no
-     *  - precio_compra / precio_promo: entero, puede quedar vacío
+     *  - fraccionable / destacado: 1 = sí, 0 o vacío = no
+     *  - precio_venta: entero obligatorio
      *  - Si codigo_barras existe → actualiza; si no → crea
      *  - categoria: busca por nombre exacto (case insensitive); si no existe → null
      */
@@ -96,15 +96,8 @@ class ImportarCatalogoController extends Controller
 
             // Normalizar boolean
             $fraccionable = in_array(trim($data['fraccionable'] ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
-            $enPromo      = in_array(trim($data['en_promo']     ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
-
-            $pc      = isset($data['precio_compra']) && $data['precio_compra'] !== ''
-                       ? (int) str_replace(['.', ','], '', $data['precio_compra'])
-                       : null;
-            $ppromo  = $enPromo && isset($data['precio_promo']) && $data['precio_promo'] !== ''
-                       ? (int) str_replace(['.', ','], '', $data['precio_promo'])
-                       : null;
-            $peso    = isset($data['peso']) && $data['peso'] !== '' ? (float) str_replace(',', '.', $data['peso']) : null;
+            $destacado    = in_array(trim($data['destacado']    ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
+            $peso         = isset($data['peso']) && $data['peso'] !== '' ? (float) str_replace(',', '.', $data['peso']) : null;
 
             $attrs = [
                 'nombre'        => $data['nombre'],
@@ -113,10 +106,8 @@ class ImportarCatalogoController extends Controller
                 'peso'          => $peso,
                 'unidad_medida' => $data['unidad_medida'] ?: 'unidad',
                 'precio_venta'  => $pv,
-                'precio_compra' => $pc,
                 'fraccionable'  => $fraccionable,
-                'en_promo'      => $enPromo,
-                'precio_promo'  => $ppromo,
+                'destacado'     => $destacado,
                 'activo'        => true,
             ];
 

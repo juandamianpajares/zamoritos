@@ -21,7 +21,8 @@
       "Bash(ssh juan@localhost \"mkdir -p /home/juan/zamoritos/imagenes-entrada && chmod 777 /home/juan/zamoritos/imagenes-entrada && echo ''Carpeta creada''\")",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose up -d --no-build 2>&1 | tail -5\")"
+      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose up -d --no-build 2>&1 | tail -5\")",
+      "Read(//home/juan/zamoritos/frontend/src/app/ventas/**)"
     ]
   }
 }

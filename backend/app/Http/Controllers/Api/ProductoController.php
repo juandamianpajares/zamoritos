@@ -85,18 +85,14 @@ class ProductoController extends Controller
             'peso'              => 'nullable|numeric|min:0',
             'unidad_medida'     => 'required|string',
             'precio_venta'      => 'required|integer|min:0',
-            'precio_compra'     => 'nullable|numeric|min:0',
             'stock'             => 'nullable|numeric|min:0',
             'fraccionable'      => 'nullable|boolean',
             'es_combo'          => 'nullable|boolean',
-            'en_promo'          => 'nullable|boolean',
-            'precio_promo'      => 'nullable|integer|min:0',
-            'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
-            'combo_items'                       => 'nullable|array',
+            'combo_items'                          => 'nullable|array',
             'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
-            'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
+            'combo_items.*.cantidad'               => 'required_with:combo_items|numeric|min:0.001',
         ]);
 
         return DB::transaction(function () use ($data) {
@@ -131,14 +127,11 @@ class ProductoController extends Controller
             'precio_venta'      => 'required|integer|min:0',
             'fraccionable'      => 'nullable|boolean',
             'es_combo'          => 'nullable|boolean',
-            'en_promo'          => 'nullable|boolean',
-            'precio_promo'      => 'nullable|integer|min:0',
-            'promo_producto_id' => 'nullable|exists:productos,id',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
-            'combo_items'                       => 'nullable|array',
+            'combo_items'                          => 'nullable|array',
             'combo_items.*.componente_producto_id' => 'required_with:combo_items|exists:productos,id',
-            'combo_items.*.cantidad'            => 'required_with:combo_items|numeric|min:0.001',
+            'combo_items.*.cantidad'               => 'required_with:combo_items|numeric|min:0.001',
         ]);
 
         return DB::transaction(function () use ($data, $producto) {
