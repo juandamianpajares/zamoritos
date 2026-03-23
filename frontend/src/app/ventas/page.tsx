@@ -241,6 +241,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [cartOpen, setCartOpen]         = useState(false);
   const [addedId, setAddedId]           = useState<number | null>(null);
   const [fraccionando, setFraccionando] = useState<Producto | null>(null);
+  const [kgPicker,    setKgPicker]     = useState<{ producto: Producto; kg: string } | null>(null);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
@@ -310,13 +311,13 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     return lista;
   }, [productos, promoBusqueda]);
 
-  const agregarAlCarrito = useCallback((p: Producto) => {
+  const agregarAlCarrito = useCallback((p: Producto, cantidad = 1) => {
     setCarrito(prev => {
       const existente = prev.find(l => l.producto.id === p.id);
       if (existente) {
-        return prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l);
+        return prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + cantidad } : l);
       }
-      return [...prev, { producto: p, cantidad: 1, precio_unitario: p.precio_venta }];
+      return [...prev, { producto: p, cantidad, precio_unitario: p.precio_venta }];
     });
     setAddedId(p.id);
     setTimeout(() => setAddedId(null), 600);
@@ -615,7 +616,10 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
                   const esCombo        = !!p.es_combo;
-                  const puedeFraccionar = !agotado && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
+                  // unidad + fraccionable + peso → Fraccionar bolsas en kg
+                  const puedeFraccionar = !agotado && p.unidad_medida !== 'kg' && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
+                  // kg + fraccionable → picker de peso al vender
+                  const esVentaKg      = !!p.fraccionable && p.unidad_medida === 'kg';
                   return (
                     <div
                       key={p.id}
@@ -642,7 +646,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
                       {/* Cuerpo: toca para agregar al carrito */}
                       <button
-                        onClick={() => !agotado && agregarAlCarrito(p)}
+                        onClick={() => !agotado && (esVentaKg ? setKgPicker({ producto: p, kg: '' }) : agregarAlCarrito(p))}
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
@@ -654,6 +658,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                           )}
                           {esFraccionado && !esCombo && (
                             <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white shadow-sm">FRAC.</span>
+                          )}
+                          {esVentaKg && !esFraccionado && !esCombo && (
+                            <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500 text-white shadow-sm">⚖ KG</span>
                           )}
                           {p.destacado && !esCombo && !esFraccionado && (
                             <span className="absolute top-1 left-1 text-sm leading-none">⭐</span>
@@ -768,6 +775,59 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           )}
         </button>
       </div>
+
+      {/* ── Modal venta por kg ── */}
+      {kgPicker && (() => {
+        const p   = kgPicker.producto;
+        const kg  = parseFloat(kgPicker.kg.replace(',', '.')) || 0;
+        const sub = kg * p.precio_venta;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setKgPicker(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-72 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+              <div>
+                <p className="text-xs text-zinc-400 uppercase font-semibold tracking-wide">Venta por peso</p>
+                <p className="text-sm font-semibold text-zinc-800 leading-snug mt-0.5">{p.nombre}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Stock: {p.stock} kg · Precio: ${Math.round(p.precio_venta).toLocaleString('es-CL')}/kg</p>
+              </div>
+              <div>
+                <label className="text-xs text-zinc-500 font-medium block mb-1.5">Cantidad (kg)</label>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setKgPicker(prev => prev && { ...prev, kg: String(Math.max(0, parseFloat(prev.kg.replace(',','.')) - 0.5 || 0).toFixed(3)) })}
+                    className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100">−</button>
+                  <input
+                    autoFocus
+                    type="number" step="0.001" min="0.001" max={p.stock}
+                    value={kgPicker.kg}
+                    onChange={e => setKgPicker(prev => prev && { ...prev, kg: e.target.value })}
+                    onKeyDown={e => e.key === 'Enter' && kg > 0 && kg <= p.stock && (agregarAlCarrito(p, kg), setKgPicker(null))}
+                    className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+                    placeholder="0.000"
+                  />
+                  <button onClick={() => setKgPicker(prev => prev && { ...prev, kg: String((parseFloat(prev.kg.replace(',','.')) || 0) + 0.5) })}
+                    className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100">+</button>
+                </div>
+                {kg > 0 && (
+                  <p className="text-xs text-zinc-500 mt-1.5 text-center">
+                    Subtotal: <strong className="text-zinc-800">${Math.round(sub).toLocaleString('es-CL')}</strong>
+                    {kg > p.stock && <span className="text-rose-500 ml-2">⚠ supera el stock</span>}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setKgPicker(null)}
+                  className="flex-1 py-2.5 text-sm rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50">Cancelar</button>
+                <button
+                  disabled={kg <= 0 || kg > p.stock}
+                  onClick={() => { agregarAlCarrito(p, kg); setKgPicker(null); }}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
+                  style={{ background: 'var(--brand-teal)' }}>
+                  Agregar {kg > 0 ? `${kg} kg` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modal fraccionamiento ── */}
       {fraccionando && (

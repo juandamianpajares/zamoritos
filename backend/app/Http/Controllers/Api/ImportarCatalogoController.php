@@ -82,7 +82,7 @@ class ImportarCatalogoController extends Controller
                 $errores[] = ['fila' => $fila, 'error' => 'Nombre vacío'];
                 continue;
             }
-            $pv = (int) str_replace(['.', ','], '', $data['precio_venta'] ?? '');
+            $pv = (int) round(self::normalizeDecimal($data['precio_venta'] ?? ''));
             if ($pv <= 0) {
                 $errores[] = ['fila' => $fila, 'error' => "precio_venta inválido: '{$data['precio_venta']}'"];
                 continue;
@@ -97,7 +97,7 @@ class ImportarCatalogoController extends Controller
             // Normalizar boolean
             $fraccionable = in_array(trim($data['fraccionable'] ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
             $destacado    = in_array(trim($data['destacado']    ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
-            $peso         = isset($data['peso']) && $data['peso'] !== '' ? (float) str_replace(',', '.', $data['peso']) : null;
+            $peso         = isset($data['peso']) && $data['peso'] !== '' ? self::normalizeDecimal($data['peso']) : null;
 
             $attrs = [
                 'nombre'        => $data['nombre'],
@@ -145,6 +145,52 @@ class ImportarCatalogoController extends Controller
      * Para obtener la URL desde Google Sheets:
      *   Archivo → Compartir → Publicar en la web → CSV → Copiar enlace
      */
+    /**
+     * Normaliza un string numérico aceptando tanto punto como coma como separador decimal.
+     *
+     *  "22.5"    → 22.5   "22,5"    → 22.5
+     *  "1.200"   → 1200   "1,200"   → 1200  (miles con 3 dígitos → miles)
+     *  "1200.00" → 1200   "1200,00" → 1200
+     *  "1.234,56"→ 1234.56  "1,234.56" → 1234.56
+     */
+    private static function normalizeDecimal(string $v): float
+    {
+        $v = preg_replace('/[^\d.,\-]/', '', trim($v));
+        if ($v === '' || $v === '-') return 0.0;
+
+        $hasDot   = str_contains($v, '.');
+        $hasComma = str_contains($v, ',');
+
+        if ($hasDot && $hasComma) {
+            // Formato mixto: el último separador es el decimal
+            if (strrpos($v, ',') > strrpos($v, '.')) {
+                // "1.234,56" → estilo europeo
+                $v = str_replace('.', '', $v);
+                $v = str_replace(',', '.', $v);
+            } else {
+                // "1,234.56" → estilo anglosajón
+                $v = str_replace(',', '', $v);
+            }
+        } elseif ($hasComma) {
+            $parts = explode(',', $v);
+            // Si hay exactamente una coma y la parte después tiene 1-2 dígitos → decimal
+            if (count($parts) === 2 && strlen($parts[1]) <= 2) {
+                $v = str_replace(',', '.', $v);
+            } else {
+                $v = str_replace(',', '', $v); // separador de miles
+            }
+        } elseif ($hasDot) {
+            $parts = explode('.', $v);
+            // Si la última parte tiene exactamente 3 dígitos → separador de miles
+            if (count($parts) > 1 && strlen(end($parts)) === 3) {
+                $v = str_replace('.', '', $v);
+            }
+            // Si tiene 1-2 dígitos al final → decimal → dejar como está
+        }
+
+        return (float) $v;
+    }
+
     public function fromSheets(Request $request): JsonResponse
     {
         $request->validate(['url' => 'required|url']);
