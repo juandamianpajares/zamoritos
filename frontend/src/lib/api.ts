@@ -82,6 +82,7 @@ export interface FraccionarResult {
   fraccionado:        Producto;
   unidades_generadas: number;
   codigo_fraccionado: string;
+  modo_fraccion?:     'kg' | 'unidad';
 }
 
 export interface Proveedor {

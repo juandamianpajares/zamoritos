@@ -212,13 +212,17 @@ class ProductoController extends Controller
     }
 
     /**
-     * Fracciona una bolsa/unidad grande en unidades menores.
+     * Fracciona una bolsa/envase en unidades menores.
+     *
+     * modo_fraccion = 'kg'     → bolsas de alimento → producto fraccionado por kg
+     * modo_fraccion = 'unidad' → blíster/caja de pastillas → producto fraccionado por unidad
      */
     public function fraccionar(Request $request, Producto $producto): JsonResponse
     {
         $data = $request->validate([
             'cantidad_bolsas'    => 'required|numeric|min:0.001',
             'precio_fraccionado' => 'required|integer|min:0',
+            'modo_fraccion'      => 'nullable|in:kg,unidad',
         ]);
 
         if ($producto->stock < $data['cantidad_bolsas']) {
@@ -227,11 +231,18 @@ class ProductoController extends Controller
             ]);
         }
 
-        $pesoKg       = $producto->peso ?? 1;
-        $unidadesAlta = round($data['cantidad_bolsas'] * $pesoKg, 3);
-        $codigoFrac   = rtrim($producto->codigo_barras, '*') . '-F';
+        $modo         = $data['modo_fraccion'] ?? 'kg';
+        $unidadFrac   = $modo === 'unidad' ? 'unidad' : 'kg';
+        $cantPorEnv   = $producto->peso ?? 1;            // kg por bolsa  ó  pastillas por caja
+        $unidadesAlta = round($data['cantidad_bolsas'] * $cantPorEnv, 3);
+        $codigoFrac   = rtrim($producto->codigo_barras ?? '', '*') . '-F';
 
-        return DB::transaction(function () use ($producto, $data, $codigoFrac, $unidadesAlta) {
+        $labelEnvase  = $modo === 'unidad' ? 'caja(s)/envase(s)' : 'bolsa(s)';
+        $labelUnidad  = $modo === 'unidad' ? 'unidades'           : 'kg';
+
+        return DB::transaction(function () use (
+            $producto, $data, $codigoFrac, $unidadesAlta, $unidadFrac, $labelEnvase, $labelUnidad
+        ) {
             $fraccionado = Producto::firstOrCreate(
                 ['codigo_barras' => $codigoFrac],
                 [
@@ -239,7 +250,7 @@ class ProductoController extends Controller
                     'marca'          => $producto->marca,
                     'categoria_id'   => $producto->categoria_id,
                     'peso'           => 1,
-                    'unidad_medida'  => 'kg',
+                    'unidad_medida'  => $unidadFrac,
                     'precio_venta'   => $data['precio_fraccionado'],
                     'stock'          => 0,
                     'activo'         => true,
@@ -247,8 +258,10 @@ class ProductoController extends Controller
                 ]
             );
 
+            // Actualizar precio y unidad (puede haber cambiado de modo entre llamadas)
             $fraccionado->update([
                 'precio_venta'   => $data['precio_fraccionado'],
+                'unidad_medida'  => $unidadFrac,
                 'fraccionado_de' => $producto->id,
             ]);
 
@@ -258,7 +271,7 @@ class ProductoController extends Controller
                 'tipo'        => 'ajuste',
                 'cantidad'    => -$data['cantidad_bolsas'],
                 'referencia'  => 'fraccionado → ' . $codigoFrac,
-                'observacion' => "Se fraccionaron {$data['cantidad_bolsas']} bolsa(s) → {$unidadesAlta} kg",
+                'observacion' => "Se fraccionaron {$data['cantidad_bolsas']} {$labelEnvase} → {$unidadesAlta} {$labelUnidad}",
             ]);
 
             $fraccionado->increment('stock', $unidadesAlta);
@@ -275,6 +288,7 @@ class ProductoController extends Controller
                 'fraccionado'        => $fraccionado->fresh('categoria'),
                 'unidades_generadas' => $unidadesAlta,
                 'codigo_fraccionado' => $codigoFrac,
+                'modo_fraccion'      => $unidadFrac,
             ]);
         });
     }

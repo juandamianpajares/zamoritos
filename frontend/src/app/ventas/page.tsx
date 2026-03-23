@@ -837,7 +837,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onDone={(resultado) => {
             setFraccionando(null);
             recargarProductos();
-            setSuccess(`✓ ${resultado.unidades_generadas} kg generados · código ${resultado.codigo_fraccionado}`);
+            const unidadLabel = resultado.modo_fraccion === 'unidad' ? 'unidades' : 'kg';
+            setSuccess(`✓ ${resultado.unidades_generadas} ${unidadLabel} generados · código ${resultado.codigo_fraccionado}`);
           }}
         />
       )}
@@ -1500,6 +1501,15 @@ const CarritoPanel = memo(function CarritoPanel({
 
 // ─── Modal Fraccionamiento ────────────────────────────────────────────────────
 
+/** Detecta si el producto se fracciona en unidades (pastillas, comprimidos, etc.) */
+function detectarModoFraccion(nombre: string): 'kg' | 'unidad' {
+  const n = nombre.toLowerCase();
+  const palabrasUnidad = ['pastilla', 'comprimido', 'tableta', 'cápsula', 'capsula',
+    'ampolla', 'blíster', 'blister', 'sobre', 'sachet', 'frasco', 'unidad', 'pildora',
+    'píldora', 'antiparasit', 'desparasit', 'gragea', 'suposit'];
+  return palabrasUnidad.some(p => n.includes(p)) ? 'unidad' : 'kg';
+}
+
 function FraccionarModal({
   producto,
   onClose,
@@ -1509,32 +1519,44 @@ function FraccionarModal({
   onClose: () => void;
   onDone: (r: FraccionarResult) => void;
 }) {
-  const pesoKg          = producto.peso ?? 1;
-  const precioCompraKg  = producto.precio_compra != null ? producto.precio_compra / pesoKg : null;
-  const precioSugerido  = Math.ceil(producto.precio_venta / pesoKg);
-  const codigoAnexo     = (producto.codigo_barras ?? '').replace(/\*$/, '') + '-F';
+  const cantPorEnv      = producto.peso ?? 1;   // kg/bolsa  ó  unidades/caja
+  const [modo, setModo] = useState<'kg' | 'unidad'>(() => detectarModoFraccion(producto.nombre));
 
-  // % ganancia inicial derivada de precio_venta vs precio_compra (si existe)
-  const pctInicial = precioCompraKg
-    ? Math.round(((precioSugerido / precioCompraKg) - 1) * 100)
+  const labelEnvase   = modo === 'unidad' ? 'envase' : 'bolsa';
+  const labelEnvases  = modo === 'unidad' ? 'envases' : 'bolsas';
+  const labelUnidad   = modo === 'unidad' ? 'unidades' : 'kg';
+  const labelPorEnv   = modo === 'unidad' ? `${cantPorEnv} uds/envase` : `${cantPorEnv} kg/bolsa`;
+
+  const costoPorUnidad    = producto.precio_compra != null ? producto.precio_compra / cantPorEnv : null;
+  const precioSugerido    = Math.ceil(producto.precio_venta / cantPorEnv);
+  const codigoAnexo       = (producto.codigo_barras ?? '').replace(/\*$/, '') + '-F';
+
+  const pctInicial = costoPorUnidad
+    ? Math.round(((precioSugerido / costoPorUnidad) - 1) * 100)
     : 30;
 
   const [bolsas,       setBolsas]      = useState(1);
   const [precio,       setPrecio]      = useState(precioSugerido);
   const [pctGanancia,  setPctGanancia] = useState(pctInicial);
-  const [usarPct,      setUsarPct]     = useState(!!precioCompraKg);
+  const [usarPct,      setUsarPct]     = useState(!!costoPorUnidad);
   const [loading,      setLoading]     = useState(false);
   const [error,        setError]       = useState('');
 
-  // Cuando cambia %, recalcular precio desde costo/kg
   const handlePct = (pct: number) => {
     setPctGanancia(pct);
-    if (precioCompraKg && usarPct) {
-      setPrecio(Math.ceil(precioCompraKg * (1 + pct / 100)));
+    if (costoPorUnidad && usarPct) {
+      setPrecio(Math.ceil(costoPorUnidad * (1 + pct / 100)));
     }
   };
 
-  const kgGenerados = bolsas * pesoKg;
+  // Recalcular precio sugerido cuando cambia el modo
+  const handleModo = (m: 'kg' | 'unidad') => {
+    setModo(m);
+    setPrecio(Math.ceil(producto.precio_venta / cantPorEnv));
+    setUsarPct(!!costoPorUnidad);
+  };
+
+  const unidadesGeneradas = bolsas * cantPorEnv;
 
   const confirmar = async () => {
     setLoading(true);
@@ -1542,7 +1564,7 @@ function FraccionarModal({
     try {
       const r = await api.post<FraccionarResult>(
         `/productos/${producto.id}/fraccionar`,
-        { cantidad_bolsas: bolsas, precio_fraccionado: precio }
+        { cantidad_bolsas: bolsas, precio_fraccionado: precio, modo_fraccion: modo }
       );
       onDone(r);
     } catch (e: unknown) {
@@ -1552,36 +1574,53 @@ function FraccionarModal({
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="Fraccionar bolsa" size="sm">
+    <Modal isOpen onClose={onClose} title="Fraccionar producto" size="sm">
       <div className="space-y-5">
+        {/* Toggle modo */}
+        <div className="flex rounded-xl overflow-hidden border border-zinc-200">
+          {(['kg', 'unidad'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => handleModo(m)}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                modo === m
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white text-zinc-500 hover:bg-zinc-50'
+              }`}
+            >
+              {m === 'kg' ? '⚖ Por kg (alimento)' : '💊 Por unidad (pastillas)'}
+            </button>
+          ))}
+        </div>
+
         {/* Info producto */}
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
           <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-0.5">Producto origen</p>
           <p className="text-sm font-semibold text-zinc-900 leading-snug">{producto.nombre}</p>
           <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
-            <span>Stock: <strong className="text-zinc-800">{producto.stock} bolsa{producto.stock !== 1 ? 's' : ''}</strong></span>
+            <span>Stock: <strong className="text-zinc-800">{producto.stock} {labelEnvase}{producto.stock !== 1 ? 's' : ''}</strong></span>
             <span>·</span>
-            <span>Peso: <strong className="text-zinc-800">{pesoKg} kg/bolsa</strong></span>
+            <span><strong className="text-zinc-800">{labelPorEnv}</strong></span>
           </div>
         </div>
 
-        {/* Aviso cuando es la última bolsa */}
+        {/* Aviso última unidad */}
         {bolsas >= producto.stock && (
           <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
             <svg className="text-rose-400 shrink-0 mt-0.5" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <p className="text-xs text-rose-700">
-              Estás fraccionando la{producto.stock === 1 ? '' : 's'} última{producto.stock === 1 ? '' : 's'} bolsa{producto.stock === 1 ? '' : 's'}.
+              Estás fraccionando el último {producto.stock === 1 ? labelEnvase : labelEnvases}.
               El stock quedará en <strong>0</strong> después de esta operación.
             </p>
           </div>
         )}
 
-        {/* Cantidad de bolsas */}
+        {/* Cantidad */}
         <div>
           <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
-            Cantidad de bolsas a fraccionar
+            Cantidad de {labelEnvases} a fraccionar
           </label>
           <div className="flex items-center gap-3">
             <button
@@ -1609,7 +1648,7 @@ function FraccionarModal({
         <div className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-xs text-zinc-400">Generará</p>
-            <p className="text-2xl font-bold text-zinc-900">{kgGenerados} <span className="text-sm font-normal">kg</span></p>
+            <p className="text-2xl font-bold text-zinc-900">{unidadesGeneradas} <span className="text-sm font-normal">{labelUnidad}</span></p>
           </div>
           <div className="text-right">
             <p className="text-xs text-zinc-400">Código anexo</p>
@@ -1619,16 +1658,16 @@ function FraccionarModal({
 
         {/* Precio fraccionado + % ganancia */}
         <div className="space-y-3">
-          {/* Costo de compra por kg */}
-          {precioCompraKg != null && (
+          {/* Costo por unidad */}
+          {costoPorUnidad != null && (
             <div className="bg-zinc-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
-              <span className="text-xs text-zinc-500">Costo compra/kg</span>
-              <span className="text-sm font-bold text-zinc-700 tabular-nums">{fmt(precioCompraKg)}/kg</span>
+              <span className="text-xs text-zinc-500">Costo compra/{labelUnidad.replace('es', '').replace('s','') || labelUnidad}</span>
+              <span className="text-sm font-bold text-zinc-700 tabular-nums">{fmt(costoPorUnidad)}/{modo === 'kg' ? 'kg' : 'ud'}</span>
             </div>
           )}
 
           {/* % ganancia (solo si hay precio_compra) */}
-          {precioCompraKg != null && (
+          {costoPorUnidad != null && (
             <div>
               <label className="text-xs font-semibold text-zinc-600 block mb-1.5">
                 % Ganancia
@@ -1654,12 +1693,12 @@ function FraccionarModal({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-zinc-600">Precio por kg</label>
+              <label className="text-xs font-semibold text-zinc-600">Precio por {modo === 'kg' ? 'kg' : 'unidad'}</label>
               <button
-                onClick={() => setPrecio(precioSugerido)}
+                onClick={() => { setPrecio(precioSugerido); setUsarPct(false); }}
                 className="text-[10px] text-amber-600 hover:underline"
               >
-                Desde precio bolsa: {fmt(precioSugerido)}/kg
+                Desde precio {labelEnvase}: {fmt(precioSugerido)}/{modo === 'kg' ? 'kg' : 'ud'}
               </button>
             </div>
             <div className="flex items-center gap-2 border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-amber-400 transition-colors">
@@ -1669,19 +1708,19 @@ function FraccionarModal({
                 onChange={e => { setPrecio(Number(e.target.value)); setUsarPct(false); }}
                 className="flex-1 text-base font-bold focus:outline-none bg-transparent"
               />
-              <span className="text-xs text-zinc-400">/kg</span>
+              <span className="text-xs text-zinc-400">/{modo === 'kg' ? 'kg' : 'ud'}</span>
             </div>
-            {precioCompraKg != null && precio > 0 && (
+            {costoPorUnidad != null && precio > 0 && (
               <p className="text-[10px] text-zinc-400 mt-1">
-                Margen real: <strong className={`${((precio / precioCompraKg - 1) * 100) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {Math.round((precio / precioCompraKg - 1) * 100)}%
+                Margen real: <strong className={`${((precio / costoPorUnidad - 1) * 100) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {Math.round((precio / costoPorUnidad - 1) * 100)}%
                 </strong>
-                {' · '}Total inventario: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong>
+                {' · '}Total inventario: <strong className="text-zinc-700">{fmt(unidadesGeneradas * precio)}</strong>
               </p>
             )}
-            {precioCompraKg == null && (
+            {costoPorUnidad == null && (
               <p className="text-[10px] text-zinc-400 mt-1">
-                Total a generar: <strong className="text-zinc-700">{fmt(kgGenerados * precio)}</strong> en inventario
+                Total a generar: <strong className="text-zinc-700">{fmt(unidadesGeneradas * precio)}</strong> en inventario
               </p>
             )}
           </div>
@@ -1711,7 +1750,7 @@ function FraccionarModal({
                 Fraccionando…
               </span>
             ) : (
-              `Fraccionar ${bolsas} bolsa${bolsas > 1 ? 's' : ''}`
+              `Fraccionar ${bolsas} ${bolsas > 1 ? labelEnvases : labelEnvase}`
             )}
           </button>
         </div>
