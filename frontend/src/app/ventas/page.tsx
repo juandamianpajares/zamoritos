@@ -1632,6 +1632,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
   const [periodo,         setPeriodo]         = useState<Periodo>('hoy');
   const [sicfeOpen,       setSicfeOpen]       = useState(false);
   const [devolucionVenta, setDevolucionVenta] = useState<Venta | null>(null);
+  const [filtroFactura,   setFiltroFactura]   = useState('');
 
   const getParams = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1739,10 +1740,14 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
 
       {/* Summary */}
       {!loading && ventas.length > 0 && (() => {
-        const confirmadas = ventas.filter(v => v.estado === 'confirmada');
-        const totalSum = confirmadas.reduce((s, v) => s + v.total, 0);
+        const confirmadas    = ventas.filter(v => v.estado === 'confirmada');
+        const totalSum       = confirmadas.reduce((s, v) => s + v.total, 0);
+        const conFactura     = confirmadas.filter(v => v.numero_factura);
+        const sinFactura     = confirmadas.filter(v => !v.numero_factura);
+        const totalConFac    = conFactura.reduce((s, v) => s + v.total, 0);
+        const totalSinFac    = sinFactura.reduce((s, v) => s + v.total, 0);
         return (
-          <div className="flex gap-3 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <div className="bg-white border border-zinc-100 rounded-xl px-4 py-2.5 text-center">
               <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Ventas</p>
               <p className="text-lg font-bold text-zinc-800 tabular-nums">{confirmadas.length}</p>
@@ -1751,9 +1756,44 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
               <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Total</p>
               <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(totalSum)}</p>
             </div>
+            {conFactura.length > 0 && (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-center cursor-pointer hover:border-blue-300 transition-colors"
+                onClick={() => setFiltroFactura(filtroFactura ? '' : '__con__')}
+                title="Filtrar ventas con factura">
+                <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide">Con factura · {conFactura.length}</p>
+                <p className="text-lg font-bold text-blue-700 tabular-nums">{fmt(totalConFac)}</p>
+              </div>
+            )}
+            {sinFactura.length > 0 && (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-center cursor-pointer hover:border-zinc-400 transition-colors"
+                onClick={() => setFiltroFactura(filtroFactura ? '' : '__sin__')}
+                title="Filtrar ventas sin factura">
+                <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Sin factura · {sinFactura.length}</p>
+                <p className="text-lg font-bold text-zinc-700 tabular-nums">{fmt(totalSinFac)}</p>
+              </div>
+            )}
           </div>
         );
       })()}
+
+      {/* Filtro factura */}
+      <div className="mb-3 relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="5.5" cy="5.5" r="4.5"/><line x1="9" y1="9" x2="13" y2="13"/>
+        </svg>
+        <input
+          value={filtroFactura.startsWith('__') ? '' : filtroFactura}
+          onChange={e => setFiltroFactura(e.target.value)}
+          placeholder="Filtrar por N° factura…"
+          className="w-full pl-9 pr-8 py-2 text-sm border border-zinc-200 rounded-xl bg-white focus:outline-none focus:border-zinc-400"
+        />
+        {filtroFactura && (
+          <button onClick={() => setFiltroFactura('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+          </button>
+        )}
+      </div>
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
@@ -1768,24 +1808,41 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
             </svg>
             <p className="text-sm text-zinc-400">Sin ventas en el período</p>
           </div>
-        ) : (
+        ) : (() => {
+          const ventasFiltradas = ventas.filter(v => {
+            if (!filtroFactura) return true;
+            if (filtroFactura === '__con__') return !!v.numero_factura;
+            if (filtroFactura === '__sin__') return !v.numero_factura;
+            return (v.numero_factura ?? '').toLowerCase().includes(filtroFactura.toLowerCase());
+          });
+          return (
           <>
             {/* Desktop table */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                    {['#', 'Fecha', 'Pago', 'Medio', 'Total', 'Estado', ''].map(h => (
+                    {['#', 'Fecha', 'Factura', 'Pago', 'Medio', 'Total', 'Estado', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {ventas.map(v => (
+                  {ventasFiltradas.map(v => (
                     <tr key={v.id} className={`border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
                       <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{v.id}</td>
                       <td className="px-4 py-3 text-zinc-600 tabular-nums text-xs">
                         {new Date(v.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-3">
+                        {v.numero_factura ? (
+                          <button
+                            onClick={() => setFiltroFactura(v.numero_factura!)}
+                            className="font-mono text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                          >
+                            {v.numero_factura}
+                          </button>
+                        ) : <span className="text-zinc-300 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${v.tipo_pago === 'contado' ? 'bg-zinc-100 text-zinc-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1831,13 +1888,16 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                       </td>
                     </tr>
                   ))}
+                  {ventasFiltradas.length === 0 && (
+                    <tr><td colSpan={8} className="px-6 py-10 text-center text-sm text-zinc-400">Sin resultados para "{filtroFactura}"</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile cards */}
             <div className="sm:hidden divide-y divide-zinc-50">
-              {ventas.map(v => (
+              {ventasFiltradas.map(v => (
                 <div key={v.id} className={`px-4 py-3 ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -1850,11 +1910,19 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                           {v.estado}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {v.medio_pago && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${MEDIO_COLOR[v.medio_pago] ?? 'bg-zinc-100 text-zinc-600'}`}>
                             {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
+                        )}
+                        {v.numero_factura && (
+                          <button
+                            onClick={() => setFiltroFactura(v.numero_factura!)}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                          >
+                            {v.numero_factura}
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1881,7 +1949,8 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
               ))}
             </div>
           </>
-        )}
+          );
+        })()}
       </div>
 
       {/* Modal detalle */}
