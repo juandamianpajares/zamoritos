@@ -36,6 +36,7 @@ class CategoriaSeeder extends Seeder
 
             // ── ALIMENTOS > PERRO ─────────────────────────────────────────────
             ['ADULTO',            'PERRO'],
+            ['BEBE',              'PERRO'],
             ['RAZA PEQUEÑA',      'PERRO'],
             ['RAZA MEDIANA',      'PERRO'],
             ['RAZA GRANDE',       'PERRO'],

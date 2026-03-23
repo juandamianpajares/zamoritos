@@ -17,5 +17,7 @@ frontend/out/
 # Docker
 .docker/
 
-# Imagenes sin convertir
+# Imagenes sin convertir / entrada bulk
 imagenes_productos/
+imagenes-entrada/*
+!imagenes-entrada/.gitkeep

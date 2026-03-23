@@ -72,7 +72,8 @@ function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 export default function VentasPage() {
   const [vista, setVista] = useState<Vista>('pos');
-  const [creditoCanje, setCreditoCanje] = useState(0);
+  const [creditoCanje,    setCreditoCanje]    = useState(0);
+  const [canjeMedioPago,  setCanjeMedioPago]  = useState<string>('efectivo');
 
   return (
     <div className="h-full flex flex-col">
@@ -112,8 +113,8 @@ export default function VentasPage() {
 
       <div className="flex-1 overflow-hidden bg-slate-50 flex flex-col">
         {vista === 'pos'
-          ? <POSPanel creditoCanje={creditoCanje} onClearCanje={() => setCreditoCanje(0)} />
-          : <HistorialPanel onIniciarCanje={(amt) => { setCreditoCanje(amt); setVista('pos'); }} />
+          ? <POSPanel creditoCanje={creditoCanje} canjeMedioPago={canjeMedioPago} onClearCanje={() => { setCreditoCanje(0); setCanjeMedioPago('efectivo'); }} />
+          : <HistorialPanel onIniciarCanje={(amt, medio) => { setCreditoCanje(amt); setCanjeMedioPago(medio ?? 'efectivo'); setVista('pos'); }} />
         }
       </div>
     </div>
@@ -173,7 +174,7 @@ function getCatStyle(nombre: string): CatStyle {
 
 // ─── Panel POS ────────────────────────────────────────────────────────────────
 
-function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClearCanje: () => void }) {
+function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje: number; canjeMedioPago: string; onClearCanje: () => void }) {
   const [productos, setProductos]     = useState<Producto[]>([]);
   const [categorias, setCategorias]   = useState<Categoria[]>([]);
   const [catActiva, setCatActiva]     = useState<number | null>(null);
@@ -212,6 +213,13 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
     api.get<Categoria[]>('/categorias').then(setCategorias);
     searchRef.current?.focus();
   }, [recargarProductos]);
+
+  // Pre-seleccionar medio de pago del canje (preserva el método original de la venta devuelta)
+  useEffect(() => {
+    if (creditoCanje > 0 && canjeMedioPago) {
+      setMedioPago(canjeMedioPago as MedioPago);
+    }
+  }, [creditoCanje, canjeMedioPago]);
 
   // Productos filtrados — orden: destacado → más vendidos → stock desc → sin stock al fondo
   const productosFiltrados = useMemo(() => {
@@ -1616,7 +1624,7 @@ function FraccionarModal({
 
 type Periodo = 'hoy' | 'semana' | 'mes' | 'todo';
 
-function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number) => void }) {
+function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medio?: string) => void }) {
   const [ventas,          setVentas]          = useState<Venta[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [detalle,         setDetalle]         = useState<Venta | null>(null);
@@ -1946,7 +1954,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number) => v
           venta={devolucionVenta}
           onClose={() => setDevolucionVenta(null)}
           onDone={() => { setDevolucionVenta(null); load(); }}
-          onIniciarCanje={(amt) => { setDevolucionVenta(null); load(); onIniciarCanje(amt); }}
+          onIniciarCanje={(amt, medio) => { setDevolucionVenta(null); load(); onIniciarCanje(amt, medio); }}
         />
       )}
     </div>
@@ -2129,7 +2137,7 @@ function DevolucionModal({ venta, onClose, onDone, onIniciarCanje }: {
   venta: Venta;
   onClose: () => void;
   onDone: () => void;
-  onIniciarCanje: (amt: number) => void;
+  onIniciarCanje: (amt: number, medio?: string) => void;
 }) {
   const [lineas,  setLineas]  = useState<DevolucionLinea[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2235,7 +2243,7 @@ function DevolucionModal({ venta, onClose, onDone, onIniciarCanje }: {
                         <p className="text-sm font-semibold text-amber-800">Canje por mercadería</p>
                       </div>
                       <p className="text-xs text-amber-700">
-                        La venta fue cobrada con <strong>{venta.medio_pago?.toUpperCase()}</strong>. El crédito de <strong>{fmt(remito.total_devuelto)}</strong> se aplica a la próxima compra.
+                        La venta fue cobrada con <strong>{venta.medio_pago?.toUpperCase()}</strong>. El crédito de <strong>{fmt(remito.total_devuelto)}</strong> se aplica a la próxima compra con el mismo medio de pago.
                       </p>
                     </div>
                   )}
@@ -2261,19 +2269,19 @@ function DevolucionModal({ venta, onClose, onDone, onIniciarCanje }: {
                     )}
                     {(esTarjeta || esCombinado) && (
                       <button
-                        onClick={() => onIniciarCanje(remito.total_devuelto)}
+                        onClick={() => onIniciarCanje(remito.total_devuelto, venta.medio_pago ?? 'efectivo')}
                         className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white flex items-center justify-center gap-1.5"
                         style={{ background: 'var(--brand-teal)' }}
                       >
                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/>
                         </svg>
-                        Iniciar canje
+                        Iniciar canje · {venta.medio_pago?.toUpperCase()}
                       </button>
                     )}
                     {esEfectivo && (
                       <button
-                        onClick={() => onIniciarCanje(remito.total_devuelto)}
+                        onClick={() => onIniciarCanje(remito.total_devuelto, 'efectivo')}
                         className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white flex items-center justify-center gap-1.5"
                         style={{ background: 'var(--brand-purple)' }}
                       >
