@@ -1,4 +1,9 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+export const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+
+/** URL base del servidor (sin /api) — para construir rutas de /storage */
+export const STORAGE_BASE = BASE.startsWith('http')
+  ? BASE.replace(/\/api$/, '')
+  : '';
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = {

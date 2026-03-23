@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { api, type CajaDia, type ArqueoCaja } from '@/lib/api';
+import { api, BASE, STORAGE_BASE, type CajaDia, type ArqueoCaja } from '@/lib/api';
 
 // ── Denominaciones UYU ───────────────────────────────────────────────────────
 const BILLETES  = [2000, 1000, 500, 200, 100, 50, 20];
@@ -185,7 +185,9 @@ function CierreCajaModal({
     canvas.height = finalH;
     drawContent(canvas.getContext('2d')!);
 
-    return canvas.toDataURL('image/webp', 0.92);
+    // WebP preferido; fallback a PNG si el browser no lo soporta
+    const dataUrl = canvas.toDataURL('image/webp', 0.92);
+    return dataUrl.startsWith('data:image/webp') ? dataUrl : canvas.toDataURL('image/png');
   };
 
   const handleSinPapel = async () => {
@@ -193,16 +195,12 @@ function CierreCajaModal({
     setShareUrl('');
     try {
       const dataUrl = await generarImagenCanvas();
-      const r = await fetch((process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api') + '/dashboard/caja-imagen', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ fecha, imagen: dataUrl }),
-      });
-      const json = await r.json();
-      const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '');
-      setShareUrl(host + json.url);
-    } catch {
-      alert('No se pudo generar la imagen');
+      const json = await api.post<{ url: string }>('/dashboard/caja-imagen', { fecha, imagen: dataUrl });
+      // json.url = '/storage/imagenes_comprobantes/caja_FECHA.webp'
+      // STORAGE_BASE = '' cuando la API es relativa (/api), host completo si es absoluta
+      setShareUrl(STORAGE_BASE + json.url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo generar la imagen');
     } finally {
       setSharing(false);
     }

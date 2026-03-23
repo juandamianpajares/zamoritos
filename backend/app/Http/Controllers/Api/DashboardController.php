@@ -295,17 +295,19 @@ class DashboardController extends Controller
         $fecha   = $request->fecha;
         $dataUrl = $request->imagen;
 
-        // Decodificar base64
-        if (!preg_match('/^data:image\/webp;base64,(.+)$/', $dataUrl, $m)) {
+        // Decodificar base64 — acepta webp, png o jpeg
+        if (!preg_match('/^data:image\/(webp|png|jpeg);base64,(.+)$/', $dataUrl, $m)) {
             return response()->json(['error' => 'Formato de imagen inválido.'], 422);
         }
-        $bytes = base64_decode($m[1]);
+        $bytes = base64_decode($m[2]);
         if (!$bytes) {
             return response()->json(['error' => 'No se pudo decodificar la imagen.'], 422);
         }
 
+        // Siempre guardar con extensión .png para máxima compatibilidad
+        $ext  = $m[1] === 'webp' ? 'webp' : 'png';
         $dir  = 'imagenes_comprobantes';
-        $file = "caja_{$fecha}.webp";
+        $file = "caja_{$fecha}.{$ext}";
         $path = "{$dir}/{$file}";
 
         \Illuminate\Support\Facades\Storage::disk('public')->put($path, $bytes);
