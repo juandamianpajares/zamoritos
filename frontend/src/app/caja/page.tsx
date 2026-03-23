@@ -27,6 +27,30 @@ function fmtDiff(n: number) {
 
 type Vista = 'arqueo' | 'compras';
 
+// ── Agrupador de medios de pago ───────────────────────────────────────────────
+const TARJETAS = new Set(['tarjeta', 'master', 'oca', 'cabal', 'anda', 'sicfe']);
+
+function agruparMedios(medios: CajaDia['ventas_por_medio']) {
+  const grupos: { label: string; total: number; cantidad: number; color: string }[] = [];
+  let efectivo = 0, efectivoCnt = 0;
+  let tarjetas = 0, tarjetasCnt = 0;
+  let transf = 0, transfCnt = 0;
+  let otros = 0, otrosCnt = 0;
+
+  for (const m of medios) {
+    if (m.medio === 'efectivo') { efectivo += m.total; efectivoCnt += m.cantidad; }
+    else if (TARJETAS.has(m.medio)) { tarjetas += m.total; tarjetasCnt += m.cantidad; }
+    else if (m.medio === 'transferencia') { transf += m.total; transfCnt += m.cantidad; }
+    else { otros += m.total; otrosCnt += m.cantidad; }
+  }
+
+  if (efectivo)  grupos.push({ label: 'Efectivo',      total: efectivo,  cantidad: efectivoCnt,  color: 'bg-emerald-400' });
+  if (tarjetas)  grupos.push({ label: 'Tarjetas',      total: tarjetas,  cantidad: tarjetasCnt,  color: 'bg-blue-400' });
+  if (transf)    grupos.push({ label: 'Transferencia', total: transf,    cantidad: transfCnt,    color: 'bg-violet-400' });
+  if (otros)     grupos.push({ label: 'Otro',          total: otros,     cantidad: otrosCnt,     color: 'bg-zinc-400' });
+  return grupos;
+}
+
 // ── Modal Cierre de Caja ──────────────────────────────────────────────────────
 function CierreCajaModal({
   datos, fecha, suma, fondoCambio, efectivoVentas, esperado, diferencia, cantidades,
@@ -47,6 +71,7 @@ function CierreCajaModal({
   });
   const resultado = datos.total_ventas - datos.total_compras;
   const diffCls = diferencia === 0 ? 'text-emerald-600' : Math.abs(diferencia) <= 50 ? 'text-amber-600' : 'text-rose-600';
+  const grupos = agruparMedios(datos.ventas_por_medio);
 
   const handlePrint = () => {
     onClose();
@@ -55,22 +80,30 @@ function CierreCajaModal({
 
   const handleShare = async () => {
     const lines = [
-      `CIERRE DE CAJA — ${fechaLabel}`,
+      `🏪 CIERRE DE CAJA`,
+      fechaLabel.toUpperCase(),
+      '─'.repeat(30),
       '',
-      `Ventas: ${fmt(datos.total_ventas)} (${datos.cantidad_ventas} transacciones)`,
-      ...datos.ventas_por_medio.map(m => `  ${medioLabel(m.medio)}: ${fmt(m.total)}`),
+      '📊 VENTAS DEL DÍA',
+      ...grupos.map(g => `  ${g.label}: ${fmt(g.total)} (${g.cantidad})`),
+      `  TOTAL: ${fmt(datos.total_ventas)}`,
       '',
-      `Egresos contado: ${fmt(datos.total_compras)}`,
+      ...(datos.total_compras > 0 ? [
+        '📦 EGRESOS CONTADO',
+        `  Total: ${fmt(datos.total_compras)}`,
+        '',
+      ] : []),
+      '💵 ARQUEO',
+      `  Contado: ${fmt(suma)}`,
+      `  Esperado: ${fmt(esperado)}`,
+      `  Diferencia: ${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`,
       '',
-      `Total contado: ${fmt(suma)}`,
-      `Esperado: ${fmt(esperado)}`,
-      `Diferencia: ${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`,
-      '',
-      `RESULTADO DEL DÍA: ${fmt(resultado)}`,
+      '─'.repeat(30),
+      `RESULTADO: ${resultado >= 0 ? '+' : ''}${fmt(resultado)}`,
     ].join('\n');
 
     if (navigator.share) {
-      await navigator.share({ title: `Cierre de Caja ${fechaLabel}`, text: lines });
+      await navigator.share({ title: `Cierre ${fechaLabel}`, text: lines });
     } else {
       await navigator.clipboard.writeText(lines);
       alert('Resumen copiado al portapapeles');
@@ -103,14 +136,18 @@ function CierreCajaModal({
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
-          {/* Ventas */}
+          {/* Ventas — agrupadas */}
           <section>
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Ventas del día</p>
             <div className="bg-zinc-50 rounded-xl divide-y divide-zinc-100">
-              {datos.ventas_por_medio.map(m => (
-                <div key={m.medio} className="flex justify-between px-4 py-2.5 text-sm">
-                  <span className="text-zinc-600">{medioLabel(m.medio)} <span className="text-zinc-400 text-xs">({m.cantidad})</span></span>
-                  <span className="font-semibold tabular-nums">{fmt(m.total)}</span>
+              {grupos.map(g => (
+                <div key={g.label} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${g.color}`} />
+                    <span className="text-sm text-zinc-700 font-medium">{g.label}</span>
+                    <span className="text-xs text-zinc-400">({g.cantidad})</span>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums">{fmt(g.total)}</span>
                 </div>
               ))}
               <div className="flex justify-between px-4 py-2.5 text-sm font-bold">
@@ -332,13 +369,13 @@ export default function CajaPage() {
           <p className="text-xs text-zinc-400 mt-0.5">Impreso: {new Date().toLocaleString('es-CL')}</p>
         </div>
 
-        {/* Ventas */}
+        {/* Ventas — agrupadas */}
         <div className="mb-5">
           <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Ventas del día</h2>
-          {datos?.ventas_por_medio.map(m => (
-            <div key={m.medio} className="flex justify-between text-sm py-0.5">
-              <span>{medioLabel(m.medio)} ({m.cantidad} ventas)</span>
-              <span className="tabular-nums font-medium">{fmt(m.total)}</span>
+          {datos && agruparMedios(datos.ventas_por_medio).map(g => (
+            <div key={g.label} className="flex justify-between text-sm py-0.5">
+              <span>{g.label} ({g.cantidad} transacciones)</span>
+              <span className="tabular-nums font-medium">{fmt(g.total)}</span>
             </div>
           ))}
           <div className="flex justify-between text-sm font-bold border-t border-zinc-200 pt-1 mt-1">
@@ -444,35 +481,19 @@ export default function CajaPage() {
               </button>
             ))}
           </div>
-          {savedOk && (
-            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 7 5 11 12 3"/></svg>
-              Arqueo guardado
-            </span>
-          )}
-          <button
-            onClick={guardarArqueo}
-            disabled={saving}
-            className="flex items-center gap-1.5 border border-zinc-200 text-zinc-700 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors disabled:opacity-50"
-          >
-            {saving ? (
-              <span className="w-3.5 h-3.5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
-            ) : (
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-              </svg>
-            )}
-            Guardar arqueo
-          </button>
           <button
             onClick={handleCerrarCaja}
             disabled={saving}
             className="flex items-center gap-1.5 text-white text-sm px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
             style={{ background: 'var(--brand-purple)' }}
           >
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-            </svg>
+            {saving ? (
+              <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+              </svg>
+            )}
             Cerrar caja
           </button>
         </div>
@@ -607,14 +628,14 @@ export default function CajaPage() {
               <div className="px-5 py-3 space-y-1">
                 {datos?.ventas_por_medio.length === 0 ? (
                   <p className="text-sm text-zinc-400 py-3 text-center">Sin ventas</p>
-                ) : datos?.ventas_por_medio.map(m => (
-                  <div key={m.medio} className="flex items-center justify-between py-1.5">
+                ) : datos && agruparMedios(datos.ventas_por_medio).map(g => (
+                  <div key={g.label} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${m.medio === 'efectivo' ? 'bg-emerald-400' : 'bg-sky-400'}`} />
-                      <span className="text-sm text-zinc-600">{medioLabel(m.medio)}</span>
-                      <span className="text-xs text-zinc-400">({m.cantidad})</span>
+                      <span className={`w-2 h-2 rounded-full ${g.color}`} />
+                      <span className="text-sm text-zinc-600">{g.label}</span>
+                      <span className="text-xs text-zinc-400">({g.cantidad})</span>
                     </div>
-                    <span className="text-sm font-semibold tabular-nums text-zinc-800">{fmt(m.total)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-zinc-800">{fmt(g.total)}</span>
                   </div>
                 ))}
               </div>
