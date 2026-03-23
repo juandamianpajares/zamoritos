@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type Compra, type Proveedor, type Producto } from '@/lib/api';
 import Modal from '@/components/Modal';
 
@@ -25,6 +25,7 @@ export default function ComprasPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<Compra | null>(null);
+  const [importOpen,  setImportOpen]  = useState(false);
   const [error, setError] = useState('');
 
   const [form, setForm] = useState({
@@ -110,9 +111,18 @@ export default function ComprasPage() {
           <h1 className="text-xl font-semibold text-zinc-900">Compras</h1>
           <p className="text-sm text-zinc-400 mt-0.5">{compras.length} registradas</p>
         </div>
-        <button onClick={openNew} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
-          + Nueva compra
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setImportOpen(true)}
+            className="border border-zinc-200 text-zinc-600 text-sm px-4 py-2 rounded-xl hover:bg-zinc-50 transition-colors flex items-center gap-1.5">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Importar CSV
+          </button>
+          <button onClick={openNew} className="bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors">
+            + Nueva compra
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
@@ -270,47 +280,188 @@ export default function ComprasPage() {
         </form>
       </Modal>
 
-      {/* Modal detalle */}
-      {detailModal && (
-        <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title={`Compra #${detailModal.id}`} size="lg">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ['Proveedor', detailModal.proveedor?.nombre ?? '—'],
-                ['Fecha', new Date(detailModal.fecha).toLocaleDateString('es-CL')],
-                ['Factura', detailModal.factura ?? '—'],
-                ['Total', `$${Math.round(detailModal.total ?? 0).toLocaleString('es-CL')}`],
-              ].map(([k, v]) => (
-                <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
-                  <p className="text-xs text-zinc-400 mb-0.5">{k}</p>
-                  <p className="text-zinc-800 font-medium">{v}</p>
-                </div>
-              ))}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-100">
-                    {['Producto', 'Cantidad', 'P. Compra', 'Subtotal'].map(h => (
-                      <th key={h} className="text-left px-3 py-2 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailModal.detalles?.map(d => (
-                    <tr key={d.id} className="border-b border-zinc-50 last:border-0">
-                      <td className="px-3 py-2.5 text-zinc-800">{d.producto?.nombre}</td>
-                      <td className="px-3 py-2.5 tabular-nums">{d.cantidad}</td>
-                      <td className="px-3 py-2.5 tabular-nums">${Math.round(d.precio_compra).toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-medium">${Math.round(d.subtotal).toLocaleString('es-CL')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </Modal>
+      {/* Modal importar CSV */}
+      {importOpen && (
+        <ImportarComprasModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} />
       )}
+
+      {/* Modal detalle */}
+      {detailModal && <DetalleCompraModal compra={detailModal} onClose={() => setDetailModal(null)} />}
     </div>
   );
 }
+
+// ─── Modal detalle compra ─────────────────────────────────────────────────────
+function DetalleCompraModal({ compra, onClose }: { compra: Compra; onClose: () => void }) {
+  return (
+    <Modal isOpen onClose={onClose} title={`Compra #${compra.id}`} size="lg">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {([
+            ['Proveedor', compra.proveedor?.nombre ?? '—'],
+            ['Fecha', new Date(compra.fecha).toLocaleDateString('es-CL')],
+            ['Factura', compra.factura ?? '—'],
+            ['Total', `$${Math.round(compra.total ?? 0).toLocaleString('es-CL')}`],
+          ] as [string, string][]).map(([k, v]) => (
+            <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-zinc-400 mb-0.5">{k}</p>
+              <p className="text-zinc-800 font-medium">{v}</p>
+            </div>
+          ))}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100">
+                {['Producto', 'Cantidad', 'P. Compra', 'Subtotal'].map(h => (
+                  <th key={h} className="text-left px-3 py-2 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {compra.detalles?.map(d => (
+                <tr key={d.id} className="border-b border-zinc-50 last:border-0">
+                  <td className="px-3 py-2.5 text-zinc-800">{d.producto?.nombre}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{d.cantidad}</td>
+                  <td className="px-3 py-2.5 tabular-nums">${Math.round(d.precio_compra).toLocaleString('es-CL')}</td>
+                  <td className="px-3 py-2.5 tabular-nums font-medium">${Math.round(d.subtotal).toLocaleString('es-CL')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal importar compras CSV ───────────────────────────────────────────────
+type ImportResult = { compras_creadas: number; omitidas: number; errores: { fila: string | number; error: string }[]; total_grupos: number };
+
+function ImportarComprasModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [archivo,   setArchivo]   = useState<File | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [resultado, setResultado] = useState<ImportResult | null>(null);
+  const [errorMsg,  setErrorMsg]  = useState('');
+  const [showFmt,   setShowFmt]   = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+
+  const importar = async () => {
+    if (!archivo) return;
+    setLoading(true); setErrorMsg('');
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    try {
+      const res = await fetch(`${apiBase}/compras/importar`, {
+        method: 'POST', headers: { Accept: 'application/json' }, body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Error en el servidor');
+      setResultado(data as ImportResult);
+    } catch (e: unknown) {
+      setErrorMsg((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const FORMATO = `factura ; fecha ; proveedor ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
+
+Ejemplo:
+CF-0123;2024-03-01;Proveedor SA;7730900660761;10;1200;
+CF-0123;2024-03-01;Proveedor SA;7730900660488;5;800;2025-06-01
+CF-0124;2024-03-02;Otro Prov;1234;20;500;
+
+Reglas:
+• Filas con el mismo número de factura → una sola compra
+• Si la factura ya existe en la DB → se omite (idempotente, útil para reimportar)
+• El precio de compra se actualiza en el producto
+• Stock se incrementa automáticamente
+• Se crea un lote por cada línea (para seguimiento de vencimientos)
+• proveedor y fecha_vencimiento son opcionales`;
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importar compras desde CSV" size="lg">
+      <div className="space-y-4 text-sm">
+        {resultado ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{resultado.compras_creadas}</p>
+                <p className="text-xs text-emerald-500 mt-0.5">Compras creadas</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600">{resultado.omitidas}</p>
+                <p className="text-xs text-amber-500 mt-0.5">Omitidas (ya existían)</p>
+              </div>
+              <div className="bg-rose-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-rose-600">{resultado.errores.length}</p>
+                <p className="text-xs text-rose-500 mt-0.5">Errores</p>
+              </div>
+            </div>
+            {resultado.errores.length > 0 && (
+              <div className="max-h-36 overflow-y-auto space-y-1">
+                {resultado.errores.map((e, i) => (
+                  <p key={i} className="text-xs text-rose-500 bg-rose-50 px-2 py-1 rounded">
+                    {typeof e.fila === 'number' ? `Fila ${e.fila}` : e.fila}: {e.error}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cerrar</button>
+              <button onClick={onDone} className="flex-1 py-2.5 font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800">Ver compras</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Formato */}
+            <button onClick={() => setShowFmt(v => !v)}
+              className="w-full text-left text-xs text-violet-600 border border-violet-200 rounded-xl px-3 py-2 hover:bg-violet-50 flex items-center justify-between">
+              <span>📋 Ver formato y ejemplo</span>
+              <span>{showFmt ? '▲' : '▼'}</span>
+            </button>
+            {showFmt && (
+              <div className="bg-zinc-50 rounded-xl border border-zinc-100 overflow-x-auto">
+                <pre className="text-[10px] text-zinc-600 p-3 whitespace-pre-wrap leading-relaxed">{FORMATO}</pre>
+              </div>
+            )}
+
+            {/* Matching SICFE */}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-1">
+              <p className="font-semibold text-blue-800">Matching con SICFE</p>
+              <p>El campo <code className="bg-blue-100 px-1 rounded">factura</code> es el número del CFE recibido (ej: <code className="bg-blue-100 px-1 rounded">CF-0123</code>). Al importar ventas SICFE, el sistema puede cruzar compras y ventas por este número.</p>
+            </div>
+
+            {/* Selector archivo */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1.5">Archivo CSV</label>
+              <div onClick={() => inputRef.current?.click()}
+                className="border-2 border-dashed border-zinc-200 rounded-xl p-6 text-center cursor-pointer hover:border-zinc-400 transition-colors">
+                {archivo ? (
+                  <p className="text-sm font-medium text-zinc-700">{archivo.name} ({(archivo.size / 1024).toFixed(1)} KB)</p>
+                ) : (
+                  <p className="text-sm text-zinc-400">Hacé clic para elegir el archivo CSV</p>
+                )}
+              </div>
+              <input ref={inputRef} type="file" accept=".csv,.txt" className="hidden"
+                onChange={e => setArchivo(e.target.files?.[0] ?? null)} />
+            </div>
+
+            {errorMsg && <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl">{errorMsg}</div>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+              <button onClick={importar} disabled={!archivo || loading}
+                className="flex-1 py-2.5 font-semibold rounded-xl text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40">
+                {loading ? 'Importando…' : 'Importar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+

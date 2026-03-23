@@ -109,10 +109,10 @@ const COLUMNAS_EJEMPLO = `| Campo | Descripción | Ejemplo |
 | marca | Nombre de marca | LAGER |
 | categoria | Nombre exacto de categoría | ALIMENTOS |
 | peso | Peso en kg (decimal) | 10.5 |
-| precio_compra | Costo de compra | 900 |
 | fraccionable | 1 = sí, 0 = no | 0 |
-| en_promo | 1 = sí, 0 = no | 0 |
-| precio_promo | Precio especial si en_promo=1 | 1100 |`;
+| destacado | 1 = aparece primero en POS | 0 |
+
+Precio de compra y stock → importar en Compras.`;
 
 // ─── Modal Detectar por Foto (IA) ────────────────────────────────────────────
 type DetectResult = { nombre?: string; marca?: string; codigo_barras?: string; peso?: number; unidad_medida?: string; categoria?: string; descripcion_breve?: string; error?: string };
@@ -378,11 +378,12 @@ function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         <div className="bg-zinc-50 rounded-xl p-4 text-xs text-zinc-500 space-y-1.5">
           <p className="font-semibold text-zinc-700">Formato esperado (separador <code>;</code>, primera fila = cabecera):</p>
           <p className="font-mono break-all leading-relaxed text-zinc-400">
-            codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ; precio_compra ; precio_venta ; fraccionable ; en_promo ; precio_promo
+            codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ; precio_venta ; fraccionable ; destacado
           </p>
           <ul className="list-disc list-inside space-y-0.5 mt-2">
             <li><strong>nombre</strong>, <strong>precio_venta</strong> y <strong>unidad_medida</strong> son obligatorios.</li>
-            <li><strong>fraccionable</strong> / <strong>en_promo</strong>: escribí <code>1</code> para sí, <code>0</code> o vacío para no.</li>
+            <li><strong>fraccionable</strong> / <strong>destacado</strong>: escribí <code>1</code> para sí, <code>0</code> o vacío para no.</li>
+            <li>El precio de compra y stock se registran en <strong>Compras</strong>.</li>
             <li>Si el código de barras ya existe → actualiza el producto.</li>
             <li>Si el código está vacío → crea siempre un producto nuevo.</li>
             <li>Exportá el Excel como <em>CSV UTF-8</em> (en LibreOffice: Guardar como → CSV → separador <code>;</code>).</li>
