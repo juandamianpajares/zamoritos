@@ -14,7 +14,14 @@
       "Bash(find c:UsersJuanDocumentsGitHubzamoritosbackendapp -type f -name *.php)",
       "Bash(find c:UsersJuanDocumentsGitHubzamoritosbackendsrc -type f -name *.php)",
       "Bash(composer require:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && ls -la backend/public/storage 2>/dev/null; docker compose exec backend ls storage/app/public/ 2>/dev/null; docker compose exec backend php artisan tinker --execute=\"\"echo App\\\\\\\\Models\\\\\\\\Producto::whereNotNull\\(''foto''\\)->count\\(\\) . '' con foto\\\\n''; echo App\\\\\\\\Models\\\\\\\\Producto::count\\(\\) . '' total\\\\n'';\"\" 2>&1\")",
+      "Bash(ssh juan@localhost \"ls /home/juan/zamoritos/backend/storage/app/public/ 2>/dev/null && ls /home/juan/zamoritos/backend/app/Console/Commands/ 2>/dev/null\")",
+      "Bash(ssh juan@localhost \"docker compose -f /home/juan/zamoritos/docker-compose.yml exec backend php artisan list | grep imagen 2>&1\")",
+      "Bash(ssh juan@localhost \"mkdir -p /home/juan/zamoritos/imagenes-entrada && chmod 777 /home/juan/zamoritos/imagenes-entrada && echo ''Carpeta creada''\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose up -d --no-build 2>&1 | tail -5\")"
     ]
   }
 }
