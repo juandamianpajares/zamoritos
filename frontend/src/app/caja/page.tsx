@@ -430,15 +430,56 @@ export default function CajaPage() {
               </div>
             </div>
 
-            {/* Compras del día */}
+            {/* Alerta vencimientos hoy */}
+            {(datos?.vencimientos_hoy?.length ?? 0) > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3 flex items-center gap-2 border-b border-amber-100">
+                  <span className="text-amber-600 text-base">⚠️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Vencimientos hoy</p>
+                    <p className="text-xs text-amber-600">{datos!.vencimientos_hoy.length} compra{datos!.vencimientos_hoy.length !== 1 ? 's' : ''} diferida{datos!.vencimientos_hoy.length !== 1 ? 's' : ''} con pago pendiente</p>
+                  </div>
+                </div>
+                <div className="px-5 py-3 space-y-2">
+                  {datos!.vencimientos_hoy.map(v => (
+                    <div key={v.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-amber-800">{v.proveedor}</p>
+                        {v.factura && <p className="text-xs text-amber-600">Factura {v.factura}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold tabular-nums text-amber-800">{fmt(v.saldo)}</p>
+                        <p className="text-xs text-amber-500">saldo pendiente</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-5 py-3 border-t border-amber-100">
+                  <a href="/cuentas-pagar" className="text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
+                    Ir a Cuentas a pagar →
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Compras contado del día — egreso real de caja */}
             <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
               <div className="px-5 py-4 border-b border-zinc-50">
-                <h2 className="text-sm font-semibold text-zinc-700">Compras del día</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">{datos?.cantidad_compras ?? 0} órdenes de compra</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-zinc-700">Egresos de caja</h2>
+                    <p className="text-xs text-zinc-400 mt-0.5">{datos?.cantidad_compras ?? 0} compras al contado</p>
+                  </div>
+                  {(datos?.cantidad_diferido ?? 0) > 0 && (
+                    <span className="text-xs bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
+                      +{datos!.cantidad_diferido} diferida{datos!.cantidad_diferido !== 1 ? 's' : ''} {fmt(datos!.total_diferido)}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="px-5 py-3 space-y-1">
                 {datos?.compras_por_prov.length === 0 ? (
-                  <p className="text-sm text-zinc-400 py-3 text-center">Sin compras</p>
+                  <p className="text-sm text-zinc-400 py-3 text-center">Sin egresos al contado</p>
                 ) : datos?.compras_por_prov.map(p => (
                   <div key={p.proveedor} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
@@ -451,7 +492,7 @@ export default function CajaPage() {
                 ))}
               </div>
               <div className="px-5 py-3 border-t border-zinc-50 flex justify-between">
-                <span className="text-sm font-semibold text-zinc-700">Total compras</span>
+                <span className="text-sm font-semibold text-zinc-700">Total egresado</span>
                 <span className="text-lg font-bold tabular-nums text-rose-600">{fmt(datos?.total_compras ?? 0)}</span>
               </div>
             </div>

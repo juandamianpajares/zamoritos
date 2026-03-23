@@ -207,7 +207,11 @@ class DashboardController extends Controller
             ->whereDate('fecha', $fecha)
             ->get();
 
-        $porProveedor = $compras
+        // Solo compras CONTADO mueven caja en el día
+        $comprasContado  = $compras->where('tipo_pago', 'contado');
+        $comprasDiferido = $compras->where('tipo_pago', 'diferido');
+
+        $porProveedor = $comprasContado
             ->groupBy(fn($c) => $c->proveedor?->nombre ?? 'Sin proveedor')
             ->map(fn($grupo, $prov) => [
                 'proveedor' => $prov,
@@ -216,18 +220,36 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        // Compras diferidas que VENCEN HOY
+        $vencimientosHoy = Compra::with('proveedor')
+            ->where('tipo_pago', 'diferido')
+            ->whereIn('estado_pago', ['pendiente', 'parcial'])
+            ->whereDate('fecha_vencimiento', now()->toDateString())
+            ->get()
+            ->map(fn($c) => [
+                'id'         => $c->id,
+                'proveedor'  => $c->proveedor?->nombre ?? 'Sin proveedor',
+                'total'      => $c->total,
+                'saldo'      => round($c->total - $c->monto_pagado, 2),
+                'factura'    => $c->factura,
+                'vencimiento'=> $c->fecha_vencimiento?->toDateString(),
+            ]);
+
         $arqueo = ArqueoCaja::whereDate('fecha', $fecha)->first();
 
         return response()->json([
-            'fecha'            => $fecha,
-            'total_ventas'     => round($ventas->sum('total'), 2),
-            'cantidad_ventas'  => $ventas->count(),
-            'ventas_por_medio' => $porMedioPago,
-            'total_compras'    => round($compras->sum('total'), 2),
-            'cantidad_compras' => $compras->count(),
-            'compras_por_prov' => $porProveedor,
-            'compras'          => $compras,
-            'arqueo'           => $arqueo,
+            'fecha'              => $fecha,
+            'total_ventas'       => round($ventas->sum('total'), 2),
+            'cantidad_ventas'    => $ventas->count(),
+            'ventas_por_medio'   => $porMedioPago,
+            'total_compras'      => round($comprasContado->sum('total'), 2),
+            'cantidad_compras'   => $comprasContado->count(),
+            'total_diferido'     => round($comprasDiferido->sum('total'), 2),
+            'cantidad_diferido'  => $comprasDiferido->count(),
+            'compras_por_prov'   => $porProveedor,
+            'compras'            => $compras,
+            'vencimientos_hoy'   => $vencimientosHoy,
+            'arqueo'             => $arqueo,
         ]);
     }
 

@@ -311,15 +311,27 @@ export interface ArqueoCaja {
   observacion?: string;
 }
 
+export interface VencimientoHoy {
+  id: number;
+  proveedor: string;
+  total: number;
+  saldo: number;
+  factura?: string;
+  vencimiento: string;
+}
+
 export interface CajaDia {
   fecha: string;
   total_ventas: number;
   cantidad_ventas: number;
   ventas_por_medio: CajaMedioPago[];
-  total_compras: number;
+  total_compras: number;       // solo contado — egreso real del día
   cantidad_compras: number;
+  total_diferido: number;      // compras diferidas registradas hoy
+  cantidad_diferido: number;
   compras_por_prov: { proveedor: string; total: number; cantidad: number }[];
   compras: Compra[];
+  vencimientos_hoy: VencimientoHoy[];
   arqueo: ArqueoCaja | null;
 }
 

@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { api } from '@/lib/api';
 
 const DashboardIcon = () => (
   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
@@ -113,6 +114,14 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const path = usePathname();
+  const [vencHoy, setVencHoy] = useState(0);
+
+  useEffect(() => {
+    // Chequear vencimientos del día una vez al montar
+    api.get<{ vencimientos_hoy: { id: number }[] }>(`/caja?fecha=${new Date().toISOString().slice(0, 10)}`)
+      .then(d => setVencHoy(d.vencimientos_hoy?.length ?? 0))
+      .catch(() => {});
+  }, []);
 
   return (
     <aside
@@ -161,6 +170,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               {label}
               {highlight && !active && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00B5A0]" />
+              )}
+              {href === '/cuentas-pagar' && vencHoy > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-zinc-900 text-[10px] font-bold flex items-center justify-center leading-none">
+                  {vencHoy}
+                </span>
               )}
             </Link>
           );
