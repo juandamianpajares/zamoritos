@@ -567,28 +567,13 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                           : 'bg-white border-zinc-100 hover:border-[var(--brand-purple)]/40 hover:shadow-md'
                       }`}
                     >
-                      {/* Badge destacado */}
-                      {p.destacado && !esCombo && !esFraccionado && (
-                        <span className="absolute top-1.5 left-1.5 text-[10px]" title="Destacado">⭐</span>
-                      )}
-                      {/* Badge combo */}
-                      {esCombo && (
-                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">
-                          COMBO
-                        </span>
-                      )}
-                      {/* Badge fraccionado */}
-                      {esFraccionado && !esCombo && (
-                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">
-                          FRAC.
-                        </span>
-                      )}
+                      {/* ✓ añadido y punto stock bajo — siempre absolute */}
                       {added && (
-                        <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                        <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold z-10"
                           style={{ background: 'var(--brand-teal)' }}>✓</span>
                       )}
                       {stockBajo && !added && (
-                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
+                        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400 z-10" />
                       )}
 
                       {/* Cuerpo: toca para agregar al carrito */}
@@ -597,12 +582,35 @@ function POSPanel({ creditoCanje, onClearCanje }: { creditoCanje: number; onClea
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
-                        {(p.foto || p.thumb || p.foto_url) && (
-                          <div className="w-full h-20 rounded-xl overflow-hidden mb-2">
+                        {/* Imagen con badge encima, o badge inline si no hay foto */}
+                        {(p.foto || p.thumb || p.foto_url) ? (
+                          <div className="relative w-full h-20 rounded-xl overflow-hidden mb-2">
                             <img src={p.foto_url ?? fotoUrl(p.thumb ?? p.foto!)} alt={p.nombre}
                               className="w-full h-full object-cover" />
+                            {esCombo && (
+                              <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
+                            )}
+                            {esFraccionado && !esCombo && (
+                              <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">FRAC.</span>
+                            )}
+                            {p.destacado && !esCombo && !esFraccionado && (
+                              <span className="absolute top-1 left-1 text-[10px]">⭐</span>
+                            )}
                           </div>
-                        )}
+                        ) : (esCombo || esFraccionado || p.destacado) ? (
+                          <div className="flex gap-1 mb-1.5">
+                            {esCombo && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
+                            )}
+                            {esFraccionado && !esCombo && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">FRAC.</span>
+                            )}
+                            {p.destacado && !esCombo && !esFraccionado && (
+                              <span className="text-[10px]">⭐</span>
+                            )}
+                          </div>
+                        ) : null}
+
                         <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
                           {p.nombre}
                         </p>
