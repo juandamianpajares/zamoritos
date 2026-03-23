@@ -27,6 +27,197 @@ function fmtDiff(n: number) {
 
 type Vista = 'arqueo' | 'compras';
 
+// ── Modal Cierre de Caja ──────────────────────────────────────────────────────
+function CierreCajaModal({
+  datos, fecha, suma, fondoCambio, efectivoVentas, esperado, diferencia, cantidades,
+  onClose,
+}: {
+  datos: CajaDia;
+  fecha: string;
+  suma: number;
+  fondoCambio: number;
+  efectivoVentas: number;
+  esperado: number;
+  diferencia: number;
+  cantidades: Record<number, string>;
+  onClose: () => void;
+}) {
+  const fechaLabel = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CL', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
+  const resultado = datos.total_ventas - datos.total_compras;
+  const diffCls = diferencia === 0 ? 'text-emerald-600' : Math.abs(diferencia) <= 50 ? 'text-amber-600' : 'text-rose-600';
+
+  const handlePrint = () => {
+    onClose();
+    setTimeout(() => window.print(), 80);
+  };
+
+  const handleShare = async () => {
+    const lines = [
+      `CIERRE DE CAJA — ${fechaLabel}`,
+      '',
+      `Ventas: ${fmt(datos.total_ventas)} (${datos.cantidad_ventas} transacciones)`,
+      ...datos.ventas_por_medio.map(m => `  ${medioLabel(m.medio)}: ${fmt(m.total)}`),
+      '',
+      `Egresos contado: ${fmt(datos.total_compras)}`,
+      '',
+      `Total contado: ${fmt(suma)}`,
+      `Esperado: ${fmt(esperado)}`,
+      `Diferencia: ${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`,
+      '',
+      `RESULTADO DEL DÍA: ${fmt(resultado)}`,
+    ].join('\n');
+
+    if (navigator.share) {
+      await navigator.share({ title: `Cierre de Caja ${fechaLabel}`, text: lines });
+    } else {
+      await navigator.clipboard.writeText(lines);
+      alert('Resumen copiado al portapapeles');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 print:hidden">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      {/* Full screen on mobile, max-w on desktop */}
+      <div className="relative bg-white w-full sm:max-w-md flex flex-col
+                      h-full sm:h-auto sm:max-h-[92vh]
+                      sm:rounded-2xl shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0"
+             style={{ background: 'linear-gradient(135deg, #7B2D8B 0%, #5E1F6C 100%)' }}>
+          <div>
+            <h2 className="text-base font-bold text-white">Cierre de Caja</h2>
+            <p className="text-xs text-white/60 capitalize">{fechaLabel}</p>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors">
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+          {/* Ventas */}
+          <section>
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Ventas del día</p>
+            <div className="bg-zinc-50 rounded-xl divide-y divide-zinc-100">
+              {datos.ventas_por_medio.map(m => (
+                <div key={m.medio} className="flex justify-between px-4 py-2.5 text-sm">
+                  <span className="text-zinc-600">{medioLabel(m.medio)} <span className="text-zinc-400 text-xs">({m.cantidad})</span></span>
+                  <span className="font-semibold tabular-nums">{fmt(m.total)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between px-4 py-2.5 text-sm font-bold">
+                <span className="text-zinc-700">Total ventas</span>
+                <span className="text-emerald-600 tabular-nums">{fmt(datos.total_ventas)}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Egresos */}
+          {datos.total_compras > 0 && (
+            <section>
+              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Egresos de caja (contado)</p>
+              <div className="bg-zinc-50 rounded-xl divide-y divide-zinc-100">
+                {datos.compras_por_prov.map(p => (
+                  <div key={p.proveedor} className="flex justify-between px-4 py-2.5 text-sm">
+                    <span className="text-zinc-600 truncate max-w-[60%]">{p.proveedor}</span>
+                    <span className="font-semibold tabular-nums text-rose-600">{fmt(p.total)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between px-4 py-2.5 text-sm font-bold">
+                  <span className="text-zinc-700">Total egresado</span>
+                  <span className="text-rose-600 tabular-nums">{fmt(datos.total_compras)}</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Arqueo */}
+          <section>
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Arqueo de efectivo</p>
+            <div className="bg-zinc-50 rounded-xl divide-y divide-zinc-100">
+              <div className="flex justify-between px-4 py-2.5 text-sm">
+                <span className="text-zinc-500">Efectivo ventas</span>
+                <span className="tabular-nums font-medium text-emerald-600">{fmt(efectivoVentas)}</span>
+              </div>
+              {fondoCambio > 0 && (
+                <div className="flex justify-between px-4 py-2.5 text-sm">
+                  <span className="text-zinc-500">Fondo de cambio</span>
+                  <span className="tabular-nums font-medium">{fmt(fondoCambio)}</span>
+                </div>
+              )}
+              <div className="flex justify-between px-4 py-2.5 text-sm">
+                <span className="text-zinc-500">Esperado en caja</span>
+                <span className="tabular-nums font-medium">{fmt(esperado)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5 text-sm">
+                <span className="text-zinc-500">Contado</span>
+                <span className="tabular-nums font-medium">{fmt(suma)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-2.5 text-sm font-bold">
+                <span className={diffCls}>Diferencia</span>
+                <span className={`tabular-nums ${diffCls}`}>{diferencia >= 0 ? '+' : ''}{fmt(diferencia)}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Resultado neto */}
+          <div className={`rounded-2xl px-5 py-4 flex justify-between items-center ${
+            resultado >= 0 ? 'bg-emerald-50 border border-emerald-100' : 'bg-rose-50 border border-rose-100'
+          }`}>
+            <div>
+              <p className="text-xs text-zinc-400 mb-0.5">Resultado del día</p>
+              <p className="text-xs text-zinc-400">Ventas − Egresos contado</p>
+            </div>
+            <p className={`text-2xl font-bold tabular-nums ${resultado >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {resultado >= 0 ? '+' : ''}{fmt(resultado)}
+            </p>
+          </div>
+
+          {/* Firma */}
+          <div className="border-t border-zinc-100 pt-3 flex justify-between text-xs text-zinc-300">
+            <span>Firma: _______________________</span>
+            <span>Sello</span>
+          </div>
+        </div>
+
+        {/* Footer botones — siempre visible */}
+        <div className="shrink-0 px-5 py-4 border-t border-zinc-100 bg-white flex gap-3">
+          <button
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-200 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            Compartir
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-colors"
+            style={{ background: 'var(--brand-purple)' }}
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CajaPage() {
@@ -36,6 +227,7 @@ export default function CajaPage() {
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [savedOk, setSavedOk]     = useState(false);
+  const [cierreOpen, setCierreOpen] = useState(false);
 
   // Denominaciones: { 2000: qty, 1000: qty, ... }
   const [cantidades, setCantidades] = useState<Record<number, string>>(
@@ -122,9 +314,9 @@ export default function CajaPage() {
     }
   };
 
-  const handlePrint = async () => {
+  const handleCerrarCaja = async () => {
     await guardarArqueo();
-    window.print();
+    setCierreOpen(true);
   };
 
   return (
@@ -273,8 +465,10 @@ export default function CajaPage() {
             Guardar arqueo
           </button>
           <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 bg-zinc-900 text-white text-sm px-4 py-2 rounded-xl hover:bg-zinc-800 transition-colors"
+            onClick={handleCerrarCaja}
+            disabled={saving}
+            className="flex items-center gap-1.5 text-white text-sm px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+            style={{ background: 'var(--brand-purple)' }}
           >
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
@@ -599,6 +793,21 @@ export default function CajaPage() {
       )}
 
       </div>{/* end print:hidden */}
+
+      {/* ── Modal cierre de caja ── */}
+      {cierreOpen && datos && (
+        <CierreCajaModal
+          datos={datos}
+          fecha={fecha}
+          suma={suma}
+          fondoCambio={fondoCambio}
+          efectivoVentas={efectivoVentas}
+          esperado={esperado}
+          diferencia={diferencia}
+          cantidades={cantidades}
+          onClose={() => setCierreOpen(false)}
+        />
+      )}
     </div>
   );
 }
