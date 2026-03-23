@@ -3,6 +3,8 @@ FROM php:8.2-fpm
 # System dependencies
 RUN apt-get update && apt-get install -y \
     git curl libpng-dev libonig-dev libxml2-dev zip unzip \
+    libwebp-dev libjpeg62-turbo-dev libfreetype6-dev \
+    && docker-php-ext-configure gd --with-webp --with-jpeg --with-freetype \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd opcache \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
