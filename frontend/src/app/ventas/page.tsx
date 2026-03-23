@@ -1740,38 +1740,57 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
 
       {/* Summary */}
       {!loading && ventas.length > 0 && (() => {
-        const confirmadas    = ventas.filter(v => v.estado === 'confirmada');
-        const totalSum       = confirmadas.reduce((s, v) => s + v.total, 0);
-        const conFactura     = confirmadas.filter(v => v.numero_factura);
-        const sinFactura     = confirmadas.filter(v => !v.numero_factura);
-        const totalConFac    = conFactura.reduce((s, v) => s + v.total, 0);
-        const totalSinFac    = sinFactura.reduce((s, v) => s + v.total, 0);
+        const confirmadas = ventas.filter(v => v.estado === 'confirmada');
+        const totalSum    = confirmadas.reduce((s, v) => s + v.total, 0);
+        const conFactura  = confirmadas.filter(v => v.numero_factura);
+        const sinFactura  = confirmadas.filter(v => !v.numero_factura);
+        const totalConFac = conFactura.reduce((s, v) => s + v.total, 0);
+        const totalSinFac = sinFactura.reduce((s, v) => s + v.total, 0);
         return (
-          <div className="flex flex-wrap gap-2 mb-4">
-            <div className="bg-white border border-zinc-100 rounded-xl px-4 py-2.5 text-center">
-              <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Ventas</p>
-              <p className="text-lg font-bold text-zinc-800 tabular-nums">{confirmadas.length}</p>
-            </div>
-            <div className="bg-white border border-zinc-100 rounded-xl px-4 py-2.5 text-center">
-              <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Total</p>
-              <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(totalSum)}</p>
-            </div>
-            {conFactura.length > 0 && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 text-center cursor-pointer hover:border-blue-300 transition-colors"
-                onClick={() => setFiltroFactura(filtroFactura ? '' : '__con__')}
-                title="Filtrar ventas con factura">
-                <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide">Con factura · {conFactura.length}</p>
-                <p className="text-lg font-bold text-blue-700 tabular-nums">{fmt(totalConFac)}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {/* Total general */}
+            <div className="col-span-2 sm:col-span-2 bg-white border border-zinc-100 rounded-xl px-5 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">Total del período</p>
+                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--brand-purple)' }}>{fmt(totalSum)}</p>
               </div>
-            )}
-            {sinFactura.length > 0 && (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-center cursor-pointer hover:border-zinc-400 transition-colors"
-                onClick={() => setFiltroFactura(filtroFactura ? '' : '__sin__')}
-                title="Filtrar ventas sin factura">
-                <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Sin factura · {sinFactura.length}</p>
-                <p className="text-lg font-bold text-zinc-700 tabular-nums">{fmt(totalSinFac)}</p>
+              <div className="text-right">
+                <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-0.5">Ventas</p>
+                <p className="text-2xl font-bold text-zinc-700 tabular-nums">{confirmadas.length}</p>
               </div>
-            )}
+            </div>
+            {/* Con factura */}
+            <button
+              onClick={() => setFiltroFactura(filtroFactura === '__con__' ? '' : '__con__')}
+              className={`rounded-xl px-4 py-3 text-left border-2 transition-all ${
+                filtroFactura === '__con__'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-blue-50 border-blue-200 hover:border-blue-400'
+              }`}
+            >
+              <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${filtroFactura === '__con__' ? 'text-blue-200' : 'text-blue-500'}`}>
+                Con factura · {conFactura.length}
+              </p>
+              <p className={`text-xl font-bold tabular-nums ${filtroFactura === '__con__' ? 'text-white' : 'text-blue-700'}`}>
+                {fmt(totalConFac)}
+              </p>
+            </button>
+            {/* Sin factura */}
+            <button
+              onClick={() => setFiltroFactura(filtroFactura === '__sin__' ? '' : '__sin__')}
+              className={`rounded-xl px-4 py-3 text-left border-2 transition-all ${
+                filtroFactura === '__sin__'
+                  ? 'bg-zinc-600 border-zinc-600 text-white'
+                  : 'bg-zinc-50 border-zinc-200 hover:border-zinc-400'
+              }`}
+            >
+              <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${filtroFactura === '__sin__' ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                Sin factura · {sinFactura.length}
+              </p>
+              <p className={`text-xl font-bold tabular-nums ${filtroFactura === '__sin__' ? 'text-white' : 'text-zinc-700'}`}>
+                {fmt(totalSinFac)}
+              </p>
+            </button>
           </div>
         );
       })()}
@@ -1829,7 +1848,13 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                 </thead>
                 <tbody>
                   {ventasFiltradas.map(v => (
-                    <tr key={v.id} className={`border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
+                    <tr key={v.id} className={`border-b last:border-0 transition-colors ${
+                      v.estado === 'anulada' ? 'opacity-40' : ''
+                    } ${
+                      v.numero_factura
+                        ? 'bg-blue-50/60 border-blue-100 hover:bg-blue-50'
+                        : 'border-zinc-50 hover:bg-zinc-50/60'
+                    }`}>
                       <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{v.id}</td>
                       <td className="px-4 py-3 text-zinc-600 tabular-nums text-xs">
                         {new Date(v.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })}
@@ -1838,8 +1863,9 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                         {v.numero_factura ? (
                           <button
                             onClick={() => setFiltroFactura(v.numero_factura!)}
-                            className="font-mono text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                            className="inline-flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 font-mono text-xs px-2 py-0.5 rounded-md transition-colors font-semibold"
                           >
+                            <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 2H5L1 6v6h8V2z"/><line x1="5" y1="2" x2="5" y2="6"/></svg>
                             {v.numero_factura}
                           </button>
                         ) : <span className="text-zinc-300 text-xs">—</span>}
@@ -1896,12 +1922,12 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
             </div>
 
             {/* Mobile cards */}
-            <div className="sm:hidden divide-y divide-zinc-50">
+            <div className="sm:hidden divide-y divide-zinc-100">
               {ventasFiltradas.map(v => (
-                <div key={v.id} className={`px-4 py-3 ${v.estado === 'anulada' ? 'opacity-40' : ''}`}>
+                <div key={v.id} className={`px-4 py-3 ${v.estado === 'anulada' ? 'opacity-40' : ''} ${v.numero_factura ? 'bg-blue-50/50 border-l-4 border-l-blue-400' : 'border-l-4 border-l-transparent'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-xs text-zinc-400 font-mono">#{v.id}</span>
                         <span className="text-xs text-zinc-500 tabular-nums">
                           {new Date(v.fecha).toLocaleDateString('es-CL')}
@@ -1916,13 +1942,16 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                             {MEDIO_LABEL[v.medio_pago] ?? v.medio_pago}
                           </span>
                         )}
-                        {v.numero_factura && (
+                        {v.numero_factura ? (
                           <button
                             onClick={() => setFiltroFactura(v.numero_factura!)}
-                            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                            className="inline-flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 font-mono text-[10px] px-2 py-0.5 rounded-md transition-colors font-semibold"
                           >
+                            <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1H4L1 4v5h7V1z"/><line x1="4" y1="1" x2="4" y2="4"/></svg>
                             {v.numero_factura}
                           </button>
+                        ) : (
+                          <span className="text-[10px] text-zinc-300 italic">sin factura</span>
                         )}
                       </div>
                     </div>
