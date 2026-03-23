@@ -646,6 +646,8 @@ export default function ProductosPage() {
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState('');
   const [catFilter,    setCatFilter]    = useState('');
+  const [marcaFilter,  setMarcaFilter]  = useState('');
+  const [stockAdj,     setStockAdj]     = useState<Record<number, boolean>>({});
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editId,       setEditId]       = useState<number | null>(null);
   const [form,         setForm]         = useState({ ...emptyForm });
@@ -667,15 +669,30 @@ export default function ProductosPage() {
   const load = () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (catFilter) params.set('categoria_id', catFilter);
+    if (search)      params.set('search',       search);
+    if (catFilter)   params.set('categoria_id', catFilter);
+    if (marcaFilter) params.set('marca',         marcaFilter);
     Promise.all([
       api.get<Producto[]>(`/productos?${params}`),
       api.get<Categoria[]>('/categorias'),
     ]).then(([p, c]) => { setProductos(p); setCategorias(c); setLoading(false); });
   };
 
-  useEffect(() => { load(); }, [search, catFilter]);
+  // Marcas únicas del listado actual (para el dropdown)
+  const marcas = [...new Set(productos.map(p => p.marca).filter(Boolean) as string[])].sort();
+
+  const ajustarStockRapido = async (p: Producto, delta: number) => {
+    if (stockAdj[p.id]) return;
+    setStockAdj(prev => ({ ...prev, [p.id]: true }));
+    try {
+      await api.post('/stock/ajuste', { producto_id: p.id, cantidad: delta, observacion: `Ajuste rápido ${delta > 0 ? '+' : ''}${delta}` });
+      setProductos(prev => prev.map(x => x.id === p.id ? { ...x, stock: x.stock + delta } : x));
+    } finally {
+      setStockAdj(prev => ({ ...prev, [p.id]: false }));
+    }
+  };
+
+  useEffect(() => { load(); }, [search, catFilter, marcaFilter]);
 
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); };
 
@@ -821,14 +838,14 @@ export default function ProductosPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <div className="flex-1 relative">
+      <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex-1 min-w-48 relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="5.5" cy="5.5" r="4.5"/><line x1="9" y1="9" x2="13" y2="13"/>
           </svg>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, código, marca o precio..."
+            placeholder="Buscar por nombre, código o precio..."
             className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-xl bg-white focus:outline-none focus:border-zinc-400"
           />
           {search && (
@@ -837,13 +854,34 @@ export default function ProductosPage() {
             </button>
           )}
         </div>
+
+        {/* Filtro categoría */}
         <select
-          value={catFilter} onChange={e => setCatFilter(e.target.value)}
+          value={catFilter} onChange={e => { setCatFilter(e.target.value); setMarcaFilter(''); }}
           className="w-44 border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-zinc-400"
         >
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
+
+        {/* Filtro marca */}
+        <select
+          value={marcaFilter} onChange={e => setMarcaFilter(e.target.value)}
+          className="w-40 border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-zinc-400"
+        >
+          <option value="">Todas las marcas</option>
+          {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+
+        {/* Limpiar filtros activos */}
+        {(catFilter || marcaFilter || search) && (
+          <button
+            onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); }}
+            className="px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50 whitespace-nowrap"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
@@ -891,22 +929,35 @@ export default function ProductosPage() {
                       <td className="px-3 py-3 text-zinc-500 tabular-nums">
                         {p.precio_compra != null ? `$${Number(p.precio_compra).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-2">
                         <div className="flex items-center gap-1">
-                          <span className={`font-semibold tabular-nums ${p.stock <= 0 ? 'text-rose-600' : p.stock <= 5 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                            {p.stock}
-                          </span>
-                          <span className="text-zinc-400 text-[10px]">{p.unidad_medida}</span>
-                          {/* Ajuste stock rápido */}
+                          {/* − */}
+                          <button
+                            onClick={() => ajustarStockRapido(p, -1)}
+                            disabled={!!stockAdj[p.id]}
+                            title="Quitar 1"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-400 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600 disabled:opacity-30 transition-colors text-sm font-bold"
+                          >−</button>
+
+                          {/* stock actual — clic abre modal para ajuste grande */}
                           <button
                             onClick={() => setAjusteP(p)}
-                            title="Ajustar stock"
-                            className="ml-1 w-5 h-5 flex items-center justify-center rounded border border-zinc-200 text-zinc-400 hover:text-zinc-700 hover:border-zinc-400 transition-colors"
+                            title="Ajuste manual"
+                            className={`min-w-[2.5rem] text-center px-1 py-0.5 rounded-lg text-xs font-semibold tabular-nums transition-colors
+                              ${p.stock <= 0 ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                                : p.stock <= 5 ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                           >
-                            <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
-                            </svg>
+                            {p.stock}<span className="text-[9px] font-normal ml-0.5 opacity-70">{p.unidad_medida !== 'unidad' ? p.unidad_medida : ''}</span>
                           </button>
+
+                          {/* + */}
+                          <button
+                            onClick={() => ajustarStockRapido(p, 1)}
+                            disabled={!!stockAdj[p.id]}
+                            title="Agregar 1"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-400 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600 disabled:opacity-30 transition-colors text-sm font-bold"
+                          >+</button>
                         </div>
                       </td>
                       {/* Destacado toggle */}

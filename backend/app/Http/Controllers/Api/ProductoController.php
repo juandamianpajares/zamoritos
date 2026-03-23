@@ -41,6 +41,10 @@ class ProductoController extends Controller
             }
         }
 
+        if ($request->filled('marca')) {
+            $query->where('marca', $request->marca);
+        }
+
         if ($request->boolean('stock_bajo')) {
             $query->whereColumn('stock', '<=', DB::raw('COALESCE(stock_minimo, 5)'));
         }
