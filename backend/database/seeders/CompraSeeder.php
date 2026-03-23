@@ -11,142 +11,113 @@ use App\Models\Proveedor;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Compra inicial de apertura (stock semilla).
+ *
+ * Solo se crea si la factura 'APERTURA-2026' no existe (idempotente).
+ * Incluye únicamente productos individuales (no combos) del catálogo ALIMENTOS.
+ * Cantidades = 5 unidades por producto como stock inicial.
+ *
+ * Catálogo:
+ *   codigo_barras         precio_compra  qty
+ *   7730918030051  LAGER 22         1163   5
+ *   7730918030044  LAGER 10          529   5
+ *   7898510456119  MANT NEGRA 22+2  1426   5
+ *   7908320401046  MANT NEGRA 7      454   5
+ *   7898224823153  VITTAMAX 25      1578   5
+ *   7898224824167  VITTAMAX 10       697   5
+ *   7898510458878  PREMIUM NAR 22+2 1988   5
+ *   7898510458854  PREMIUM NAR 10    904   5
+ *   7730900660259  REALCAN 25       1174   5
+ *   7730900660648  REALCAN 8         376   5
+ *   7730900660761  FORTACHON 25      805   5
+ */
 class CompraSeeder extends Seeder
 {
     public function run(): void
     {
-        $proveedor    = Proveedor::first();
-        $provGranos   = Proveedor::where('nombre', 'like', '%Granos%')->first() ?? $proveedor;
+        $factura = 'APERTURA-2026';
 
-        // Helper: obtiene producto por codigo_barras
-        $prod = fn(string $codigo) => Producto::where('codigo_barras', $codigo)->first();
+        if (Compra::where('factura', $factura)->exists()) {
+            $this->command->info('CompraSeeder: compra inicial ya existe, omitida.');
+            return;
+        }
 
-        // Compras del CSV agrupadas por comprobante/factura
-        // "Precio Venta" en filas Compra = precio de costo unitario
-        $compras = [
-            ['factura' => 'A701829', 'fecha' => '2026-03-11', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '8445290068798', 'cantidad' => 1, 'costo' => 3307],
-            ]],
-            ['factura' => 'A11096', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7730900660259', 'cantidad' => 1, 'costo' => 1990],
-                ['codigo' => '7898349703637', 'cantidad' => 1, 'costo' => 280],
-            ]],
-            ['factura' => 'A11097', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7730900660761', 'cantidad' => 1, 'costo' => 1208],
-            ]],
-            ['factura' => 'A11098', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7898224825096', 'cantidad' => 1, 'costo' => 140],
-                ['codigo' => '7898224823122', 'cantidad' => 1, 'costo' => 132],
-            ]],
-            ['factura' => 'A11099', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7896588948253', 'cantidad' => 1, 'costo' => 480],
-                ['codigo' => '7896588948246', 'cantidad' => 1, 'costo' => 205],
-            ]],
-            ['factura' => 'A11101', 'fecha' => '2026-03-13', 'proveedor' => $provGranos, 'detalles' => [
-                ['codigo' => 'RAC016',        'cantidad' => 1, 'costo' => 68],
-                ['codigo' => '7730906561017', 'cantidad' => 1, 'costo' => 83],
-            ]],
-            ['factura' => 'A11102', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7730944740276', 'cantidad' => 1, 'costo' => 685],
-            ]],
-            ['factura' => 'A11103', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => 'ND14228',       'cantidad' => 1, 'costo' => 826],
-            ]],
-            ['factura' => 'A11104', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7730900660761', 'cantidad' => 1, 'costo' => 1208],
-                ['codigo' => '7730918030846', 'cantidad' => 1, 'costo' => 860],
-            ]],
-            ['factura' => 'A11105', 'fecha' => '2026-03-13', 'proveedor' => $provGranos, 'detalles' => [
-                ['codigo' => 'RAC023',        'cantidad' => 1, 'costo' => 81],
-                ['codigo' => '7730906560942', 'cantidad' => 1, 'costo' => 60],
-            ]],
-            ['factura' => 'A11106', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7898363312716', 'cantidad' => 1, 'costo' => 20],
-            ]],
-            ['factura' => 'A11107', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7898939952957', 'cantidad' => 1, 'costo' => 173],
-            ]],
-            ['factura' => 'A11108', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '675',           'cantidad' => 1, 'costo' => 438],
-            ]],
-            ['factura' => 'A11109', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7730918031102', 'cantidad' => 1, 'costo' => 1650],
-            ]],
-            ['factura' => 'A11110', 'fecha' => '2026-03-13', 'proveedor' => $provGranos, 'detalles' => [
-                ['codigo' => 'RAC024',        'cantidad' => 1, 'costo' => 56],
-            ]],
-            ['factura' => 'A11111', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7896588948253', 'cantidad' => 1, 'costo' => 480],
-                ['codigo' => '7898939952957', 'cantidad' => 1, 'costo' => 650],
-            ]],
-            ['factura' => 'A11112', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7898510459080', 'cantidad' => 1, 'costo' => 205],
-            ]],
-            ['factura' => 'A11113', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7896588939138', 'cantidad' => 1, 'costo' => 368],
-            ]],
-            ['factura' => 'A11114', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7896803080102', 'cantidad' => 1, 'costo' => 2191],
-            ]],
-            ['factura' => 'A11115', 'fecha' => '2026-03-13', 'proveedor' => $proveedor, 'detalles' => [
-                ['codigo' => '7896588952106', 'cantidad' => 1, 'costo' => 310],
-            ]],
-            ['factura' => 'A11118', 'fecha' => '2026-03-13', 'proveedor' => $provGranos, 'detalles' => [
-                ['codigo' => 'RAC023',        'cantidad' => 1, 'costo' => 135],
-                ['codigo' => '7896588952106', 'cantidad' => 1, 'costo' => 310],
-            ]],
+        $proveedor = Proveedor::where('activo', true)->first();
+
+        // [codigo_barras, precio_compra, cantidad]
+        $lineas = [
+            ['7730918030051', 1163, 5],
+            ['7730918030044',  529, 5],
+            ['7898510456119', 1426, 5],
+            ['7908320401046',  454, 5],
+            ['7898224823153', 1578, 5],
+            ['7898224824167',  697, 5],
+            ['7898510458878', 1988, 5],
+            ['7898510458854',  904, 5],
+            ['7730900660259', 1174, 5],
+            ['7730900660648',  376, 5],
+            ['7730900660761',  805, 5],
         ];
 
-        foreach ($compras as $c) {
-            DB::transaction(function () use ($c, $prod) {
-                $detalles = collect($c['detalles'])
-                    ->map(fn($d) => array_merge($d, ['producto' => $prod($d['codigo'])]))
-                    ->filter(fn($d) => $d['producto'] !== null)
-                    ->values();
+        $detalles = [];
+        foreach ($lineas as [$codigo, $pc, $qty]) {
+            $producto = Producto::where('codigo_barras', $codigo)->first();
+            if (!$producto) {
+                $this->command->warn("Producto no encontrado: {$codigo}");
+                continue;
+            }
+            $detalles[] = compact('producto', 'pc', 'qty');
+        }
 
-                if ($detalles->isEmpty()) return;
+        if (empty($detalles)) {
+            $this->command->warn('CompraSeeder: sin detalles, abortando.');
+            return;
+        }
 
-                $total  = $detalles->sum(fn($d) => $d['cantidad'] * $d['costo']);
-                $compra = Compra::create([
-                    'proveedor_id' => $c['proveedor']?->id,
-                    'fecha'        => $c['fecha'],
-                    'factura'      => $c['factura'],
-                    'usuario'      => 'admin',
-                    'total'        => $total,
+        DB::transaction(function () use ($factura, $proveedor, $detalles) {
+            $total = collect($detalles)->sum(fn($d) => $d['pc'] * $d['qty']);
+
+            $compra = Compra::create([
+                'proveedor_id' => $proveedor?->id,
+                'fecha'        => '2026-01-01',
+                'factura'      => $factura,
+                'total'        => $total,
+                'nota'         => 'Stock inicial de apertura',
+            ]);
+
+            foreach ($detalles as $d) {
+                $subtotal = $d['pc'] * $d['qty'];
+
+                DetalleCompra::create([
+                    'compra_id'     => $compra->id,
+                    'producto_id'   => $d['producto']->id,
+                    'cantidad'      => $d['qty'],
+                    'precio_compra' => $d['pc'],
+                    'subtotal'      => $subtotal,
                 ]);
 
-                foreach ($detalles as $d) {
-                    $producto = $d['producto'];
-                    $subtotal = $d['cantidad'] * $d['costo'];
+                $d['producto']->increment('stock', $d['qty']);
+                $d['producto']->update(['precio_compra' => $d['pc']]);
 
-                    DetalleCompra::create([
-                        'compra_id'     => $compra->id,
-                        'producto_id'   => $producto->id,
-                        'cantidad'      => $d['cantidad'],
-                        'precio_compra' => $d['costo'],
-                        'subtotal'      => $subtotal,
-                    ]);
+                MovimientoStock::create([
+                    'producto_id' => $d['producto']->id,
+                    'tipo'        => 'ingreso',
+                    'cantidad'    => $d['qty'],
+                    'referencia'  => 'compra #' . $compra->id,
+                    'observacion' => 'Apertura stock inicial · ' . $factura,
+                ]);
 
-                    $producto->increment('stock', $d['cantidad']);
+                Lote::create([
+                    'producto_id'       => $d['producto']->id,
+                    'compra_id'         => $compra->id,
+                    'cantidad'          => $d['qty'],
+                    'cantidad_restante' => $d['qty'],
+                    'fecha_vencimiento' => null,
+                ]);
+            }
+        });
 
-                    MovimientoStock::create([
-                        'producto_id' => $producto->id,
-                        'tipo'        => 'ingreso',
-                        'cantidad'    => $d['cantidad'],
-                        'referencia'  => 'compra #' . $compra->id,
-                        'usuario'     => 'admin',
-                        'observacion' => 'Factura: ' . $c['factura'],
-                    ]);
-
-                    Lote::create([
-                        'producto_id'       => $producto->id,
-                        'compra_id'         => $compra->id,
-                        'cantidad'          => $d['cantidad'],
-                        'cantidad_restante' => $d['cantidad'],
-                        'fecha_vencimiento' => null,
-                    ]);
-                }
-            });
-        }
+        $this->command->info('CompraSeeder: stock inicial cargado — ' . count($detalles) . ' productos.');
     }
 }
