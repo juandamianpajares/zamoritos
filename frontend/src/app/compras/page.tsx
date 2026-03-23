@@ -154,18 +154,26 @@ export default function ComprasPage() {
                 </tr>
               </thead>
               <tbody>
-                {compras.map(c => {
+                {compras.map((c, idx) => {
                   const estadoColor = c.estado_pago === 'pagado'
                     ? 'bg-emerald-50 text-emerald-700'
                     : c.estado_pago === 'parcial'
                     ? 'bg-amber-50 text-amber-700'
                     : 'bg-rose-50 text-rose-600';
+                  const refFactura = c.factura
+                    ? { label: c.factura, esReal: true }
+                    : { label: `N${String(c.id).padStart(4, '0')}`, esReal: false };
                   return (
                   <tr key={c.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
-                    <td className="px-4 py-3 text-zinc-400 font-mono text-xs">#{c.id}</td>
+                    <td className="px-4 py-3 text-zinc-400 font-mono text-xs">{compras.length - idx}</td>
                     <td className="px-4 py-3 text-zinc-600 text-xs">{new Date(c.fecha).toLocaleDateString('es-CL')}</td>
                     <td className="px-4 py-3 font-medium text-zinc-800">{c.proveedor?.nombre ?? <span className="text-zinc-400">—</span>}</td>
-                    <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{c.factura ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {refFactura.esReal
+                        ? <span className="text-zinc-700 font-semibold">{refFactura.label}</span>
+                        : <span className="text-zinc-400 bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded">{refFactura.label}</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 text-xs">
                       {c.tipo_pago === 'diferido'
                         ? <span className="text-amber-700">{c.dias_plazo}d · {c.fecha_vencimiento ? new Date(c.fecha_vencimiento).toLocaleDateString('es-CL') : '—'}</span>
@@ -402,14 +410,15 @@ export default function ComprasPage() {
 
 // ─── Modal detalle compra ─────────────────────────────────────────────────────
 function DetalleCompraModal({ compra, onClose }: { compra: Compra; onClose: () => void }) {
+  const refFactura = compra.factura ?? `N${String(compra.id).padStart(4, '0')}`;
   return (
-    <Modal isOpen onClose={onClose} title={`Compra #${compra.id}`} size="lg">
+    <Modal isOpen onClose={onClose} title={`Compra ${refFactura}`} size="lg">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           {([
             ['Proveedor', compra.proveedor?.nombre ?? '—'],
             ['Fecha', new Date(compra.fecha).toLocaleDateString('es-CL')],
-            ['Factura', compra.factura ?? '—'],
+            ['Referencia', refFactura],
             ['Total', `$${Math.round(compra.total ?? 0).toLocaleString('es-CL')}`],
           ] as [string, string][]).map(([k, v]) => (
             <div key={k} className="bg-zinc-50 rounded-xl px-4 py-3">
