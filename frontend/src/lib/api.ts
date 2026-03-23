@@ -36,6 +36,7 @@ export interface Categoria {
   id: number;
   nombre: string;
   foto?: string;
+  foto_url?: string;
   parent_id?: number;
   children?: Categoria[];
 }
