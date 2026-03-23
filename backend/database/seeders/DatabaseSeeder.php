@@ -9,13 +9,14 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            CategoriaSeeder::class,  // 1. Categorías (con jerarquía) + COMBO + OFERTA
-            MarcaSeeder::class,      // 2. Marcas
-            ProveedorSeeder::class,  // 3. Proveedores
-            ProductoSeeder::class,          // 4. Catálogo ALIMENTOS + combos con combo_items
-            PromoSeeder::class,             // 5. promo_producto_id + en_promo en combos
-            ZamoritorsCatalogoSeeder::class,// 6. Catálogo extendido (200+ productos)
-            CompraSeeder::class,            // 7. Compra apertura → stock inicial 5u/producto
+            CategoriaSeeder::class,         // 1. Categorías (jerarquía completa)
+            MarcaSeeder::class,             // 2. Marcas
+            ProveedorSeeder::class,         // 3. Proveedores con RUT y contacto
+            ProductoSeeder::class,          // 4. Catálogo base ALIMENTOS + combos
+            PromoSeeder::class,             // 5. Promos sobre combos
+            ZamoritorsCatalogoSeeder::class,// 6. Catálogo extendido (stock = 0)
+            // CompraSeeder → NO: stock se carga vía compras reales en la UI
+            // VentaSeeder  → NO: ventas son datos operativos reales
         ]);
     }
 }
