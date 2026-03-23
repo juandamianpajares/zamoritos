@@ -25,6 +25,7 @@ Route::get('dashboard/ganancia',       [DashboardController::class, 'ganancia'])
 Route::get('dashboard/caja',           [DashboardController::class, 'caja']);
 Route::get('dashboard/arqueo',         [DashboardController::class, 'arqueo']);
 Route::post('dashboard/arqueo',        [DashboardController::class, 'guardarArqueo']);
+Route::post('dashboard/caja-imagen',   [DashboardController::class, 'guardarImagenCaja']);
 
 Route::get('categorias/tree',        [CategoriaController::class, 'tree']);
 Route::post('categorias/importar',   [ImportarCategoriasController::class, 'store']);

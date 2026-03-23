@@ -73,40 +73,125 @@ function CierreCajaModal({
   const diffCls = diferencia === 0 ? 'text-emerald-600' : Math.abs(diferencia) <= 50 ? 'text-amber-600' : 'text-rose-600';
   const grupos = agruparMedios(datos.ventas_por_medio);
 
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+
   const handlePrint = () => {
     onClose();
     setTimeout(() => window.print(), 80);
   };
 
-  const handleShare = async () => {
-    const lines = [
-      `🏪 CIERRE DE CAJA`,
-      fechaLabel.toUpperCase(),
-      '─'.repeat(30),
-      '',
-      '📊 VENTAS DEL DÍA',
-      ...grupos.map(g => `  ${g.label}: ${fmt(g.total)} (${g.cantidad})`),
-      `  TOTAL: ${fmt(datos.total_ventas)}`,
-      '',
-      ...(datos.total_compras > 0 ? [
-        '📦 EGRESOS CONTADO',
-        `  Total: ${fmt(datos.total_compras)}`,
-        '',
-      ] : []),
-      '💵 ARQUEO',
-      `  Contado: ${fmt(suma)}`,
-      `  Esperado: ${fmt(esperado)}`,
-      `  Diferencia: ${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`,
-      '',
-      '─'.repeat(30),
-      `RESULTADO: ${resultado >= 0 ? '+' : ''}${fmt(resultado)}`,
-    ].join('\n');
+  const generarImagenCanvas = async (): Promise<string> => {
+    const W = 600;
+    const PAD = 32;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
 
-    if (navigator.share) {
-      await navigator.share({ title: `Cierre ${fechaLabel}`, text: lines });
-    } else {
-      await navigator.clipboard.writeText(lines);
-      alert('Resumen copiado al portapapeles');
+    // Medir altura necesaria
+    const rows = 6 + grupos.length + (datos.total_compras > 0 ? 3 : 0);
+    canvas.width = W;
+    canvas.height = 120 + rows * 36 + 80;
+
+    // Fondo blanco
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, canvas.height);
+
+    // Header morado
+    const grad = ctx.createLinearGradient(0, 0, W, 80);
+    grad.addColorStop(0, '#7B2D8B');
+    grad.addColorStop(1, '#5E1F6C');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 80);
+
+    // Título
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText('CIERRE DE CAJA', PAD, 38);
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillText(fechaLabel.toUpperCase(), PAD, 60);
+
+    let y = 100;
+    const row = (label: string, value: string, bold = false, color = '#18181b') => {
+      ctx.font = bold ? 'bold 14px system-ui, sans-serif' : '14px system-ui, sans-serif';
+      ctx.fillStyle = '#71717a';
+      ctx.fillText(label, PAD, y);
+      ctx.fillStyle = color;
+      ctx.font = bold ? 'bold 15px system-ui, sans-serif' : '15px system-ui, sans-serif';
+      const tw = ctx.measureText(value).width;
+      ctx.fillText(value, W - PAD - tw, y);
+      y += 34;
+    };
+    const sep = (label: string) => {
+      ctx.fillStyle = '#f4f4f5';
+      ctx.fillRect(PAD, y - 6, W - PAD * 2, 1);
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillText(label.toUpperCase(), PAD, y + 10);
+      y += 26;
+    };
+
+    sep('VENTAS DEL DÍA');
+    grupos.forEach(g => row(`${g.label} (${g.cantidad})`, fmt(g.total)));
+    row('Total ventas', fmt(datos.total_ventas), true, '#059669');
+    y += 8;
+
+    if (datos.total_compras > 0) {
+      sep('EGRESOS CONTADO');
+      row('Total egresado', fmt(datos.total_compras), true, '#e11d48');
+      y += 8;
+    }
+
+    sep('ARQUEO');
+    row('Contado en caja', fmt(suma));
+    row('Esperado', fmt(esperado));
+    const diffColor = diferencia === 0 ? '#059669' : Math.abs(diferencia) <= 50 ? '#d97706' : '#e11d48';
+    row('Diferencia', `${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}`, false, diffColor);
+    y += 8;
+
+    // Resultado neto
+    ctx.fillStyle = resultado >= 0 ? '#f0fdf4' : '#fff1f2';
+    ctx.beginPath();
+    ctx.roundRect(PAD, y, W - PAD * 2, 56, 12);
+    ctx.fill();
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = '#71717a';
+    ctx.fillText('Resultado del día', PAD + 16, y + 22);
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillStyle = resultado >= 0 ? '#16a34a' : '#dc2626';
+    const resStr = `${resultado >= 0 ? '+' : ''}${fmt(resultado)}`;
+    const resW = ctx.measureText(resStr).width;
+    ctx.fillText(resStr, W - PAD - resW - 16, y + 38);
+    y += 72;
+
+    // Footer
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = '#d4d4d8';
+    const stamp = `Zamoritos · ${new Date().toLocaleString('es-CL')}`;
+    ctx.fillText(stamp, PAD, y);
+
+    // Ajustar altura real
+    canvas.height = y + 20;
+    return canvas.toDataURL('image/webp', 0.92);
+  };
+
+  const handleSinPapel = async () => {
+    setSharing(true);
+    setShareUrl('');
+    try {
+      const dataUrl = await generarImagenCanvas();
+      const r = await fetch((process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api') + '/dashboard/caja-imagen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ fecha, imagen: dataUrl }),
+      });
+      const json = await r.json();
+      const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '');
+      setShareUrl(host + json.url);
+    } catch {
+      alert('No se pudo generar la imagen');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -226,29 +311,54 @@ function CierreCajaModal({
         </div>
 
         {/* Footer botones — siempre visible */}
-        <div className="shrink-0 px-5 py-4 border-t border-zinc-100 bg-white flex gap-3">
-          <button
-            onClick={handleShare}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-200 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors"
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-            Compartir
-          </button>
-          <button
-            onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-colors"
-            style={{ background: 'var(--brand-purple)' }}
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <polyline points="6 9 6 2 18 2 18 9"/>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-              <rect x="6" y="14" width="12" height="8"/>
-            </svg>
-            Imprimir
-          </button>
+        <div className="shrink-0 px-5 pt-3 pb-5 border-t border-zinc-100 bg-white space-y-3">
+          {/* URL generada */}
+          {shareUrl && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 flex items-center gap-2">
+              <svg width="14" height="14" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" className="shrink-0">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <a href={shareUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-emerald-700 font-mono truncate flex-1 hover:underline">
+                {shareUrl}
+              </a>
+              <button onClick={() => { navigator.clipboard.writeText(shareUrl); }}
+                className="shrink-0 text-[10px] text-emerald-600 font-semibold hover:text-emerald-800 border border-emerald-200 rounded-lg px-2 py-1">
+                Copiar
+              </button>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={handleSinPapel}
+              disabled={sharing}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              style={{ background: sharing ? '#6b7280' : '#16a34a' }}
+              title="Genera imagen del cierre y guarda en el servidor — sin imprimir papel 🌿"
+            >
+              {sharing ? (
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              )}
+              {sharing ? 'Generando…' : 'Sin papel 🌿'}
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-colors"
+              style={{ background: 'var(--brand-purple)' }}
+            >
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              Imprimir
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -358,6 +468,17 @@ export default function CajaPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1">
+
+      {/* ── CSS de impresión: márgenes y sin páginas en blanco ── */}
+      <style>{`
+        @media print {
+          @page { margin: 12mm 15mm; size: A4 portrait; }
+          body > * { display: none !important; }
+          .print\\:block { display: block !important; }
+          .print\\:hidden { display: none !important; }
+          html, body { height: auto !important; overflow: visible !important; }
+        }
+      `}</style>
 
       {/* ── Print-only cierre de caja ── */}
       <div className="hidden print:block font-sans text-zinc-900">

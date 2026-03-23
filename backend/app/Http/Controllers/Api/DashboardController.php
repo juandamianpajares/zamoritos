@@ -280,6 +280,39 @@ class DashboardController extends Controller
         return response()->json($arqueo);
     }
 
+    /**
+     * Recibe la imagen del cierre de caja generada en el frontend (Canvas → WebP)
+     * y la guarda en storage/app/public/imagenes_comprobantes/caja_{fecha}.webp.
+     * Devuelve la URL pública relativa.
+     */
+    public function guardarImagenCaja(Request $request): JsonResponse
+    {
+        $request->validate([
+            'fecha'  => 'required|date',
+            'imagen' => 'required|string', // base64 data URL
+        ]);
+
+        $fecha   = $request->fecha;
+        $dataUrl = $request->imagen;
+
+        // Decodificar base64
+        if (!preg_match('/^data:image\/webp;base64,(.+)$/', $dataUrl, $m)) {
+            return response()->json(['error' => 'Formato de imagen inválido.'], 422);
+        }
+        $bytes = base64_decode($m[1]);
+        if (!$bytes) {
+            return response()->json(['error' => 'No se pudo decodificar la imagen.'], 422);
+        }
+
+        $dir  = 'imagenes_comprobantes';
+        $file = "caja_{$fecha}.webp";
+        $path = "{$dir}/{$file}";
+
+        \Illuminate\Support\Facades\Storage::disk('public')->put($path, $bytes);
+
+        return response()->json(['url' => '/storage/' . $path]);
+    }
+
     public function topProductos(Request $request): JsonResponse
     {
         $periodo = $request->get('periodo', 'mes');
