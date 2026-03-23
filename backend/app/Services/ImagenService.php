@@ -31,7 +31,7 @@ class ImagenService
     const ICON_W     = 128;
     const ICON_H     = 128;
 
-    // ── Calidad JPEG ─────────────────────────────────────────────────────────
+    // ── Calidad WebP ─────────────────────────────────────────────────────────
     const Q_PROD  = 85;
     const Q_THUMB = 75;
     const Q_CAT   = 80;
@@ -53,16 +53,16 @@ class ImagenService
     {
         $gd = $this->cargar($tmpPath);
 
-        // Principal: fit dentro de 800×800 con fondo blanco
-        $principal = $this->fitConFondo($gd, self::PROD_W, self::PROD_H);
-        $pathPrincipal = "productos/{$slug}.jpg";
-        Storage::disk('public')->put($pathPrincipal, $this->toJpeg($principal, self::Q_PROD));
+        // Principal: fit dentro de 800×800 — salida WebP
+        $principal     = $this->fitConFondo($gd, self::PROD_W, self::PROD_H);
+        $pathPrincipal = "productos/{$slug}.webp";
+        Storage::disk('public')->put($pathPrincipal, $this->toWebp($principal, self::Q_PROD));
         imagedestroy($principal);
 
-        // Thumbnail: crop centrado 200×200
-        $thumb = $this->cropCentrado($gd, self::THUMB_W, self::THUMB_H);
-        $pathThumb = "productos/thumbs/{$slug}.jpg";
-        Storage::disk('public')->put($pathThumb, $this->toJpeg($thumb, self::Q_THUMB));
+        // Thumbnail: crop centrado 200×200 — salida WebP
+        $thumb     = $this->cropCentrado($gd, self::THUMB_W, self::THUMB_H);
+        $pathThumb = "productos/thumbs/{$slug}.webp";
+        Storage::disk('public')->put($pathThumb, $this->toWebp($thumb, self::Q_THUMB));
         imagedestroy($thumb);
 
         imagedestroy($gd);
@@ -71,29 +71,28 @@ class ImagenService
     }
 
     /**
-     * Genera thumbnail de categoría (400×200 crop centrado).
+     * Genera thumbnail de categoría (400×200 crop centrado) — WebP.
      */
     public function guardarCategoria(string $tmpPath, string $slug): string
     {
         $gd   = $this->cargar($tmpPath);
         $cat  = $this->cropCentrado($gd, self::CAT_W, self::CAT_H);
-        $path = "categorias/{$slug}.jpg";
-        Storage::disk('public')->put($path, $this->toJpeg($cat, self::Q_CAT));
+        $path = "categorias/{$slug}.webp";
+        Storage::disk('public')->put($path, $this->toWebp($cat, self::Q_CAT));
         imagedestroy($cat);
         imagedestroy($gd);
         return $path;
     }
 
     /**
-     * Genera ícono de categoría (128×128 crop centrado, PNG con transparencia).
-     * Devuelve el path relativo guardado.
+     * Genera ícono de categoría (128×128 crop centrado, WebP con transparencia).
      */
     public function guardarIconoCategoria(string $tmpPath, string $slug): string
     {
         $gd   = $this->cargar($tmpPath);
         $icon = $this->cropCentradoTransparente($gd, self::ICON_W, self::ICON_H);
-        $path = "categorias/iconos/{$slug}.png";
-        Storage::disk('public')->put($path, $this->toPng($icon));
+        $path = "categorias/iconos/{$slug}.webp";
+        Storage::disk('public')->put($path, $this->toWebp($icon, self::Q_CAT));
         imagedestroy($icon);
         imagedestroy($gd);
         return $path;
@@ -164,12 +163,12 @@ class ImagenService
     }
 
     /**
-     * Convierte GdImage → string JPEG en memoria.
+     * Convierte GdImage → string WebP en memoria.
      */
-    private function toJpeg(\GdImage $img, int $quality): string
+    private function toWebp(\GdImage $img, int $quality): string
     {
         ob_start();
-        imagejpeg($img, null, $quality);
+        imagewebp($img, null, $quality);
         return ob_get_clean();
     }
 

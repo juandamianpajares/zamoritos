@@ -38,18 +38,18 @@ class Producto extends Model
         'destacado'           => 'boolean',
     ];
 
-    /** URL pública de la foto principal (storage local o URL externa) */
+    /** URL pública de la foto principal — ruta relativa para evitar conflictos http/https */
     public function getFotoUrlAttribute(): ?string
     {
         if (!empty($this->attributes['foto_externa'])) return $this->attributes['foto_externa'];
-        if (!empty($this->attributes['foto']))         return Storage::disk('public')->url($this->attributes['foto']);
+        if (!empty($this->attributes['foto']))         return '/storage/' . $this->attributes['foto'];
         return null;
     }
 
-    /** URL pública del thumbnail */
+    /** URL pública del thumbnail — ruta relativa */
     public function getThumbUrlAttribute(): ?string
     {
-        if (!empty($this->attributes['thumb'])) return Storage::disk('public')->url($this->attributes['thumb']);
+        if (!empty($this->attributes['thumb']))        return '/storage/' . $this->attributes['thumb'];
         if (!empty($this->attributes['foto_externa'])) return $this->attributes['foto_externa'];
         return null;
     }

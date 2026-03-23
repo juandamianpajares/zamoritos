@@ -19,7 +19,7 @@ class Categoria extends Model
     public function getFotoUrlAttribute(): ?string
     {
         if (empty($this->attributes['foto'])) return null;
-        return Storage::disk('public')->url($this->attributes['foto']);
+        return '/storage/' . $this->attributes['foto'];
     }
 
     public function parent(): BelongsTo
