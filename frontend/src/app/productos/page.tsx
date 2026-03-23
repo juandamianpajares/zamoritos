@@ -688,6 +688,7 @@ export default function ProductosPage() {
   const [search,       setSearch]       = useState('');
   const [catFilter,    setCatFilter]    = useState('');
   const [marcaFilter,  setMarcaFilter]  = useState('');
+  const [specialFilter, setSpecialFilter] = useState<'' | 'promo' | 'combo'>('');
   const [stockAdj,     setStockAdj]     = useState<Record<number, boolean>>({});
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editId,       setEditId]       = useState<number | null>(null);
@@ -735,6 +736,12 @@ export default function ProductosPage() {
   };
 
   useEffect(() => { load(); }, [search, catFilter, marcaFilter]);
+
+  const productosFiltrados = specialFilter === 'promo'
+    ? productos.filter(p => p.en_promo)
+    : specialFilter === 'combo'
+    ? productos.filter(p => p.es_combo)
+    : productos;
 
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
 
@@ -905,9 +912,9 @@ export default function ProductosPage() {
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
-        {(catFilter || marcaFilter || search) && (
+        {(catFilter || marcaFilter || search || specialFilter) && (
           <button
-            onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); }}
+            onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); setSpecialFilter(''); }}
             className="px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50 whitespace-nowrap flex items-center gap-1"
           >
             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
@@ -915,6 +922,41 @@ export default function ProductosPage() {
           </button>
         )}
       </div>
+
+      {/* ── Pills especiales: Promo / Combo ──────────────────────────────── */}
+      {(() => {
+        const nPromo  = productos.filter(p => p.en_promo).length;
+        const nCombo  = productos.filter(p => p.es_combo).length;
+        if (!nPromo && !nCombo) return null;
+        return (
+          <div className="flex gap-1.5 mb-2">
+            {nPromo > 0 && (
+              <button
+                onClick={() => setSpecialFilter(specialFilter === 'promo' ? '' : 'promo')}
+                className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                  specialFilter === 'promo'
+                    ? 'bg-rose-500 text-white border-rose-500'
+                    : 'bg-rose-50 text-rose-600 border-rose-100 hover:border-rose-300'
+                }`}
+              >
+                🏷 Ofertas <span className="opacity-70">{nPromo}</span>
+              </button>
+            )}
+            {nCombo > 0 && (
+              <button
+                onClick={() => setSpecialFilter(specialFilter === 'combo' ? '' : 'combo')}
+                className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                  specialFilter === 'combo'
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-violet-50 text-violet-600 border-violet-100 hover:border-violet-300'
+                }`}
+              >
+                📦 Combos <span className="opacity-70">{nCombo}</span>
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Pills de marca (scroll horizontal) ──────────────────────────── */}
       {marcas.length > 0 && (
@@ -927,10 +969,11 @@ export default function ProductosPage() {
                 : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
             }`}
           >
-            Todas ({productos.length})
+            Todas ({productosFiltrados.length})
           </button>
           {marcas.map(m => {
-            const count = productos.filter(p => p.marca === m).length;
+            const count = productosFiltrados.filter(p => p.marca === m).length;
+            if (!count) return null;
             const isActive = marcaFilter === m;
             const col = marcaColor(m);
             return (
@@ -967,7 +1010,7 @@ export default function ProductosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
-                {productos.map(p => {
+                {productosFiltrados.map(p => {
                   const margenPct = p.precio_compra && p.precio_compra > 0
                     ? Math.round(((p.precio_venta - p.precio_compra) / p.precio_compra) * 100)
                     : null;
@@ -985,13 +1028,16 @@ export default function ProductosPage() {
                           {p.codigo_barras && (
                             <span className="text-[10px] font-mono text-zinc-400">{p.codigo_barras}</span>
                           )}
+                          {p.es_combo && (
+                            <span className="text-[10px] bg-violet-50 text-violet-600 px-1.5 py-px rounded-full font-medium border border-violet-100">📦 Combo</span>
+                          )}
                           {p.en_promo && p.precio_promo != null && (
                             <span className="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-px rounded-full font-medium border border-rose-100">
-                              Promo ${Math.round(p.precio_promo!).toLocaleString('es-CL')}
+                              🏷 ${Math.round(p.precio_promo!).toLocaleString('es-CL')}
                             </span>
                           )}
                           {p.fraccionado_de && (
-                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-px rounded-full font-medium border border-amber-100">Fraccionado</span>
+                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-px rounded-full font-medium border border-amber-100">✂ Fracc.</span>
                           )}
                           {p.destacado && (
                             <span className="text-[10px]" title="Destacado">⭐</span>
@@ -1096,12 +1142,12 @@ export default function ProductosPage() {
                     </tr>
                   );
                 })}
-                {productos.length === 0 && (
+                {productosFiltrados.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-6 py-16 text-center">
-                      <p className="text-zinc-400 text-sm">Sin productos{search || catFilter || marcaFilter ? ' para los filtros aplicados' : ''}</p>
-                      {(search || catFilter || marcaFilter) && (
-                        <button onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); }}
+                      <p className="text-zinc-400 text-sm">Sin productos{search || catFilter || marcaFilter || specialFilter ? ' para los filtros aplicados' : ''}</p>
+                      {(search || catFilter || marcaFilter || specialFilter) && (
+                        <button onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); setSpecialFilter(''); }}
                           className="mt-2 text-xs text-zinc-500 underline hover:text-zinc-700">
                           Limpiar filtros
                         </button>
