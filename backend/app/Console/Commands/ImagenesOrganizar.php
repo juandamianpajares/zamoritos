@@ -10,23 +10,24 @@ use Illuminate\Support\Facades\Storage;
 /**
  * php artisan imagenes:organizar {directorio}
  *
- * Escanea un directorio local de imágenes, intenta matchear cada archivo
- * con un producto (por código de barras o nombre), procesa la imagen con
- * ImagenService y guarda en storage/app/public/productos/.
+ * Convención estricta: cada imagen DEBE llamarse exactamente igual al
+ * código de barras del producto con extensión .webp
  *
- * Naming esperado (en orden de prioridad):
- *   1. 7730918030044.jpg          → código de barras exacto
- *   2. lager_adulto_10kg.jpg      → slug del nombre del producto
- *   3. lager_7730918030044.jpg    → slug que contiene el código de barras
+ *   Ejemplo correcto:   7730918030044.webp
+ *   Ejemplo incorrecto: perro_lager.jpg  ← será rechazado
+ *
+ * Opciones:
+ *   --dry-run   Muestra matches sin procesar ni modificar nada
+ *   --force     Reemplaza fotos existentes (por defecto las omite)
  */
 class ImagenesOrganizar extends Command
 {
-    protected $signature   = 'imagenes:organizar {directorio : Ruta absoluta al directorio con imágenes}
-                                                  {--dry-run : Mostrar matches sin procesar imágenes}';
+    protected $signature = 'imagenes:organizar
+                            {directorio : Ruta absoluta al directorio con imágenes}
+                            {--dry-run  : Mostrar resultado sin procesar}
+                            {--force    : Reemplazar fotos ya existentes}';
 
-    protected $description = 'Matchea imágenes del directorio con productos y las procesa con ImagenService.';
-
-    private array $extensiones = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    protected $description = 'Procesa imágenes {codigo_barras}.webp y las asigna a productos.';
 
     public function handle(ImagenService $img): int
     {
@@ -38,56 +39,56 @@ class ImagenesOrganizar extends Command
         }
 
         $dryRun = $this->option('dry-run');
+        $force  = $this->option('force');
 
-        // Cargar todos los productos activos
+        // Cargar todos los productos activos con código de barras
         $productos = Producto::where('activo', true)
+            ->whereNotNull('codigo_barras')
             ->select('id', 'nombre', 'codigo_barras', 'foto', 'thumb')
-            ->get();
+            ->get()
+            ->keyBy('codigo_barras');
 
-        $porCodigo = $productos->keyBy('codigo_barras');
-        $porSlug   = $productos->keyBy(fn($p) => $img->slug($p->nombre));
-
-        // Listar archivos de imagen
-        $archivos = array_filter(
+        // Solo archivos .webp
+        $archivos = array_values(array_filter(
             scandir($dir),
-            fn($f) => in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), $this->extensiones)
-        );
+            fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'webp'
+        ));
 
         if (empty($archivos)) {
-            $this->warn('No se encontraron archivos de imagen en el directorio.');
+            $this->warn('No se encontraron archivos .webp en el directorio.');
+            $this->line("Convención esperada: <fg=yellow>{codigo_barras}.webp</>");
             return 0;
         }
 
-        $this->info(sprintf('Encontrados %d archivos. Procesando...', count($archivos)));
+        $this->info(sprintf('Encontrados %d archivos .webp', count($archivos)));
+        if ($dryRun) $this->warn('MODO DRY-RUN — no se modificará nada');
+        $this->newLine();
 
         $procesados = 0;
         $omitidos   = 0;
+        $sinMatch   = 0;
         $errores    = 0;
 
         foreach ($archivos as $archivo) {
-            $nombre   = pathinfo($archivo, PATHINFO_FILENAME);
+            $codigo   = pathinfo($archivo, PATHINFO_FILENAME);
             $rutaFull = $dir . DIRECTORY_SEPARATOR . $archivo;
+            $producto = $productos->get($codigo);
 
-            // Matching
-            $producto = $porCodigo->get($nombre);
-            if (!$producto) $producto = $porSlug->get($img->slug($nombre));
             if (!$producto) {
-                foreach ($porCodigo as $codigo => $p) {
-                    if ($codigo && str_contains($nombre, (string) $codigo)) {
-                        $producto = $p;
-                        break;
-                    }
-                }
+                $this->line("<fg=yellow>SIN MATCH</>  {$archivo}  (código: {$codigo})");
+                $sinMatch++;
+                continue;
             }
 
-            if (!$producto) {
-                $this->line("<fg=yellow>SIN MATCH</> {$archivo}");
+            if ($producto->foto && !$force && !$dryRun) {
+                $this->line("<fg=cyan>OMITIDO</>   {$archivo} → {$producto->nombre}  (ya tiene foto, usá --force)");
                 $omitidos++;
                 continue;
             }
 
             if ($dryRun) {
-                $this->line("<fg=green>MATCH</> {$archivo} → {$producto->nombre} [{$producto->codigo_barras}]");
+                $estado = $producto->foto ? '<fg=magenta>REEMPLAZARÍA</>' : '<fg=green>NUEVO</>';
+                $this->line("{$estado}     {$archivo} → {$producto->nombre}");
                 $procesados++;
                 continue;
             }
@@ -96,14 +97,14 @@ class ImagenesOrganizar extends Command
                 if ($producto->foto)  Storage::disk('public')->delete($producto->foto);
                 if ($producto->thumb) Storage::disk('public')->delete($producto->thumb);
 
-                $slug  = $img->slug($producto->codigo_barras ?? (string) $producto->id);
+                $slug  = $img->slug($codigo);
                 $paths = $img->guardarProducto($rutaFull, $slug);
                 $producto->update(['foto' => $paths['foto'], 'thumb' => $paths['thumb']]);
 
-                $this->line("<fg=green>OK</> {$archivo} → {$producto->nombre}");
+                $this->line("<fg=green>OK</>         {$archivo} → {$producto->nombre}");
                 $procesados++;
             } catch (\Throwable $e) {
-                $this->line("<fg=red>ERROR</> {$archivo}: {$e->getMessage()}");
+                $this->line("<fg=red>ERROR</>      {$archivo}: {$e->getMessage()}");
                 $errores++;
             }
         }
@@ -112,11 +113,18 @@ class ImagenesOrganizar extends Command
         $this->table(
             ['Resultado', 'Cantidad'],
             [
-                ['Procesados', $procesados],
-                ['Sin match',  $omitidos],
-                ['Errores',    $errores],
+                ['✓ Procesados',   $procesados],
+                ['⊘ Omitidos',     $omitidos],
+                ['? Sin match',    $sinMatch],
+                ['✗ Errores',      $errores],
             ]
         );
+
+        if ($sinMatch > 0) {
+            $this->newLine();
+            $this->warn("Los archivos sin match NO tienen un producto con ese código de barras.");
+            $this->line("Verificá el código en <fg=yellow>/productos</> o renombrá el archivo.");
+        }
 
         return $errores > 0 ? 1 : 0;
     }

@@ -29,6 +29,7 @@ services:
     container_name: zamoritos_backend
     volumes:
       - ./backend:/var/www/html
+      - ./imagenes-entrada:/var/imagenes   # carpeta donde el cliente deposita {codigo}.webp
     # Puerto directo para debug/acceso sin nginx. Comentar si no se necesita.
     # ports:
     #   - "9000:9000"
