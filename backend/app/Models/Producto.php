@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Facades\Storage;
 
 class Producto extends Model
 {
@@ -17,9 +18,11 @@ class Producto extends Model
         'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock', 'activo',
         'fraccionado_de', 'fraccionable', 'es_combo',
         'en_promo', 'precio_promo', 'promo_producto_id',
-        'foto', 'thumb', 'foto_url',
+        'foto', 'thumb', 'foto_externa',
         'notificar_stock_bajo', 'destacado',
     ];
+
+    protected $appends = ['foto_url', 'thumb_url'];
 
     protected $casts = [
         'precio_venta'        => 'integer',
@@ -34,6 +37,22 @@ class Producto extends Model
         'notificar_stock_bajo'=> 'boolean',
         'destacado'           => 'boolean',
     ];
+
+    /** URL pública de la foto principal (storage local o URL externa) */
+    public function getFotoUrlAttribute(): ?string
+    {
+        if (!empty($this->attributes['foto_externa'])) return $this->attributes['foto_externa'];
+        if (!empty($this->attributes['foto']))         return Storage::disk('public')->url($this->attributes['foto']);
+        return null;
+    }
+
+    /** URL pública del thumbnail */
+    public function getThumbUrlAttribute(): ?string
+    {
+        if (!empty($this->attributes['thumb'])) return Storage::disk('public')->url($this->attributes['thumb']);
+        if (!empty($this->attributes['foto_externa'])) return $this->attributes['foto_externa'];
+        return null;
+    }
 
     public function fraccionadoDe(): BelongsTo
     {

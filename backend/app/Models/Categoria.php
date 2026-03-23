@@ -6,12 +6,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Categoria extends Model
 {
     use HasFactory;
 
     protected $fillable = ['nombre', 'parent_id', 'foto'];
+
+    protected $appends = ['foto_url'];
+
+    public function getFotoUrlAttribute(): ?string
+    {
+        if (empty($this->attributes['foto'])) return null;
+        return Storage::disk('public')->url($this->attributes['foto']);
+    }
 
     public function parent(): BelongsTo
     {

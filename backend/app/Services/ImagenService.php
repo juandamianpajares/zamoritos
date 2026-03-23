@@ -28,6 +28,8 @@ class ImagenService
     const THUMB_H    = 200;
     const CAT_W      = 400;
     const CAT_H      = 200;
+    const ICON_W     = 128;
+    const ICON_H     = 128;
 
     // ── Calidad JPEG ─────────────────────────────────────────────────────────
     const Q_PROD  = 85;
@@ -78,6 +80,21 @@ class ImagenService
         $path = "categorias/{$slug}.jpg";
         Storage::disk('public')->put($path, $this->toJpeg($cat, self::Q_CAT));
         imagedestroy($cat);
+        imagedestroy($gd);
+        return $path;
+    }
+
+    /**
+     * Genera ícono de categoría (128×128 crop centrado, PNG con transparencia).
+     * Devuelve el path relativo guardado.
+     */
+    public function guardarIconoCategoria(string $tmpPath, string $slug): string
+    {
+        $gd   = $this->cargar($tmpPath);
+        $icon = $this->cropCentradoTransparente($gd, self::ICON_W, self::ICON_H);
+        $path = "categorias/iconos/{$slug}.png";
+        Storage::disk('public')->put($path, $this->toPng($icon));
+        imagedestroy($icon);
         imagedestroy($gd);
         return $path;
     }
@@ -154,5 +171,45 @@ class ImagenService
         ob_start();
         imagejpeg($img, null, $quality);
         return ob_get_clean();
+    }
+
+    /**
+     * Convierte GdImage → string PNG en memoria (preserva transparencia).
+     */
+    private function toPng(\GdImage $img): string
+    {
+        ob_start();
+        imagepng($img, null, 6);
+        return ob_get_clean();
+    }
+
+    /**
+     * Crop centrado con fondo transparente (para íconos PNG).
+     */
+    private function cropCentradoTransparente(\GdImage $src, int $w, int $h): \GdImage
+    {
+        [$sw, $sh] = [imagesx($src), imagesy($src)];
+
+        $ratio  = max($w / $sw, $h / $sh);
+        $nw     = (int) round($sw * $ratio);
+        $nh     = (int) round($sh * $ratio);
+        $cx     = (int) round(($nw - $w) / 2);
+        $cy     = (int) round(($nh - $h) / 2);
+
+        $scaled = imagecreatetruecolor($nw, $nh);
+        imagealphablending($scaled, false);
+        imagesavealpha($scaled, true);
+        $trans = imagecolorallocatealpha($scaled, 0, 0, 0, 127);
+        imagefilledrectangle($scaled, 0, 0, $nw, $nh, $trans);
+        imagecopyresampled($scaled, $src, 0, 0, 0, 0, $nw, $nh, $sw, $sh);
+
+        $dst = imagecreatetruecolor($w, $h);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $trans2 = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $w, $h, $trans2);
+        imagecopy($dst, $scaled, 0, 0, $cx, $cy, $w, $h);
+        imagedestroy($scaled);
+        return $dst;
     }
 }

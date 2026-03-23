@@ -92,6 +92,7 @@ function placeholderInitials(nombre: string): string {
 function ProductImg({ producto, className }: { producto: Producto; className?: string }) {
   const [err, setErr] = React.useState(false);
   const src = producto.foto_url
+    ?? producto.thumb_url
     ?? (producto.thumb ? fotoUrl(producto.thumb) : null)
     ?? (producto.foto  ? fotoUrl(producto.foto)  : null);
 

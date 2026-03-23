@@ -9,6 +9,7 @@ const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 function efectivaFoto(p: Producto, preferThumb = false): string | null {
+  if (preferThumb && p.thumb_url) return p.thumb_url;
   if (p.foto_url) return p.foto_url;
   if (preferThumb && p.thumb) return fotoUrl(p.thumb);
   if (p.foto) return fotoUrl(p.foto);

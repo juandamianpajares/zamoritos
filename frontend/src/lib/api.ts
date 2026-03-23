@@ -72,7 +72,8 @@ export interface Producto {
   promo_producto?: Producto;
   foto?: string;
   thumb?: string;
-  foto_url?: string;
+  foto_url?: string;   // accessor: URL completa (storage local o externa)
+  thumb_url?: string;  // accessor: URL completa del thumbnail
 }
 
 export interface FraccionarResult {
