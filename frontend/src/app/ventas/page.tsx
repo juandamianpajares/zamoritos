@@ -68,6 +68,55 @@ const MEDIO_COLOR: Record<string, string> = {
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
+// ─── Placeholder helpers ───────────────────────────────────────────────────────
+const PLACEHOLDER_GRADIENTS: [string, string][] = [
+  ['#7B2D8B','#5E1F6C'],
+  ['#2563eb','#1d4ed8'],
+  ['#059669','#047857'],
+  ['#d97706','#b45309'],
+  ['#dc2626','#b91c1c'],
+  ['#0891b2','#0e7490'],
+  ['#7c3aed','#6d28d9'],
+];
+
+function placeholderGradient(nombre: string): [string, string] {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+  return PLACEHOLDER_GRADIENTS[Math.abs(hash) % PLACEHOLDER_GRADIENTS.length];
+}
+
+function placeholderInitials(nombre: string): string {
+  return nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function ProductImg({ producto, className }: { producto: Producto; className?: string }) {
+  const [err, setErr] = React.useState(false);
+  const src = producto.foto_url
+    ?? (producto.thumb ? fotoUrl(producto.thumb) : null)
+    ?? (producto.foto  ? fotoUrl(producto.foto)  : null);
+
+  if (!src || err) {
+    const [c1, c2] = placeholderGradient(producto.nombre);
+    return (
+      <div
+        className={`w-full h-full flex items-center justify-center select-none ${className ?? ''}`}
+        style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}
+      >
+        <span className="text-white font-bold text-xl tracking-wide opacity-90">
+          {placeholderInitials(producto.nombre)}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src} alt={producto.nombre} loading="lazy"
+      className={`w-full h-full object-cover ${className ?? ''}`}
+      onError={() => setErr(true)}
+    />
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VentasPage() {
@@ -596,34 +645,24 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
-                        {/* Imagen con badge encima, o badge inline si no hay foto */}
-                        {(p.foto || p.thumb || p.foto_url) ? (
-                          <div className="relative w-full h-20 rounded-xl overflow-hidden mb-2">
-                            <img src={p.foto_url ?? fotoUrl(p.thumb ?? p.foto!)} alt={p.nombre}
-                              className="w-full h-full object-cover" />
-                            {esCombo && (
-                              <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
-                            )}
-                            {esFraccionado && !esCombo && (
-                              <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">FRAC.</span>
-                            )}
-                            {p.destacado && !esCombo && !esFraccionado && (
-                              <span className="absolute top-1 left-1 text-[10px]">⭐</span>
-                            )}
-                          </div>
-                        ) : (esCombo || esFraccionado || p.destacado) ? (
-                          <div className="flex gap-1 mb-1.5">
-                            {esCombo && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
-                            )}
-                            {esFraccionado && !esCombo && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white">FRAC.</span>
-                            )}
-                            {p.destacado && !esCombo && !esFraccionado && (
-                              <span className="text-[10px]">⭐</span>
-                            )}
-                          </div>
-                        ) : null}
+                        {/* Imagen — siempre presente, con placeholder si no tiene foto */}
+                        <div className="relative w-full h-24 rounded-xl overflow-hidden mb-2">
+                          <ProductImg producto={p} />
+                          {esCombo && (
+                            <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white shadow-sm">COMBO</span>
+                          )}
+                          {esFraccionado && !esCombo && (
+                            <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white shadow-sm">FRAC.</span>
+                          )}
+                          {p.destacado && !esCombo && !esFraccionado && (
+                            <span className="absolute top-1 left-1 text-sm leading-none">⭐</span>
+                          )}
+                          {agotado && (
+                            <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-rose-500 bg-white/90 px-2 py-0.5 rounded-full border border-rose-200">SIN STOCK</span>
+                            </div>
+                          )}
+                        </div>
 
                         <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 mb-2 min-h-[2.5rem]">
                           {p.nombre}

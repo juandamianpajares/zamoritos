@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, type Producto, type Categoria } from '@/lib/api';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
@@ -13,6 +13,35 @@ function efectivaFoto(p: Producto, preferThumb = false): string | null {
   if (preferThumb && p.thumb) return fotoUrl(p.thumb);
   if (p.foto) return fotoUrl(p.foto);
   return null;
+}
+
+const PLACEHOLDER_GRADIENTS: [string, string][] = [
+  ['#7B2D8B','#5E1F6C'],['#2563eb','#1d4ed8'],['#059669','#047857'],
+  ['#d97706','#b45309'],['#dc2626','#b91c1c'],['#0891b2','#0e7490'],['#7c3aed','#6d28d9'],
+];
+function placeholderGradient(nombre: string): [string, string] {
+  let h = 0; for (const c of nombre) h = c.charCodeAt(0) + ((h << 5) - h);
+  return PLACEHOLDER_GRADIENTS[Math.abs(h) % PLACEHOLDER_GRADIENTS.length];
+}
+
+function ThumbProducto({ producto }: { producto: Producto }) {
+  const [err, setErr] = React.useState(false);
+  const src = efectivaFoto(producto, true);
+  if (!src || err) {
+    const [c1, c2] = placeholderGradient(producto.nombre);
+    const initials = producto.nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    return (
+      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs font-bold select-none"
+        style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
+        {initials}
+      </div>
+    );
+  }
+  return (
+    <img src={src} alt={producto.nombre} loading="lazy"
+      className="w-10 h-10 rounded-lg object-cover border border-zinc-100"
+      onError={() => setErr(true)} />
+  );
 }
 
 const emptyForm = {
@@ -834,22 +863,10 @@ export default function ProductosPage() {
               </thead>
               <tbody>
                 {productos.map(p => {
-                  const img = efectivaFoto(p, true); // prefer thumb in list
                   return (
                     <tr key={p.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
                       <td className="pl-3 py-2 w-12">
-                        {img ? (
-                          <img src={img} alt={p.nombre}
-                            className="w-10 h-10 rounded-lg object-cover border border-zinc-100" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-300">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                              <rect x="3" y="3" width="18" height="18" rx="3"/>
-                              <circle cx="8.5" cy="8.5" r="1.5"/>
-                              <polyline points="21 15 16 10 5 21"/>
-                            </svg>
-                          </div>
-                        )}
+                        <ThumbProducto producto={p} />
                       </td>
                       <td className="px-3 py-3 text-zinc-400 text-xs font-mono">{p.codigo_barras ?? '—'}</td>
                       <td className="px-3 py-3">
