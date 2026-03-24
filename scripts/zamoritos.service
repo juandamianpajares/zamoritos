@@ -1,9 +1,8 @@
 [Unit]
 Description=Zamoritos – Stack Docker Compose
 Documentation=https://docs.docker.com/compose/
-After=network-online.target docker.service
-Wants=network-online.target
-Requires=docker.service
+After=network-online.target docker.socket
+Wants=network-online.target docker.socket
 
 [Service]
 Type=oneshot

@@ -1,7 +1,7 @@
 [Unit]
 Description=Zamoritos – Backup de base de datos (mysqldump)
-After=docker.service zamoritos.service
-Requires=docker.service
+After=docker.socket zamoritos.service
+Wants=docker.socket
 
 [Service]
 Type=oneshot
