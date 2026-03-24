@@ -1,17 +1,18 @@
 [Unit]
 Description=Zamoritos – Stack Docker Compose
-Documentation=https://docs.docker.com/compose/
-After=network-online.target docker.socket
-Wants=network-online.target docker.socket
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/juan/zamoritos
+# Espera a que Docker Desktop haya expuesto el socket antes de arrancar
+ExecStartPre=/bin/bash -c 'until docker info >/dev/null 2>&1; do sleep 2; done'
 ExecStart=/usr/bin/docker compose up -d --remove-orphans
 ExecStop=/usr/bin/docker compose down
-TimeoutStartSec=300
-TimeoutStopSec=120
+TimeoutStartSec=120
+TimeoutStopSec=60
 
 [Install]
 WantedBy=multi-user.target
