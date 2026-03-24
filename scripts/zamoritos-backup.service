@@ -1,0 +1,22 @@
+[Unit]
+Description=Zamoritos – Backup de base de datos (mysqldump)
+After=docker.service zamoritos.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/Juan/zamoritos
+Environment=BACKUP_DIR=/home/Juan/zamoritos/backend/storage/backups
+ExecStartPre=/bin/mkdir -p /home/Juan/zamoritos/backend/storage/backups
+# Dump desde el contenedor MySQL
+ExecStart=/bin/bash -c '\
+    FILE=/home/Juan/zamoritos/backend/storage/backups/db_$(date +%%Y%%m%%d_%%H%%M%%S).sql && \
+    /usr/bin/docker compose exec -T db \
+        mysqldump -u zamoritos -pzamoritos_secret zamoritos > "$FILE" && \
+    gzip "$FILE" && \
+    echo "Backup OK: ${FILE}.gz"'
+# Elimina backups con más de 30 días
+ExecStartPost=/bin/find /home/Juan/zamoritos/backend/storage/backups \
+    -name "*.sql.gz" -mtime +30 -delete
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,12 @@
+[Unit]
+Description=Zamoritos – Timer de backup diario
+Requires=zamoritos-backup.service
+
+[Timer]
+# Todos los días a las 03:00
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=zamoritos-backup.service
+
+[Install]
+WantedBy=timers.target
