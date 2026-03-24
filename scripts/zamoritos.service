@@ -6,13 +6,17 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+User=juan
 WorkingDirectory=/home/juan/zamoritos
-# Espera a que Docker Desktop haya expuesto el socket antes de arrancar
-ExecStartPre=/bin/bash -c 'until docker info >/dev/null 2>&1; do sleep 2; done'
-ExecStart=/usr/bin/docker compose up -d --remove-orphans
-ExecStop=/usr/bin/docker compose down
+ExecStart=/home/juan/zamoritos/scripts/zamoritos-start.sh
+ExecStop=/bin/bash -c '\
+    export PATH="$HOME/.docker/bin:/usr/local/bin:/usr/bin:/bin"; \
+    cd /home/juan/zamoritos && \
+    docker compose down || docker-compose down'
 TimeoutStartSec=120
 TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
