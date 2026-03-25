@@ -977,7 +977,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     <select value={crearComp1} onChange={e => setCrearComp1(e.target.value)}
                       className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
                       <option value="">Seleccioná un producto…</option>
-                      {productos.filter(p => !p.en_promo === 1 && p.stock > 0).map(p => (
+                      {productos.filter(p => p.en_promo !== 1 && p.stock > 0).map(p => (
                         <option key={p.id} value={p.id}>
                           {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
                         </option>
@@ -993,7 +993,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     <select value={crearComp2} onChange={e => setCrearComp2(e.target.value)}
                       className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
                       <option value="">— Mismo producto × 2 —</option>
-                      {productos.filter(p => !p.en_promo === 1 && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
+                      {productos.filter(p => p.en_promo !== 1 && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
                         <option key={p.id} value={p.id}>
                           {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
                         </option>
