@@ -707,6 +707,12 @@ export default function ProductosPage() {
   const [sheetsOpen,   setSheetsOpen]   = useState(false);
   const [fotoIaOpen,   setFotoIaOpen]   = useState(false);
   const [imagenesOpen, setImagenesOpen] = useState(false);
+  const [comboModalP,  setComboModalP]  = useState<Producto | null>(null);
+  const [comboItems,   setComboItems]   = useState<{ producto_id: number; nombre: string; cantidad: number }[]>([]);
+  const [comboEnPromo, setComboEnPromo] = useState<0|1|2|3>(0);
+  const [comboPrecioPromo, setComboPrecioPromo] = useState('');
+  const [comboSearch,  setComboSearch]  = useState('');
+  const [comboSaving,  setComboSaving]  = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -1139,6 +1145,22 @@ export default function ProductosPage() {
 
                       {/* Acciones */}
                       <td className="px-2 py-2.5 text-right whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        {(p.en_promo ?? 0) > 0 && (
+                          <button
+                            onClick={() => {
+                              setComboModalP(p);
+                              setComboEnPromo((p.en_promo ?? 0) as 0|1|2|3);
+                              setComboPrecioPromo(p.precio_promo != null ? String(p.precio_promo) : '');
+                              setComboItems((p.combo_items ?? []).map(ci => ({
+                                producto_id: ci.componente_producto_id,
+                                nombre: ci.componente?.nombre ?? `#${ci.componente_producto_id}`,
+                                cantidad: ci.cantidad,
+                              })));
+                              setComboSearch('');
+                            }}
+                            className="text-violet-500 hover:text-violet-700 text-xs px-2 py-1 rounded-lg hover:bg-violet-50 transition-colors mr-1"
+                          >Componentes</button>
+                        )}
                         <button onClick={() => openEdit(p)} className="text-zinc-400 hover:text-zinc-800 text-xs px-2 py-1 rounded-lg hover:bg-zinc-100 transition-colors mr-1">Editar</button>
                         <button onClick={() => handleDelete(p.id)} className="text-rose-300 hover:text-rose-600 text-xs px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors">Eliminar</button>
                       </td>
@@ -1384,6 +1406,148 @@ export default function ProductosPage() {
           onDone={() => { setSheetsOpen(false); load(); }}
         />
       )}
+
+      {/* ── Modal Componentes promo ── */}
+      {comboModalP && (() => {
+        const promoLabels: Record<number, string> = { 1: 'COMBO', 2: 'OFERTA', 3: 'REGALO' };
+        const matchSearch = comboSearch.trim().toLowerCase();
+        const sugeridos = matchSearch.length >= 2
+          ? productos.filter(p =>
+              p.id !== comboModalP.id &&
+              (p.nombre.toLowerCase().includes(matchSearch) || (p.codigo_barras ?? '').includes(matchSearch)) &&
+              !comboItems.some(ci => ci.producto_id === p.id)
+            ).slice(0, 6)
+          : [];
+
+        const saveCombo = async () => {
+          setComboSaving(true);
+          try {
+            await api.put(`/productos/${comboModalP.id}/combo-items`, {
+              en_promo: comboEnPromo,
+              precio_promo: comboPrecioPromo !== '' ? parseInt(comboPrecioPromo, 10) : null,
+              componentes: comboItems.map(ci => ({ producto_id: ci.producto_id, cantidad: ci.cantidad })),
+            });
+            setProductos(prev => prev.map(p => p.id === comboModalP.id
+              ? { ...p, en_promo: comboEnPromo, precio_promo: comboPrecioPromo !== '' ? parseInt(comboPrecioPromo, 10) : undefined,
+                  combo_items: comboItems.map(ci => ({ componente_producto_id: ci.producto_id, cantidad: ci.cantidad, componente: { nombre: ci.nombre } as any })) }
+              : p
+            ));
+            setToastMsg('Componentes guardados');
+            setComboModalP(null);
+          } catch {
+            setToastMsg('Error al guardar');
+          } finally {
+            setComboSaving(false);
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setComboModalP(null)} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+              <div>
+                <h2 className="text-base font-bold text-zinc-900">Componentes de promo</h2>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">{comboModalP.nombre}</p>
+              </div>
+
+              {/* Tipo + precio promo */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">Tipo</label>
+                  <select
+                    value={comboEnPromo}
+                    onChange={e => setComboEnPromo(parseInt(e.target.value) as 0|1|2|3)}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-violet-400"
+                  >
+                    <option value={0}>Sin promo</option>
+                    <option value={1}>COMBO</option>
+                    <option value={2}>OFERTA</option>
+                    <option value={3}>REGALO</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">Precio promo ($)</label>
+                  <input
+                    type="number" min="0" step="1"
+                    value={comboPrecioPromo}
+                    onChange={e => setComboPrecioPromo(e.target.value)}
+                    placeholder="Ej: 2013"
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-violet-400"
+                  />
+                </div>
+              </div>
+
+              {/* Buscar y agregar componente */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">Agregar componente</label>
+                <input
+                  type="text"
+                  value={comboSearch}
+                  onChange={e => setComboSearch(e.target.value)}
+                  placeholder="Buscar producto por nombre o código…"
+                  className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-violet-400"
+                />
+                {sugeridos.length > 0 && (
+                  <div className="mt-1 border border-zinc-100 rounded-xl overflow-hidden shadow-sm">
+                    {sugeridos.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setComboItems(prev => [...prev, { producto_id: p.id, nombre: p.nombre, cantidad: 1 }]);
+                          setComboSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-violet-50 flex items-center justify-between border-b border-zinc-50 last:border-0"
+                      >
+                        <span className="font-medium text-zinc-700">{p.nombre}</span>
+                        <span className="text-zinc-400 font-mono">{p.codigo_barras ?? ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de componentes */}
+              {comboItems.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-zinc-500">Componentes ({comboItems.length})</p>
+                  {comboItems.map((ci, idx) => (
+                    <div key={ci.producto_id} className="flex items-center gap-2 bg-zinc-50 rounded-xl px-3 py-2">
+                      <span className="flex-1 text-xs font-medium text-zinc-700 truncate">{ci.nombre}</span>
+                      <input
+                        type="number" min="0.001" step="0.001"
+                        value={ci.cantidad}
+                        onChange={e => setComboItems(prev => prev.map((x, i) => i === idx ? { ...x, cantidad: parseFloat(e.target.value) || 1 } : x))}
+                        className="w-16 px-2 py-1 text-xs border border-zinc-200 rounded-lg text-center focus:outline-none focus:border-violet-400"
+                      />
+                      <span className="text-[10px] text-zinc-400">uds</span>
+                      <button
+                        type="button"
+                        onClick={() => setComboItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-rose-300 hover:text-rose-600 text-xs px-1.5 py-0.5 rounded hover:bg-rose-50 transition-colors"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-300 text-center py-2">Sin componentes — buscá un producto arriba</p>
+              )}
+
+              <div className="flex gap-2 pt-2 border-t border-zinc-100">
+                <button type="button" onClick={() => setComboModalP(null)}
+                  className="flex-1 py-2.5 text-sm text-zinc-600 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="button" onClick={saveCombo} disabled={comboSaving}
+                  className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition-colors"
+                  style={{ background: 'var(--brand-purple)' }}>
+                  {comboSaving ? 'Guardando…' : `Guardar ${comboEnPromo > 0 ? promoLabels[comboEnPromo] : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modal Imágenes masivo ── */}
       {imagenesOpen && (

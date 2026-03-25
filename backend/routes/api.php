@@ -39,6 +39,7 @@ Route::post('productos/{producto}/fraccionar',        [ProductoController::class
 Route::post('productos/{producto}/foto',              [ProductoController::class, 'uploadFoto']);
 Route::patch('productos/{producto}/notificacion-stock',[ProductoController::class, 'toggleNotificacion']);
 Route::patch('productos/{producto}/destacado',         [ProductoController::class, 'toggleDestacado']);
+Route::put('productos/{producto}/combo-items',         [ProductoController::class, 'setComboItems']);
 
 Route::get('imagenes/requisitos',   [ImagenController::class, 'requisitos']);
 Route::post('imagenes/importar',    [ImagenController::class, 'importar']);

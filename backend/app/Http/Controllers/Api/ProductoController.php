@@ -180,6 +180,38 @@ class ProductoController extends Controller
         return response()->json($producto);
     }
 
+    /**
+     * Reemplaza los componentes (combo_items) de un producto promo.
+     * Body: { en_promo: int, precio_promo: int|null, componentes: [{producto_id, cantidad}] }
+     */
+    public function setComboItems(Request $request, Producto $producto): JsonResponse
+    {
+        $data = $request->validate([
+            'en_promo'                  => 'required|integer|in:0,1,2,3',
+            'precio_promo'              => 'nullable|integer|min:0',
+            'componentes'               => 'required|array',
+            'componentes.*.producto_id' => 'required|exists:productos,id',
+            'componentes.*.cantidad'    => 'required|numeric|min:0.001',
+        ]);
+
+        $producto->update([
+            'en_promo'    => $data['en_promo'],
+            'precio_promo'=> $data['precio_promo'] ?? null,
+        ]);
+
+        ComboItem::where('combo_producto_id', $producto->id)->delete();
+
+        foreach ($data['componentes'] as $c) {
+            ComboItem::create([
+                'combo_producto_id'      => $producto->id,
+                'componente_producto_id' => $c['producto_id'],
+                'cantidad'               => $c['cantidad'],
+            ]);
+        }
+
+        return response()->json($producto->load('comboItems.componente'));
+    }
+
     /** Devuelve el ID de la categoría dada + todos sus descendientes. */
     private function descendantIds(int $parentId): array
     {
