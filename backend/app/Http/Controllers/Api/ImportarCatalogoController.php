@@ -87,6 +87,8 @@ class ImportarCatalogoController extends Controller
                 $errores[] = ['fila' => $fila, 'error' => "precio_venta inválido: '{$data['precio_venta']}'"];
                 continue;
             }
+            $pcRaw = trim($data['precio_compra'] ?? '');
+            $pc    = $pcRaw !== '' ? (int) round(self::normalizeDecimal($pcRaw)) : null;
 
             // Categoría
             $catNombre = mb_strtolower($data['categoria'] ?? '');
@@ -101,6 +103,15 @@ class ImportarCatalogoController extends Controller
             $modoFracRaw  = strtolower(trim($data['modo_fraccion'] ?? ''));
             $modoFraccion = in_array($modoFracRaw, ['unidad', 'u']) ? 'unidad' : 'kg';
 
+            // en_promo: 0=sin promo | 1=COMBO | 2=OFERTA | 3=REGALO
+            $enPromoRaw = trim($data['en_promo'] ?? '');
+            $enPromo    = in_array($enPromoRaw, ['1', '2', '3']) ? (int) $enPromoRaw : 0;
+
+            $precioPromoRaw = trim($data['precio_promo'] ?? '');
+            $precioPromo    = ($precioPromoRaw !== '' && $precioPromoRaw !== '0')
+                ? (int) round(self::normalizeDecimal($precioPromoRaw))
+                : null;
+
             $attrs = [
                 'nombre'        => $data['nombre'],
                 'marca'         => $data['marca'] ?? null ?: null,
@@ -111,8 +122,11 @@ class ImportarCatalogoController extends Controller
                 'fraccionable'  => $fraccionable,
                 'modo_fraccion' => $modoFraccion,
                 'destacado'     => $destacado,
+                'en_promo'      => $enPromo,
+                'precio_promo'  => $precioPromo,
                 'activo'        => true,
             ];
+            if ($pc !== null) $attrs['precio_compra'] = $pc;
 
             $codigo = ($data['codigo_barras'] ?? '') ?: null;
 
