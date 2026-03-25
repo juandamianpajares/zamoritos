@@ -111,26 +111,61 @@ class CompraController extends Controller
                     'subtotal'      => $subtotal,
                 ]);
 
-                $producto = Producto::findOrFail($d['producto_id']);
-                $producto->increment('stock', $d['cantidad']);
+                $producto = Producto::with('comboItems')->findOrFail($d['producto_id']);
                 $producto->update(['precio_compra' => $d['precio_compra']]);
 
-                MovimientoStock::create([
-                    'producto_id' => $d['producto_id'],
-                    'tipo'        => 'ingreso',
-                    'cantidad'    => $d['cantidad'],
-                    'referencia'  => 'compra #' . $compra->id,
-                    'usuario'     => $data['usuario'] ?? null,
-                    'observacion' => 'Factura: ' . ($data['factura'] ?? '-'),
-                ]);
+                $factura   = $data['factura'] ?? null;
+                $usuario   = $data['usuario'] ?? null;
+                $fechaVenc = $d['fecha_vencimiento'] ?? null;
 
-                Lote::create([
-                    'producto_id'       => $d['producto_id'],
-                    'compra_id'         => $compra->id,
-                    'cantidad'          => $d['cantidad'],
-                    'cantidad_restante' => $d['cantidad'],
-                    'fecha_vencimiento' => $d['fecha_vencimiento'] ?? null,
-                ]);
+                $esPromo = $producto->en_promo > 0 && $producto->comboItems->isNotEmpty();
+
+                if ($esPromo) {
+                    // Promo/combo: el stock físico vive en los componentes
+                    foreach ($producto->comboItems as $item) {
+                        $componente = Producto::findOrFail($item->componente_producto_id);
+                        $qtdComp    = $item->cantidad * $d['cantidad'];
+
+                        $componente->increment('stock', $qtdComp);
+
+                        MovimientoStock::create([
+                            'producto_id' => $componente->id,
+                            'tipo'        => 'ingreso',
+                            'cantidad'    => $qtdComp,
+                            'referencia'  => 'compra #' . $compra->id . ' (promo «' . $producto->nombre . '»)',
+                            'usuario'     => $usuario,
+                            'observacion' => 'Factura: ' . ($factura ?? '-'),
+                        ]);
+
+                        Lote::create([
+                            'producto_id'       => $componente->id,
+                            'compra_id'         => $compra->id,
+                            'cantidad'          => $qtdComp,
+                            'cantidad_restante' => $qtdComp,
+                            'fecha_vencimiento' => $fechaVenc,
+                        ]);
+                    }
+                } else {
+                    // Producto individual: stock directo
+                    $producto->increment('stock', $d['cantidad']);
+
+                    MovimientoStock::create([
+                        'producto_id' => $d['producto_id'],
+                        'tipo'        => 'ingreso',
+                        'cantidad'    => $d['cantidad'],
+                        'referencia'  => 'compra #' . $compra->id,
+                        'usuario'     => $usuario,
+                        'observacion' => 'Factura: ' . ($factura ?? '-'),
+                    ]);
+
+                    Lote::create([
+                        'producto_id'       => $d['producto_id'],
+                        'compra_id'         => $compra->id,
+                        'cantidad'          => $d['cantidad'],
+                        'cantidad_restante' => $d['cantidad'],
+                        'fecha_vencimiento' => $fechaVenc,
+                    ]);
+                }
             }
 
             return response()->json($compra->load('proveedor', 'detalles.producto', 'pagos'), 201);

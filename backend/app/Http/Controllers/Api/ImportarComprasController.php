@@ -99,7 +99,7 @@ class ImportarComprasController extends Controller
 
         // Caches
         $provCache     = Proveedor::all()->keyBy('rut');
-        $prodPorCodigo = Producto::whereNotNull('codigo_barras')->get()->keyBy('codigo_barras');
+        $prodPorCodigo = Producto::with('comboItems')->whereNotNull('codigo_barras')->get()->keyBy('codigo_barras');
 
         $creadas       = 0;
         $omitidas      = 0;
@@ -189,24 +189,59 @@ class ImportarComprasController extends Controller
                         $d['producto']->update(['precio_compra' => $d['precio_compra']]);
 
                         if ($d['cantidad'] > 1) {
-                            // Incrementar stock + registrar movimiento + lote
-                            $d['producto']->increment('stock', $d['cantidad']);
+                            $producto  = $d['producto'];
+                            $factura   = $grupo['factura'] ?? '-';
+                            $fechaVenc = $d['fecha_vencimiento'];
 
-                            MovimientoStock::create([
-                                'producto_id' => $d['producto']->id,
-                                'tipo'        => 'ingreso',
-                                'cantidad'    => $d['cantidad'],
-                                'referencia'  => 'compra #' . $compra->id,
-                                'observacion' => 'Factura: ' . ($grupo['factura'] ?? '-') . ' · import CSV',
-                            ]);
+                            $esPromo = $producto->en_promo > 0 && $producto->comboItems->isNotEmpty();
 
-                            Lote::create([
-                                'producto_id'       => $d['producto']->id,
-                                'compra_id'         => $compra->id,
-                                'cantidad'          => $d['cantidad'],
-                                'cantidad_restante' => $d['cantidad'],
-                                'fecha_vencimiento' => $d['fecha_vencimiento'],
-                            ]);
+                            if ($esPromo) {
+                                // Promo: distribuir stock a los componentes
+                                foreach ($producto->comboItems as $item) {
+                                    // Obtener el componente del cache si existe, o consultar
+                                    $componente = $prodPorCodigo->firstWhere('id', $item->componente_producto_id)
+                                        ?? Producto::find($item->componente_producto_id);
+                                    if (!$componente) continue;
+
+                                    $qtdComp = $item->cantidad * $d['cantidad'];
+                                    $componente->increment('stock', $qtdComp);
+
+                                    MovimientoStock::create([
+                                        'producto_id' => $componente->id,
+                                        'tipo'        => 'ingreso',
+                                        'cantidad'    => $qtdComp,
+                                        'referencia'  => 'compra #' . $compra->id . ' (promo «' . $producto->nombre . '»)',
+                                        'observacion' => 'Factura: ' . $factura . ' · import CSV',
+                                    ]);
+
+                                    Lote::create([
+                                        'producto_id'       => $componente->id,
+                                        'compra_id'         => $compra->id,
+                                        'cantidad'          => $qtdComp,
+                                        'cantidad_restante' => $qtdComp,
+                                        'fecha_vencimiento' => $fechaVenc,
+                                    ]);
+                                }
+                            } else {
+                                // Producto individual
+                                $producto->increment('stock', $d['cantidad']);
+
+                                MovimientoStock::create([
+                                    'producto_id' => $producto->id,
+                                    'tipo'        => 'ingreso',
+                                    'cantidad'    => $d['cantidad'],
+                                    'referencia'  => 'compra #' . $compra->id,
+                                    'observacion' => 'Factura: ' . $factura . ' · import CSV',
+                                ]);
+
+                                Lote::create([
+                                    'producto_id'       => $producto->id,
+                                    'compra_id'         => $compra->id,
+                                    'cantidad'          => $d['cantidad'],
+                                    'cantidad_restante' => $d['cantidad'],
+                                    'fecha_vencimiento' => $fechaVenc,
+                                ]);
+                            }
                         }
                         // cantidad == 1: solo precio_compra actualizado, sin movimiento de stock
                     }
