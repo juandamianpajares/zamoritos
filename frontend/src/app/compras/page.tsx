@@ -454,7 +454,7 @@ function DetalleCompraModal({ compra, onClose }: { compra: Compra; onClose: () =
 }
 
 // ─── Modal importar compras CSV ───────────────────────────────────────────────
-type ImportResult = { compras_creadas: number; omitidas: number; errores: { fila: string | number; error: string }[]; total_grupos: number };
+type ImportResult = { compras_creadas: number; omitidas: number; desestimados: number; errores: { fila: string | number; error: string }[]; total_codigos: number };
 
 function ImportarComprasModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [archivo,   setArchivo]   = useState<File | null>(null);
@@ -489,15 +489,16 @@ function ImportarComprasModal({ onClose, onDone }: { onClose: () => void; onDone
 Ejemplo:
 CF-0123;2024-03-01;212345670;7730900660761;10;1200;
 CF-0123;2024-03-01;212345670;7730900660488;5;800;2025-06-01
-CF-0124;2024-03-02;211234560;1234;20;500;
+CF-0124;2024-03-02;211234560;1234;1;950;
+CF-0124;2024-03-02;211234560;9876;0;350;
 
-Reglas:
-• Filas con el mismo número de factura → una sola compra
-• Si la factura ya existe en la DB → se omite (idempotente, útil para reimportar)
-• El precio de compra se actualiza en el producto
-• Stock se incrementa automáticamente
-• Se crea un lote por cada línea (para seguimiento de vencimientos)
-• rut debe coincidir exactamente con el RUT del proveedor en el sistema
+Lógica de reconciliación:
+• Si el mismo código de barras aparece varias veces → solo se procesa la ÚLTIMA fila
+• cantidad = 0  → desestimar (no toca precio ni stock)
+• cantidad = 1  → actualiza precio de compra, sin movimiento de stock
+• cantidad > 1  → actualiza precio + suma al stock + crea lote y movimiento
+• Todas las compras se registran como CONTADO / PAGADO
+• Si la factura ya existe en la DB → se omite (idempotente)
 • rut y fecha_vencimiento son opcionales`;
 
   return (
@@ -505,19 +506,29 @@ Reglas:
       <div className="space-y-4 text-sm">
         {resultado ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-emerald-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-emerald-600">{resultado.compras_creadas}</p>
                 <p className="text-xs text-emerald-500 mt-0.5">Compras creadas</p>
+              </div>
+              <div className="bg-sky-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-sky-600">{resultado.total_codigos}</p>
+                <p className="text-xs text-sky-500 mt-0.5">Artículos únicos</p>
+              </div>
+              <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-zinc-500">{resultado.desestimados}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Desestimados (cant. 0)</p>
               </div>
               <div className="bg-amber-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-amber-600">{resultado.omitidas}</p>
                 <p className="text-xs text-amber-500 mt-0.5">Omitidas (ya existían)</p>
               </div>
-              <div className="bg-rose-50 rounded-xl p-3 text-center">
+              {resultado.errores.length > 0 && (
+              <div className="col-span-2 bg-rose-50 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-rose-600">{resultado.errores.length}</p>
                 <p className="text-xs text-rose-500 mt-0.5">Errores</p>
               </div>
+              )}
             </div>
             {resultado.errores.length > 0 && (
               <div className="max-h-36 overflow-y-auto space-y-1">

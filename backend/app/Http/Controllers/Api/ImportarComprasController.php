@@ -14,18 +14,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Importa compras desde CSV.
+ * Importa compras desde CSV con lógica de reconciliación.
  *
- * Columnas (separador ;):
+ * Columnas (separador ; o ,):
  *   factura ; fecha ; rut ; codigo_barras ; cantidad ; precio_compra ; fecha_vencimiento
  *
- * Reglas:
- *  - Filas con el mismo `factura` → una sola Compra (agrupadas)
- *  - Si `factura` está vacío → una Compra por fila
- *  - Si la factura ya existe en la base de datos → se omite (idempotente)
- *  - `rut` matchea por RUT exacto en proveedores; si no existe → null
- *  - `codigo_barras` debe existir en productos
- *  - Cada fila genera: DetalleCompra + incremento de stock + MovimientoStock + Lote
+ * Reglas de deduplicación:
+ *  - Se recorre todo el archivo primero; si el mismo codigo_barras aparece varias veces
+ *    se conserva SOLO la última ocurrencia (last-wins).
+ *
+ * Reglas por cantidad:
+ *  - cantidad = 0  → desestimar (no se crea detalle, no se toca precio ni stock)
+ *  - cantidad = 1  → actualizar precio_compra del producto; se registra el detalle pero
+ *                    NO se incrementa stock ni se crea MovimientoStock / Lote
+ *  - cantidad > 1  → actualizar precio_compra + incrementar stock + MovimientoStock + Lote
+ *
+ * Todas las Compra generadas: tipo_pago='contado', estado_pago='pagado', dias_plazo=0.
  */
 class ImportarComprasController extends Controller
 {
@@ -57,42 +61,53 @@ class ImportarComprasController extends Controller
             return response()->json(['error' => 'Faltan columnas: ' . implode(', ', $faltantes)], 422);
         }
 
-        // Cache
-        $provCache     = Proveedor::all()->keyBy('rut');
-        $prodPorCodigo = Producto::where('activo', true)->whereNotNull('codigo_barras')
-                                  ->get()->keyBy('codigo_barras');
-
-        // Leer todas las filas y agrupar por factura
-        $grupos = [];   // key = factura (o "row_{n}" si vacío)
-        $fila   = 1;
-        $sinFacIdx = 0;
+        // ── Paso 1: leer todas las filas; deduplicar por codigo_barras (last-wins) ──
+        $porCodigo = [];   // codigo_barras → ['data' => $data, 'fila' => $n]
+        $fila      = 1;
 
         while (($row = fgetcsv($handle, 0, $sep)) !== false) {
             $fila++;
             if (count(array_filter($row, fn($v) => trim($v) !== '')) === 0) continue;
             if (count($row) < count($cabecera)) $row = array_pad($row, count($cabecera), '');
-            $data = array_combine($cabecera, array_map('trim', $row));
+            $data   = array_combine($cabecera, array_map('trim', $row));
+            $codigo = $data['codigo_barras'] ?? '';
+            if ($codigo === '') continue;
 
-            $facturaRaw = $data['factura'] ?? '';
-            $key = $facturaRaw !== '' ? $facturaRaw : ('__sin_' . (++$sinFacIdx));
-
-            if (!isset($grupos[$key])) {
-                $grupos[$key] = [
-                    'factura'   => $facturaRaw ?: null,
-                    'fecha'     => $data['fecha'] ?? date('Y-m-d'),
-                    'rut'       => $data['rut'] ?? '',
-                    'filas'     => [],
-                ];
-            }
-            $grupos[$key]['filas'][] = ['data' => $data, 'fila' => $fila];
+            $porCodigo[$codigo] = ['data' => $data, 'fila' => $fila];
         }
         fclose($handle);
 
-        $creadas  = 0;
-        $omitidas = 0;
-        $errores  = [];
+        // ── Paso 2: agrupar las filas deduplicadas por factura ──
+        $grupos    = [];
+        $sinFacIdx = 0;
 
-        foreach ($grupos as $key => $grupo) {
+        foreach ($porCodigo as $codigo => $entry) {
+            $data       = $entry['data'];
+            $facturaRaw = $data['factura'] ?? '';
+            $key        = $facturaRaw !== '' ? $facturaRaw : ('__sin_' . (++$sinFacIdx));
+
+            if (!isset($grupos[$key])) {
+                $grupos[$key] = [
+                    'factura' => $facturaRaw ?: null,
+                    'fecha'   => $data['fecha'] ?? date('Y-m-d'),
+                    'rut'     => $data['rut'] ?? '',
+                    'filas'   => [],
+                ];
+            }
+            $grupos[$key]['filas'][] = $entry;
+        }
+
+        // Caches
+        $provCache     = Proveedor::all()->keyBy('rut');
+        $prodPorCodigo = Producto::whereNotNull('codigo_barras')->get()->keyBy('codigo_barras');
+
+        $creadas       = 0;
+        $omitidas      = 0;
+        $desestimados  = 0;
+        $errores       = [];
+
+        // ── Paso 3: procesar cada grupo ──
+        foreach ($grupos as $grupo) {
             // Idempotente: si la factura ya existe → omitir
             if ($grupo['factura'] && Compra::where('factura', $grupo['factura'])->exists()) {
                 $omitidas++;
@@ -104,19 +119,26 @@ class ImportarComprasController extends Controller
             $proveedor   = $rut ? $provCache->get($rut) : null;
             $proveedorId = $proveedor?->id;
 
-            // Validar y construir detalles
+            // Calcular fecha
+            try {
+                $fecha = (new \DateTime($grupo['fecha']))->format('Y-m-d');
+            } catch (\Throwable) {
+                $fecha = date('Y-m-d');
+            }
+
+            // Validar y clasificar detalles
             $detalles = [];
             foreach ($grupo['filas'] as ['data' => $data, 'fila' => $nFila]) {
                 $codigo   = $data['codigo_barras'] ?? '';
-                $cantidad = (float) str_replace(',', '.', $data['cantidad'] ?? '');
-                $precio   = (float) str_replace(['.', ','], ['', '.'], $data['precio_compra'] ?? '');
+                $cantidad = (float) str_replace(',', '.', $data['cantidad'] ?? '0');
+                $precio   = (float) str_replace(['.', ','], ['', '.'], $data['precio_compra'] ?? '0');
 
-                if (!$codigo || !isset($prodPorCodigo[$codigo])) {
-                    $errores[] = ['fila' => $nFila, 'error' => "Código de barras no encontrado: '{$codigo}'"];
+                if (!isset($prodPorCodigo[$codigo])) {
+                    $errores[] = ['fila' => $nFila, 'error' => "Código no encontrado: '{$codigo}'"];
                     continue;
                 }
-                if ($cantidad <= 0) {
-                    $errores[] = ['fila' => $nFila, 'error' => "Cantidad inválida en fila {$nFila}"];
+                if ($cantidad < 0) {
+                    $errores[] = ['fila' => $nFila, 'error' => "Cantidad negativa en fila {$nFila}"];
                     continue;
                 }
 
@@ -125,32 +147,34 @@ class ImportarComprasController extends Controller
                     'cantidad'          => $cantidad,
                     'precio_compra'     => $precio,
                     'fecha_vencimiento' => ($data['fecha_vencimiento'] ?? '') ?: null,
+                    'fila'              => $nFila,
                 ];
             }
 
-            if (empty($detalles)) continue;
+            // Separar activos (cantidad >= 1) de desestimados (cantidad == 0)
+            $activos      = array_filter($detalles, fn($d) => $d['cantidad'] >= 1);
+            $desestimados += count(array_filter($detalles, fn($d) => $d['cantidad'] == 0));
 
-            // Calcular fecha (puede venir en distintos formatos)
-            $fechaRaw = $grupo['fecha'];
-            try {
-                $fecha = (new \DateTime($fechaRaw))->format('Y-m-d');
-            } catch (\Throwable) {
-                $fecha = date('Y-m-d');
-            }
+            if (empty($activos)) continue;
 
             try {
-                DB::transaction(function () use ($grupo, $proveedorId, $fecha, $detalles, &$creadas) {
-                    $total = collect($detalles)->sum(fn($d) => $d['cantidad'] * $d['precio_compra']);
+                DB::transaction(function () use ($grupo, $proveedorId, $fecha, $activos, &$creadas) {
+                    // El total solo cuenta filas con cantidad > 1 (las de solo precio no mueven caja)
+                    $total = collect($activos)->sum(fn($d) => $d['cantidad'] * $d['precio_compra']);
 
                     $compra = Compra::create([
                         'proveedor_id' => $proveedorId,
                         'fecha'        => $fecha,
                         'factura'      => $grupo['factura'],
                         'total'        => $total,
-                        'nota'         => 'Importado por CSV',
+                        'tipo_pago'    => 'contado',
+                        'dias_plazo'   => 0,
+                        'estado_pago'  => 'pagado',
+                        'monto_pagado' => $total,
+                        'nota'         => 'Importado por CSV (reconciliación)',
                     ]);
 
-                    foreach ($detalles as $d) {
+                    foreach ($activos as $d) {
                         $subtotal = $d['cantidad'] * $d['precio_compra'];
 
                         DetalleCompra::create([
@@ -161,24 +185,30 @@ class ImportarComprasController extends Controller
                             'subtotal'      => $subtotal,
                         ]);
 
-                        $d['producto']->increment('stock', $d['cantidad']);
+                        // Siempre actualizar precio de compra
                         $d['producto']->update(['precio_compra' => $d['precio_compra']]);
 
-                        MovimientoStock::create([
-                            'producto_id' => $d['producto']->id,
-                            'tipo'        => 'ingreso',
-                            'cantidad'    => $d['cantidad'],
-                            'referencia'  => 'compra #' . $compra->id,
-                            'observacion' => 'Factura: ' . ($grupo['factura'] ?? '-') . ' · import CSV',
-                        ]);
+                        if ($d['cantidad'] > 1) {
+                            // Incrementar stock + registrar movimiento + lote
+                            $d['producto']->increment('stock', $d['cantidad']);
 
-                        Lote::create([
-                            'producto_id'       => $d['producto']->id,
-                            'compra_id'         => $compra->id,
-                            'cantidad'          => $d['cantidad'],
-                            'cantidad_restante' => $d['cantidad'],
-                            'fecha_vencimiento' => $d['fecha_vencimiento'],
-                        ]);
+                            MovimientoStock::create([
+                                'producto_id' => $d['producto']->id,
+                                'tipo'        => 'ingreso',
+                                'cantidad'    => $d['cantidad'],
+                                'referencia'  => 'compra #' . $compra->id,
+                                'observacion' => 'Factura: ' . ($grupo['factura'] ?? '-') . ' · import CSV',
+                            ]);
+
+                            Lote::create([
+                                'producto_id'       => $d['producto']->id,
+                                'compra_id'         => $compra->id,
+                                'cantidad'          => $d['cantidad'],
+                                'cantidad_restante' => $d['cantidad'],
+                                'fecha_vencimiento' => $d['fecha_vencimiento'],
+                            ]);
+                        }
+                        // cantidad == 1: solo precio_compra actualizado, sin movimiento de stock
                     }
 
                     $creadas++;
@@ -191,8 +221,9 @@ class ImportarComprasController extends Controller
         return response()->json([
             'compras_creadas' => $creadas,
             'omitidas'        => $omitidas,
+            'desestimados'    => $desestimados,
             'errores'         => $errores,
-            'total_grupos'    => count($grupos),
+            'total_codigos'   => count($porCodigo),
         ]);
     }
 }
