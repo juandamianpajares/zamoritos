@@ -197,8 +197,9 @@ function CierreCajaModal({
       const dataUrl = await generarImagenCanvas();
       const json = await api.post<{ url: string }>('/dashboard/caja-imagen', { fecha, imagen: dataUrl });
       // json.url = '/storage/imagenes_comprobantes/caja_FECHA.webp'
-      // STORAGE_BASE = '' cuando la API es relativa (/api), host completo si es absoluta
-      setShareUrl(STORAGE_BASE + json.url);
+      // Siempre construir URL absoluta para que sea compartible (WhatsApp, etc.)
+      const base = STORAGE_BASE || window.location.origin;
+      setShareUrl(base + json.url);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo generar la imagen');
     } finally {

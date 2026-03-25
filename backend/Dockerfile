@@ -8,6 +8,14 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd opcache \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# PHP: límites de carga de archivos e imágenes
+RUN { \
+    echo 'upload_max_filesize=40M'; \
+    echo 'post_max_size=50M'; \
+    echo 'max_file_uploads=100'; \
+    echo 'memory_limit=256M'; \
+} > /usr/local/etc/php/conf.d/uploads.ini
+
 # OPcache - mejora rendimiento ~3x en producción
 RUN { \
     echo 'opcache.enable=1'; \
