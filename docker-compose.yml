@@ -71,6 +71,9 @@ services:
       # URL relativa → nginx proxy /api/* al backend. Funciona desde cualquier IP/dominio.
       NEXT_PUBLIC_API_URL: /api
       NODE_ENV: production
+      # Clave Anthropic para las rutas API de IA (scan y detectar producto)
+      # Requiere ANTHROPIC_API_KEY definida en el entorno del host o en .env al lado de docker-compose.yml
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3000 2>/dev/null || exit 1"]
       interval: 15s

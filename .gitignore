@@ -16,6 +16,7 @@ frontend/out/
 
 # Docker
 .docker/
+.env
 
 # Imagenes sin convertir / entrada bulk
 imagenes_productos/
