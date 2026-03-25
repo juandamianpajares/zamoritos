@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ComboItem;
 use App\Models\DetalleVenta;
 use App\Models\MovimientoStock;
 use App\Models\Producto;
@@ -40,16 +41,26 @@ class VentaService
             $subtotal = collect($data['detalles'])
                 ->sum(fn($d) => $d['cantidad'] * $d['precio_unitario']);
 
+            // Pago combinado: derivar medio_pago legible de la lista
+            $mediosPago = $data['medios_pago'] ?? null;
+            if ($mediosPago) {
+                $medioPago = collect($mediosPago)->pluck('medio')->join(', ');
+            } else {
+                $medioPago = $data['medio_pago'] ?? null;
+            }
+
             $venta = Venta::create([
                 'fecha'           => $data['fecha'],
                 'tipo_pago'       => $data['tipo_pago'],
-                'medio_pago'      => $data['medio_pago'] ?? null,
+                'medio_pago'      => $medioPago,
+                'medios_pago'     => $mediosPago,
                 'receptor_nombre' => $data['receptor_nombre'] ?? null,
                 'moneda'          => 'UYU',
                 'subtotal'        => $subtotal,
                 'descuento'       => 0,
                 'total'           => $subtotal,
                 'estado'          => 'confirmada',
+                'numero_factura'  => $data['numero_factura'] ?? null,
                 'usuario'         => $data['usuario'] ?? null,
                 'observacion'     => $data['observacion'] ?? null,
             ]);
@@ -66,16 +77,38 @@ class VentaService
                     'subtotal'        => $subtotalLinea,
                 ]);
 
-                $producto = Producto::findOrFail($d['producto_id']);
-                $producto->decrement('stock', $d['cantidad']);
+                $producto = Producto::with('comboItems')->findOrFail($d['producto_id']);
 
-                MovimientoStock::create([
-                    'producto_id' => $d['producto_id'],
-                    'tipo'        => 'venta',
-                    'cantidad'    => -$d['cantidad'],
-                    'referencia'  => 'venta #' . $venta->id,
-                    'usuario'     => $data['usuario'] ?? null,
-                ]);
+                $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                    && $producto->comboItems->isNotEmpty();
+
+                if ($esPromoConComponentes) {
+                    // COMBO u OFERTA: descontar stock de cada componente
+                    foreach ($producto->comboItems as $item) {
+                        $componente    = Producto::findOrFail($item->componente_producto_id);
+                        $qtdComponente = $item->cantidad * $d['cantidad'];
+                        $componente->decrement('stock', $qtdComponente);
+
+                        MovimientoStock::create([
+                            'producto_id' => $item->componente_producto_id,
+                            'tipo'        => 'venta',
+                            'cantidad'    => -$qtdComponente,
+                            'referencia'  => 'venta #' . $venta->id . ' (promo «' . $producto->nombre . '»)',
+                            'usuario'     => $data['usuario'] ?? null,
+                        ]);
+                    }
+                    // El producto-promo es una pantalla, no tiene stock físico
+                } else {
+                    $producto->decrement('stock', $d['cantidad']);
+
+                    MovimientoStock::create([
+                        'producto_id' => $d['producto_id'],
+                        'tipo'        => 'venta',
+                        'cantidad'    => -$d['cantidad'],
+                        'referencia'  => 'venta #' . $venta->id,
+                        'usuario'     => $data['usuario'] ?? null,
+                    ]);
+                }
             }
 
             // TODO Kitfe v2: KitfeAdapter::export($venta)
@@ -97,16 +130,36 @@ class VentaService
             $venta->load('detalles');
 
             foreach ($venta->detalles as $d) {
-                $producto = Producto::findOrFail($d->producto_id);
-                $producto->increment('stock', $d->cantidad);
+                $producto = Producto::with('comboItems')->findOrFail($d->producto_id);
 
-                MovimientoStock::create([
-                    'producto_id' => $d->producto_id,
-                    'tipo'        => 'ajuste',
-                    'cantidad'    => $d->cantidad,
-                    'referencia'  => 'anulación venta #' . $venta->id,
-                    'observacion' => 'Venta anulada',
-                ]);
+                $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                    && $producto->comboItems->isNotEmpty();
+
+                if ($esPromoConComponentes) {
+                    foreach ($producto->comboItems as $item) {
+                        $componente    = Producto::findOrFail($item->componente_producto_id);
+                        $qtdComponente = $item->cantidad * $d->cantidad;
+                        $componente->increment('stock', $qtdComponente);
+
+                        MovimientoStock::create([
+                            'producto_id' => $item->componente_producto_id,
+                            'tipo'        => 'ajuste',
+                            'cantidad'    => $qtdComponente,
+                            'referencia'  => 'anulación venta #' . $venta->id,
+                            'observacion' => 'Venta anulada — promo «' . $producto->nombre . '»',
+                        ]);
+                    }
+                } else {
+                    $producto->increment('stock', $d->cantidad);
+
+                    MovimientoStock::create([
+                        'producto_id' => $d->producto_id,
+                        'tipo'        => 'ajuste',
+                        'cantidad'    => $d->cantidad,
+                        'referencia'  => 'anulación venta #' . $venta->id,
+                        'observacion' => 'Venta anulada',
+                    ]);
+                }
             }
 
             $venta->update(['estado' => 'anulada']);
@@ -121,12 +174,27 @@ class VentaService
         $errors = [];
 
         foreach ($detalles as $d) {
-            $producto = Producto::find($d['producto_id']);
+            $producto = Producto::with('comboItems')->find($d['producto_id']);
             if (!$producto) continue;
 
-            if ($producto->stock < $d['cantidad']) {
-                $errors["producto_{$d['producto_id']}"] =
-                    "Stock insuficiente para «{$producto->nombre}» (disponible: {$producto->stock} {$producto->unidad_medida}).";
+            $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                && $producto->comboItems->isNotEmpty();
+
+            if ($esPromoConComponentes) {
+                foreach ($producto->comboItems as $item) {
+                    $componente = Producto::find($item->componente_producto_id);
+                    if (!$componente) continue;
+                    $necesario = $item->cantidad * $d['cantidad'];
+                    if ($componente->stock < $necesario) {
+                        $errors["componente_{$item->componente_producto_id}"] =
+                            "Stock insuficiente para «{$componente->nombre}» (necesario: {$necesario}, disponible: {$componente->stock}).";
+                    }
+                }
+            } else {
+                if ($producto->stock < $d['cantidad']) {
+                    $errors["producto_{$d['producto_id']}"] =
+                        "Stock insuficiente para «{$producto->nombre}» (disponible: {$producto->stock} {$producto->unidad_medida}).";
+                }
             }
         }
 

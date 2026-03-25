@@ -65,61 +65,11 @@ class ImportarComprasController extends Controller
         $porCodigo = [];   // codigo_barras → ['data' => $data, 'fila' => $n]
         $fila      = 1;
 
-        $nCabecera   = count($cabecera);
-        $idxCodigo   = array_search('codigo_barras', $cabecera);
-        $idxCantidad = array_search('cantidad',      $cabecera);
-        $idxPrecio   = array_search('precio_compra', $cabecera);
-
         while (($row = fgetcsv($handle, 0, $sep)) !== false) {
             $fila++;
             if (count(array_filter($row, fn($v) => trim($v) !== '')) === 0) continue;
-
-            $nRow = count($row);
-
-            // Filas con más columnas que la cabecera (ej: CSV con descripción extra)
-            if ($nRow > $nCabecera) {
-                // Primero construir $data con las columnas estándar truncadas
-                $rowStd = array_map('trim', array_slice($row, 0, $nCabecera));
-                $data   = array_combine($cabecera, $rowStd);
-
-                // Si cantidad está vacía o no numérica en la posición estándar,
-                // buscar en las columnas extra el primer valor numérico > 0
-                $cantVal   = $data['cantidad'] ?? '';
-                $precioVal = $data['precio_compra'] ?? '';
-
-                if ($cantVal === '' || !is_numeric(str_replace(',', '.', $cantVal))) {
-                    $extras = array_map('trim', array_slice($row, $nCabecera));
-                    $found  = 0;
-                    foreach ($extras as $ex) {
-                        $n = (float) str_replace(',', '.', $ex);
-                        if ($n > 0) {
-                            if ($found === 0) { $data['cantidad']      = $ex; $found++; }
-                            elseif ($found === 1) { $data['precio_compra'] = $ex; $found++; break; }
-                        }
-                    }
-                }
-
-                // fecha_vencimiento: si el valor truncado no parece fecha, buscar en la fila completa
-                $fvTrunc    = $data['fecha_vencimiento'] ?? '';
-                $esDateFmt  = $fvTrunc !== '' && (
-                    preg_match('/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/', $fvTrunc) ||
-                    preg_match('/^\d{4}-\d{2}-\d{2}$/', $fvTrunc)
-                );
-                if (!$esDateFmt) {
-                    foreach (array_reverse($row) as $cell) {
-                        $cell = trim($cell);
-                        if (preg_match('/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/', $cell)
-                            || preg_match('/^\d{4}-\d{2}-\d{2}$/', $cell)) {
-                            $data['fecha_vencimiento'] = $cell;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                if ($nRow < $nCabecera) $row = array_pad($row, $nCabecera, '');
-                $data = array_combine($cabecera, array_map('trim', $row));
-            }
-
+            if (count($row) < count($cabecera)) $row = array_pad($row, count($cabecera), '');
+            $data   = array_combine($cabecera, array_map('trim', $row));
             $codigo = $data['codigo_barras'] ?? '';
             if ($codigo === '') continue;
 
@@ -171,12 +121,7 @@ class ImportarComprasController extends Controller
 
             // Calcular fecha
             try {
-                $rawFecha = $grupo['fecha'];
-                $dt = \DateTime::createFromFormat('d/m/Y', $rawFecha)
-                    ?: \DateTime::createFromFormat('d-m-Y', $rawFecha)
-                    ?: \DateTime::createFromFormat('Y-m-d', $rawFecha)
-                    ?: new \DateTime($rawFecha);
-                $fecha = $dt->format('Y-m-d');
+                $fecha = (new \DateTime($grupo['fecha']))->format('Y-m-d');
             } catch (\Throwable) {
                 $fecha = date('Y-m-d');
             }
@@ -197,20 +142,11 @@ class ImportarComprasController extends Controller
                     continue;
                 }
 
-                $rawVenc  = trim($data['fecha_vencimiento'] ?? '');
-                $fechaVenc = null;
-                if ($rawVenc !== '') {
-                    $dv = \DateTime::createFromFormat('d/m/Y', $rawVenc)
-                        ?: \DateTime::createFromFormat('d-m-Y', $rawVenc)
-                        ?: \DateTime::createFromFormat('Y-m-d', $rawVenc);
-                    $fechaVenc = $dv ? $dv->format('Y-m-d') : null;
-                }
-
                 $detalles[] = [
                     'producto'          => $prodPorCodigo[$codigo],
                     'cantidad'          => $cantidad,
                     'precio_compra'     => $precio,
-                    'fecha_vencimiento' => $fechaVenc,
+                    'fecha_vencimiento' => ($data['fecha_vencimiento'] ?? '') ?: null,
                     'fila'              => $nFila,
                 ];
             }
