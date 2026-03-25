@@ -689,7 +689,7 @@ export default function ProductosPage() {
   const [search,       setSearch]       = useState('');
   const [catFilter,    setCatFilter]    = useState('');
   const [marcaFilter,  setMarcaFilter]  = useState('');
-  const [specialFilter, setSpecialFilter] = useState<'' | 'promo' | 'combo'>('');
+  const [specialFilter, setSpecialFilter] = useState<'' | 'destacado' | 'combo' | 'oferta' | 'regalo'>('');
   const [stockAdj,     setStockAdj]     = useState<Record<number, boolean>>({});
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editId,       setEditId]       = useState<number | null>(null);
@@ -738,11 +738,12 @@ export default function ProductosPage() {
 
   useEffect(() => { load(); }, [search, catFilter, marcaFilter]);
 
-  const productosFiltrados = specialFilter === 'promo'
-    ? productos.filter(p => p.en_promo)
-    : specialFilter === 'combo'
-    ? productos.filter(p => p.en_promo === 1)
-    : productos;
+  const productosFiltrados =
+    specialFilter === 'destacado' ? productos.filter(p => p.destacado) :
+    specialFilter === 'combo'     ? productos.filter(p => p.en_promo === 1) :
+    specialFilter === 'oferta'    ? productos.filter(p => p.en_promo === 2) :
+    specialFilter === 'regalo'    ? productos.filter(p => p.en_promo === 3) :
+    productos;
 
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
 
@@ -927,75 +928,73 @@ export default function ProductosPage() {
         )}
       </div>
 
-      {/* ── Pills especiales: Promo / Combo ──────────────────────────────── */}
+      {/* ── Filtros rápidos + marcas (barra unificada) ───────────────────── */}
       {(() => {
-        const nPromo  = productos.filter(p => p.en_promo).length;
-        const nCombo  = productos.filter(p => p.en_promo === 1).length;
-        if (!nPromo && !nCombo) return null;
+        const nDestacado = productos.filter(p => p.destacado).length;
+        const nCombo     = productos.filter(p => p.en_promo === 1).length;
+        const nOferta    = productos.filter(p => p.en_promo === 2).length;
+        const nRegalo    = productos.filter(p => p.en_promo === 3).length;
+        const hayEspeciales = nDestacado || nCombo || nOferta || nRegalo;
+        if (!hayEspeciales && !marcas.length) return null;
+
+        type SF = typeof specialFilter;
+        const pill = (key: SF, label: string, count: number, activeCls: string, inactiveCls: string) =>
+          count > 0 ? (
+            <button
+              key={key}
+              onClick={() => setSpecialFilter(specialFilter === key ? '' : key)}
+              className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                specialFilter === key ? activeCls : inactiveCls
+              }`}
+            >
+              {label} <span className="opacity-70">{count}</span>
+            </button>
+          ) : null;
+
         return (
-          <div className="flex gap-1.5 mb-2">
-            {nPromo > 0 && (
-              <button
-                onClick={() => setSpecialFilter(specialFilter === 'promo' ? '' : 'promo')}
-                className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
-                  specialFilter === 'promo'
-                    ? 'bg-rose-500 text-white border-rose-500'
-                    : 'bg-rose-50 text-rose-600 border-rose-100 hover:border-rose-300'
-                }`}
-              >
-                🏷 Ofertas <span className="opacity-70">{nPromo}</span>
-              </button>
+          <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 scrollbar-hide items-center">
+            {/* Filtros especiales */}
+            {pill('destacado', '⭐ Destacados', nDestacado,
+              'bg-amber-500 text-white border-amber-500',
+              'bg-amber-50 text-amber-600 border-amber-100 hover:border-amber-300')}
+            {pill('combo', '📦 Combo', nCombo,
+              'bg-violet-500 text-white border-violet-500',
+              'bg-violet-50 text-violet-600 border-violet-100 hover:border-violet-300')}
+            {pill('oferta', '🏷 Oferta', nOferta,
+              'bg-rose-500 text-white border-rose-500',
+              'bg-rose-50 text-rose-600 border-rose-100 hover:border-rose-300')}
+            {pill('regalo', '🎁 Regalo', nRegalo,
+              'bg-emerald-500 text-white border-emerald-500',
+              'bg-emerald-50 text-emerald-600 border-emerald-100 hover:border-emerald-300')}
+
+            {/* Separador visual si hay ambos grupos */}
+            {!!(hayEspeciales && marcas.length) && (
+              <div className="w-px h-4 bg-zinc-200 mx-0.5 shrink-0" />
             )}
-            {nCombo > 0 && (
-              <button
-                onClick={() => setSpecialFilter(specialFilter === 'combo' ? '' : 'combo')}
-                className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
-                  specialFilter === 'combo'
-                    ? 'bg-violet-500 text-white border-violet-500'
-                    : 'bg-violet-50 text-violet-600 border-violet-100 hover:border-violet-300'
-                }`}
-              >
-                📦 Combos <span className="opacity-70">{nCombo}</span>
-              </button>
-            )}
+
+            {/* Pills de marca */}
+            {marcas.map(m => {
+              const count = productosFiltrados.filter((p: Producto) => p.marca === m).length;
+              if (!count) return null;
+              const isActive = marcaFilter === m;
+              const col = marcaColor(m);
+              return (
+                <button
+                  key={m}
+                  onClick={() => setMarcaFilter(isActive ? '' : m)}
+                  className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                    isActive
+                      ? col + ' ring-1 ring-offset-1 ring-current'
+                      : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                  }`}
+                >
+                  {m} <span className="opacity-60 ml-0.5">{count}</span>
+                </button>
+              );
+            })}
           </div>
         );
       })()}
-
-      {/* ── Pills de marca (scroll horizontal) ──────────────────────────── */}
-      {marcas.length > 0 && (
-        <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 scrollbar-hide">
-          <button
-            onClick={() => setMarcaFilter('')}
-            className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
-              !marcaFilter
-                ? 'bg-zinc-900 text-white border-zinc-900'
-                : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
-            }`}
-          >
-            Todas ({productosFiltrados.length})
-          </button>
-          {marcas.map(m => {
-            const count = productosFiltrados.filter(p => p.marca === m).length;
-            if (!count) return null;
-            const isActive = marcaFilter === m;
-            const col = marcaColor(m);
-            return (
-              <button
-                key={m}
-                onClick={() => setMarcaFilter(isActive ? '' : m)}
-                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
-                  isActive
-                    ? col + ' ring-1 ring-offset-1 ring-current'
-                    : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
-                }`}
-              >
-                {m} <span className="opacity-60 ml-0.5">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
         {loading ? (
