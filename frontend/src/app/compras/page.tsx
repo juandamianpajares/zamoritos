@@ -207,9 +207,9 @@ export default function ComprasPage() {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={label}>Proveedor</label>
-              <select value={form.proveedor_id} onChange={e => setForm(p => ({ ...p, proveedor_id: e.target.value }))} className={input}>
-                <option value="">Sin proveedor</option>
+              <label className={label}>Proveedor *</label>
+              <select required value={form.proveedor_id} onChange={e => setForm(p => ({ ...p, proveedor_id: e.target.value }))} className={input}>
+                <option value="" disabled>Seleccioná un proveedor…</option>
                 {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>

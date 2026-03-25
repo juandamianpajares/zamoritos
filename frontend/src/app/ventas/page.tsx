@@ -244,6 +244,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [kgPicker,    setKgPicker]     = useState<{ producto: Producto; kg: string } | null>(null);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
+  const [lastFacturaNum, setLastFacturaNum] = useState(0);
+  const [facturaPadLen, setFacturaPadLen] = useState(6);
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [promoBusqueda, setPromoBusqueda] = useState('');
@@ -257,6 +259,22 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
   const recargarProductos = useCallback(() => {
     api.get<Producto[]>('/productos').then(setProductos);
+  }, []);
+
+  // Cargar último número de factura para auto-sugerir el próximo
+  useEffect(() => {
+    api.get<VentasPaginado>('/ventas').then(r => {
+      const entries = r.data
+        .map(v => v.numero_factura ?? '')
+        .filter(Boolean)
+        .map(s => ({ s, n: parseInt(s.replace(/\D/g, ''), 10) }))
+        .filter(({ n }) => !isNaN(n) && n > 0);
+      if (entries.length > 0) {
+        const best = entries.reduce((a, b) => b.n > a.n ? b : a);
+        setLastFacturaNum(best.n);
+        setFacturaPadLen(Math.max(best.s.length, 4));
+      }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -423,7 +441,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     }
     if (creditoCanje > 0) body.credito_devolucion = creditoCanje;
     setPendingBody(body);
-    setNroFactura('');
+    setNroFactura(String(lastFacturaNum + 1).padStart(facturaPadLen, '0'));
     setShowFacturaModal(true);
   };
 
@@ -436,6 +454,13 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     if (nroFact && nroFact !== '0') body.numero_factura = nroFact;
     try {
       await api.post<Venta>('/ventas', body);
+      if (nroFact && nroFact !== '0') {
+        const n = parseInt(nroFact.replace(/\D/g, ''), 10);
+        if (!isNaN(n) && n > lastFacturaNum) {
+          setLastFacturaNum(n);
+          setFacturaPadLen(Math.max(nroFact.length, facturaPadLen));
+        }
+      }
       const alerts = carrito
         .filter(l => (l.producto.stock - l.cantidad) <= 3 && (l.producto.stock - l.cantidad) >= 0)
         .map(l => ({ nombre: l.producto.nombre, stock: l.producto.stock - l.cantidad }));
@@ -1059,16 +1084,34 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               <h2 className="text-base font-bold text-zinc-900">¿Número de factura?</h2>
               <p className="text-xs text-zinc-400 mt-0.5">Ingresá el número o dejá en 0 si no tiene.</p>
             </div>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoFocus
-              value={nroFactura}
-              onChange={e => setNroFactura(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') ejecutarVenta(nroFactura); }}
-              placeholder="Ej: 000123"
-              className="w-full px-4 py-3 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const n = parseInt(nroFactura.replace(/\D/g, ''), 10);
+                  if (!isNaN(n) && n > 1) setNroFactura(String(n - 1).padStart(nroFactura.length, '0'));
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-lg font-bold transition-colors flex-shrink-0"
+              >−</button>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={nroFactura}
+                onChange={e => setNroFactura(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') ejecutarVenta(nroFactura); }}
+                placeholder="Ej: 000123"
+                className="flex-1 px-4 py-3 text-sm text-center border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const n = parseInt(nroFactura.replace(/\D/g, ''), 10);
+                  if (!isNaN(n)) setNroFactura(String(n + 1).padStart(nroFactura.length, '0'));
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-lg font-bold transition-colors flex-shrink-0"
+              >+</button>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => ejecutarVenta('0')}
@@ -2007,7 +2050,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 2H5L1 6v6h8V2z"/><line x1="5" y1="2" x2="5" y2="6"/></svg>
                             {v.numero_factura}
                           </button>
-                        ) : <span className="text-zinc-300 text-xs">—</span>}
+                        ) : <span className="text-[10px] font-mono bg-zinc-100 text-zinc-400 px-1.5 py-0.5 rounded">N{String(v.id).padStart(4, '0')}</span>}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${v.tipo_pago === 'contado' ? 'bg-zinc-100 text-zinc-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -2090,7 +2133,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                             {v.numero_factura}
                           </button>
                         ) : (
-                          <span className="text-[10px] text-zinc-300 italic">sin factura</span>
+                          <span className="text-[10px] font-mono bg-zinc-100 text-zinc-400 px-1.5 py-0.5 rounded">N{String(v.id).padStart(4, '0')}</span>
                         )}
                       </div>
                     </div>

@@ -41,7 +41,7 @@ class CompraController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'proveedor_id'                 => 'nullable|exists:proveedores,id',
+            'proveedor_id'                 => 'required|exists:proveedores,id',
             'fecha'                        => 'required|date',
             'factura'                      => 'nullable|string',
             'usuario'                      => 'nullable|string',
