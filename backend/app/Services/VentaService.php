@@ -79,10 +79,13 @@ class VentaService
 
                 $producto = Producto::with('comboItems')->findOrFail($d['producto_id']);
 
-                if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO) {
-                    // Descontar stock de cada componente del combo
+                $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                    && $producto->comboItems->isNotEmpty();
+
+                if ($esPromoConComponentes) {
+                    // COMBO u OFERTA: descontar stock de cada componente
                     foreach ($producto->comboItems as $item) {
-                        $componente = Producto::findOrFail($item->componente_producto_id);
+                        $componente    = Producto::findOrFail($item->componente_producto_id);
                         $qtdComponente = $item->cantidad * $d['cantidad'];
                         $componente->decrement('stock', $qtdComponente);
 
@@ -90,11 +93,11 @@ class VentaService
                             'producto_id' => $item->componente_producto_id,
                             'tipo'        => 'venta',
                             'cantidad'    => -$qtdComponente,
-                            'referencia'  => 'venta #' . $venta->id . ' (combo ' . $producto->nombre . ')',
+                            'referencia'  => 'venta #' . $venta->id . ' (promo «' . $producto->nombre . '»)',
                             'usuario'     => $data['usuario'] ?? null,
                         ]);
                     }
-                    // El combo en sí no tiene stock físico — no decrementar
+                    // El producto-promo es una pantalla, no tiene stock físico
                 } else {
                     $producto->decrement('stock', $d['cantidad']);
 
@@ -127,16 +130,36 @@ class VentaService
             $venta->load('detalles');
 
             foreach ($venta->detalles as $d) {
-                $producto = Producto::findOrFail($d->producto_id);
-                $producto->increment('stock', $d->cantidad);
+                $producto = Producto::with('comboItems')->findOrFail($d->producto_id);
 
-                MovimientoStock::create([
-                    'producto_id' => $d->producto_id,
-                    'tipo'        => 'ajuste',
-                    'cantidad'    => $d->cantidad,
-                    'referencia'  => 'anulación venta #' . $venta->id,
-                    'observacion' => 'Venta anulada',
-                ]);
+                $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                    && $producto->comboItems->isNotEmpty();
+
+                if ($esPromoConComponentes) {
+                    foreach ($producto->comboItems as $item) {
+                        $componente    = Producto::findOrFail($item->componente_producto_id);
+                        $qtdComponente = $item->cantidad * $d->cantidad;
+                        $componente->increment('stock', $qtdComponente);
+
+                        MovimientoStock::create([
+                            'producto_id' => $item->componente_producto_id,
+                            'tipo'        => 'ajuste',
+                            'cantidad'    => $qtdComponente,
+                            'referencia'  => 'anulación venta #' . $venta->id,
+                            'observacion' => 'Venta anulada — promo «' . $producto->nombre . '»',
+                        ]);
+                    }
+                } else {
+                    $producto->increment('stock', $d->cantidad);
+
+                    MovimientoStock::create([
+                        'producto_id' => $d->producto_id,
+                        'tipo'        => 'ajuste',
+                        'cantidad'    => $d->cantidad,
+                        'referencia'  => 'anulación venta #' . $venta->id,
+                        'observacion' => 'Venta anulada',
+                    ]);
+                }
             }
 
             $venta->update(['estado' => 'anulada']);
@@ -154,7 +177,10 @@ class VentaService
             $producto = Producto::with('comboItems')->find($d['producto_id']);
             if (!$producto) continue;
 
-            if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO) {
+            $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+                && $producto->comboItems->isNotEmpty();
+
+            if ($esPromoConComponentes) {
                 foreach ($producto->comboItems as $item) {
                     $componente = Producto::find($item->componente_producto_id);
                     if (!$componente) continue;
