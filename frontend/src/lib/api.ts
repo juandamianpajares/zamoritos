@@ -71,9 +71,9 @@ export interface Producto {
   fraccionado_de?: number;
   fraccionable?: boolean;
   modo_fraccion?: 'kg' | 'unidad';
-  es_combo?: boolean;
+  /** 0=sin promo | 1=COMBO | 2=OFERTA | 3=REGALO */
+  en_promo?: 0 | 1 | 2 | 3;
   combo_items?: ComboItem[];
-  en_promo?: boolean;
   precio_promo?: number;
   promo_producto_id?: number;
   promo_producto?: Producto;
@@ -101,6 +101,9 @@ export interface Proveedor {
   contacto?: string;
   notas?: string;
   activo: boolean;
+  saldo_manual?: number;
+  saldo_compras?: number;
+  saldo_total?: number;
 }
 
 export interface DetalleCompra {

@@ -11,7 +11,12 @@ class ProveedorController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Proveedor::where('activo', true);
+        $query = Proveedor::query();
+
+        // Por defecto solo activos; ?todos=1 devuelve todos
+        if (!$request->boolean('todos')) {
+            $query->where('activo', true);
+        }
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -33,32 +38,59 @@ class ProveedorController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nombre'    => 'required|string',
-            'rut'       => 'nullable|string',
-            'telefono'  => 'nullable|string',
-            'email'     => 'nullable|email',
-            'direccion' => 'nullable|string',
-            'contacto'  => 'nullable|string',
-            'notas'     => 'nullable|string',
+            'nombre'       => 'required|string',
+            'rut'          => 'nullable|string',
+            'telefono'     => 'nullable|string',
+            'email'        => 'nullable|email',
+            'direccion'    => 'nullable|string',
+            'contacto'     => 'nullable|string',
+            'notas'        => 'nullable|string',
+            'activo'       => 'nullable|boolean',
+            'saldo_manual' => 'nullable|numeric|min:0',
         ]);
 
+        $data['activo'] = $data['activo'] ?? true;
         return response()->json(Proveedor::create($data), 201);
     }
 
     public function update(Request $request, Proveedor $proveedor): JsonResponse
     {
         $data = $request->validate([
-            'nombre'    => 'required|string',
-            'rut'       => 'nullable|string',
-            'telefono'  => 'nullable|string',
-            'email'     => 'nullable|email',
-            'direccion' => 'nullable|string',
-            'contacto'  => 'nullable|string',
-            'notas'     => 'nullable|string',
+            'nombre'       => 'required|string',
+            'rut'          => 'nullable|string',
+            'telefono'     => 'nullable|string',
+            'email'        => 'nullable|email',
+            'direccion'    => 'nullable|string',
+            'contacto'     => 'nullable|string',
+            'notas'        => 'nullable|string',
+            'activo'       => 'nullable|boolean',
+            'saldo_manual' => 'nullable|numeric|min:0',
         ]);
 
         $proveedor->update($data);
         return response()->json($proveedor);
+    }
+
+    /** PATCH /proveedores/{proveedor}/toggle-activo */
+    public function toggleActivo(Proveedor $proveedor): JsonResponse
+    {
+        $proveedor->update(['activo' => !$proveedor->activo]);
+        return response()->json(['activo' => $proveedor->activo]);
+    }
+
+    /** PATCH /proveedores/{proveedor}/saldo — edita solo el saldo manual */
+    public function actualizarSaldo(Request $request, Proveedor $proveedor): JsonResponse
+    {
+        $data = $request->validate([
+            'saldo_manual' => 'required|numeric|min:0',
+        ]);
+
+        $proveedor->update($data);
+        return response()->json([
+            'saldo_manual' => $proveedor->saldo_manual,
+            'saldo_compras'=> $proveedor->saldo_compras,
+            'saldo_total'  => $proveedor->saldo_total,
+        ]);
     }
 
     public function destroy(Proveedor $proveedor): JsonResponse

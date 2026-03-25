@@ -741,7 +741,7 @@ export default function ProductosPage() {
   const productosFiltrados = specialFilter === 'promo'
     ? productos.filter(p => p.en_promo)
     : specialFilter === 'combo'
-    ? productos.filter(p => p.es_combo)
+    ? productos.filter(p => p.en_promo === 1)
     : productos;
 
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
@@ -930,7 +930,7 @@ export default function ProductosPage() {
       {/* ── Pills especiales: Promo / Combo ──────────────────────────────── */}
       {(() => {
         const nPromo  = productos.filter(p => p.en_promo).length;
-        const nCombo  = productos.filter(p => p.es_combo).length;
+        const nCombo  = productos.filter(p => p.en_promo === 1).length;
         if (!nPromo && !nCombo) return null;
         return (
           <div className="flex gap-1.5 mb-2">
@@ -1032,7 +1032,7 @@ export default function ProductosPage() {
                           {p.codigo_barras && (
                             <span className="text-[10px] font-mono text-zinc-400">{p.codigo_barras}</span>
                           )}
-                          {p.es_combo && (
+                          {p.en_promo === 1 && (
                             <span className="text-[10px] bg-violet-50 text-violet-600 px-1.5 py-px rounded-full font-medium border border-violet-100">📦 Combo</span>
                           )}
                           {p.en_promo && p.precio_promo != null && (

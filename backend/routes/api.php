@@ -44,6 +44,8 @@ Route::get('imagenes/requisitos',   [ImagenController::class, 'requisitos']);
 Route::post('imagenes/importar',    [ImagenController::class, 'importar']);
 Route::post('proveedores/importar', [ImportarProveedoresController::class, 'store']);
 Route::apiResource('proveedores', ProveedorController::class);
+Route::patch('proveedores/{proveedor}/saldo',        [ProveedorController::class, 'actualizarSaldo']);
+Route::patch('proveedores/{proveedor}/toggle-activo', [ProveedorController::class, 'toggleActivo']);
 Route::post('compras/importar', [ImportarComprasController::class, 'store']);
 Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 

@@ -50,7 +50,7 @@ class PagoProveedorController extends Controller
         $data = $request->validate([
             'proveedor_id' => 'required|exists:proveedores,id',
             'compra_id'    => 'nullable|exists:compras,id',
-            'tipo'         => 'required|in:pre_compra,contado,cuota',
+            'tipo'         => 'required|in:pre_compra,contado,cuota,manual',
             'monto'        => 'required|numeric|min:0.01',
             'fecha'        => 'required|date',
             'medio_pago'   => 'required|in:efectivo,transferencia,cheque,otro',
@@ -62,9 +62,14 @@ class PagoProveedorController extends Controller
         return DB::transaction(function () use ($data) {
             $pago = PagoProveedor::create($data);
 
-            // Si viene con compra_id, actualizar el saldo de la compra
             if ($data['compra_id'] ?? null) {
+                // Pago contra factura → recalcular estado de la compra
                 $this->recalcularCompra($data['compra_id']);
+            } elseif ($data['tipo'] === 'manual') {
+                // Pago manual → descontar del saldo_manual del proveedor (mínimo 0)
+                $proveedor = \App\Models\Proveedor::find($data['proveedor_id']);
+                $nuevoSaldo = max(0, $proveedor->saldo_manual - $data['monto']);
+                $proveedor->update(['saldo_manual' => $nuevoSaldo]);
             }
 
             return response()->json($pago->load('proveedor', 'compra'), 201);

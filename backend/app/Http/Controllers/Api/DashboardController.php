@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
@@ -33,14 +34,55 @@ class DashboardController extends Controller
             ->orderBy('fecha_vencimiento')
             ->get();
 
+        $hoy   = Carbon::today();
+        $en15  = Carbon::today()->addDays(15);
+
+        $pagosVencidos = Compra::with('proveedor')
+            ->whereIn('estado_pago', ['pendiente', 'parcial'])
+            ->where('tipo_pago', 'diferido')
+            ->whereNotNull('fecha_vencimiento')
+            ->where('fecha_vencimiento', '<', $hoy)
+            ->orderBy('fecha_vencimiento')
+            ->get()
+            ->map(fn($c) => [
+                'id'          => $c->id,
+                'proveedor'   => $c->proveedor?->nombre ?? 'Sin proveedor',
+                'factura'     => $c->factura ?? null,
+                'total'       => (float) $c->total,
+                'saldo'       => round((float) $c->total - (float) $c->monto_pagado, 2),
+                'vencimiento' => $c->fecha_vencimiento?->toDateString(),
+                'dias_atraso' => $hoy->diffInDays($c->fecha_vencimiento),
+            ]);
+
+        $pagosProximos15 = Compra::with('proveedor')
+            ->whereIn('estado_pago', ['pendiente', 'parcial'])
+            ->where('tipo_pago', 'diferido')
+            ->whereNotNull('fecha_vencimiento')
+            ->whereBetween('fecha_vencimiento', [$hoy, $en15])
+            ->orderBy('fecha_vencimiento')
+            ->get()
+            ->map(fn($c) => [
+                'id'          => $c->id,
+                'proveedor'   => $c->proveedor?->nombre ?? 'Sin proveedor',
+                'factura'     => $c->factura ?? null,
+                'total'       => (float) $c->total,
+                'saldo'       => round((float) $c->total - (float) $c->monto_pagado, 2),
+                'vencimiento' => $c->fecha_vencimiento?->toDateString(),
+                'dias_para_vencer' => $hoy->diffInDays($c->fecha_vencimiento),
+            ]);
+
         return response()->json([
-            'total_productos'       => Producto::where('activo', true)->count(),
-            'total_proveedores'     => Proveedor::where('activo', true)->count(),
-            'total_compras'         => Compra::count(),
-            'stock_bajo_count'      => $productosStockBajo->count(),
-            'proximos_vencer_count' => $proximosVencer->count(),
-            'productos_stock_bajo'  => $productosStockBajo,
-            'proximos_vencer'       => $proximosVencer,
+            'total_productos'        => Producto::where('activo', true)->count(),
+            'total_proveedores'      => Proveedor::where('activo', true)->count(),
+            'total_compras'          => Compra::count(),
+            'stock_bajo_count'       => $productosStockBajo->count(),
+            'proximos_vencer_count'  => $proximosVencer->count(),
+            'pagos_vencidos_count'   => $pagosVencidos->count(),
+            'pagos_proximos15_count' => $pagosProximos15->count(),
+            'productos_stock_bajo'   => $productosStockBajo,
+            'proximos_vencer'        => $proximosVencer,
+            'pagos_vencidos'         => $pagosVencidos,
+            'pagos_proximos_15'      => $pagosProximos15,
         ]);
     }
 

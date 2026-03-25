@@ -275,7 +275,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   // Productos filtrados — orden: destacado → más vendidos → stock desc → sin stock al fondo
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
-    if (catActiva === -1) lista = lista.filter(p => p.es_combo);
+    if (catActiva === -1) lista = lista.filter(p => p.en_promo === 1);
     else if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
     const q = busqueda.trim().toLowerCase();
     if (q) {
@@ -305,7 +305,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
   // Lista modal combos existentes
   const promosFiltrados = useMemo(() => {
-    let lista = productos.filter(p => p.activo && p.es_combo);
+    let lista = productos.filter(p => p.activo && p.en_promo === 1);
     const q = promoBusqueda.trim().toLowerCase();
     if (q) lista = lista.filter(p => p.nombre.toLowerCase().includes(q));
     return lista;
@@ -615,7 +615,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   const stockBajo      = !agotado && p.stock <= 5;
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
-                  const esCombo        = !!p.es_combo;
+                  const esCombo        = p.en_promo === 1;
                   // unidad + fraccionable + peso → Fraccionar bolsas en kg
                   const puedeFraccionar = !agotado && p.unidad_medida !== 'kg' && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
                   // kg + fraccionable → picker de peso al vender
@@ -977,7 +977,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     <select value={crearComp1} onChange={e => setCrearComp1(e.target.value)}
                       className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
                       <option value="">Seleccioná un producto…</option>
-                      {productos.filter(p => !p.es_combo && p.stock > 0).map(p => (
+                      {productos.filter(p => !p.en_promo === 1 && p.stock > 0).map(p => (
                         <option key={p.id} value={p.id}>
                           {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
                         </option>
@@ -993,7 +993,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     <select value={crearComp2} onChange={e => setCrearComp2(e.target.value)}
                       className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
                       <option value="">— Mismo producto × 2 —</option>
-                      {productos.filter(p => !p.es_combo && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
+                      {productos.filter(p => !p.en_promo === 1 && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
                         <option key={p.id} value={p.id}>
                           {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
                         </option>

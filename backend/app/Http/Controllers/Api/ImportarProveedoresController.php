@@ -11,13 +11,13 @@ use Illuminate\Http\Request;
  * Importa proveedores desde CSV, con deduplicación por RUT (compatible SICFE).
  *
  * Columnas (separador ; o ,):
- *   rut ; nombre ; telefono ; email ; direccion ; contacto ; notas
+ *   rut ; nombre ; telefono ; email ; direccion ; contacto ; notas ; activo
  *
  * Reglas:
  *  - rut y nombre son obligatorios
  *  - Si el RUT ya existe → actualiza datos de contacto (idempotente)
  *  - Si el RUT está vacío → crea siempre (sin deduplicar)
- *  - activo se preserva (no se reactiva ni desactiva por importación)
+ *  - activo (0/1 o true/false) — en creación default true; en actualización solo se toca si la columna está presente
  */
 class ImportarProveedoresController extends Controller
 {
@@ -81,21 +81,30 @@ class ImportarProveedoresController extends Controller
                 'notas'     => ($data['notas']     ?? '') ?: null,
             ];
 
+            // Columna activo opcional: 1/true/si → true; 0/false/no → false
+            $activoRaw = trim($data['activo'] ?? '');
+            $tieneActivo = array_key_exists('activo', $data) && $activoRaw !== '';
+            if ($tieneActivo) {
+                $contacto['activo'] = !in_array(strtolower($activoRaw), ['0', 'false', 'no', 'inactivo']);
+            }
+
             try {
                 if ($rut) {
                     $existing = Proveedor::where('rut', $rut)->first();
                     if ($existing) {
                         // Actualiza solo campos no vacíos para no pisar datos existentes
                         $update = array_filter($contacto, fn($v) => $v !== null);
+                        // activo siempre se aplica si vino en el CSV (puede ser false)
+                        if ($tieneActivo) $update['activo'] = $contacto['activo'];
                         $existing->update($update);
                         $actualizados++;
                     } else {
-                        Proveedor::create(array_merge($contacto, ['rut' => $rut, 'activo' => true]));
+                        Proveedor::create(array_merge(['rut' => $rut, 'activo' => true], $contacto));
                         $creados++;
                     }
                 } else {
                     // Sin RUT: crear siempre
-                    Proveedor::create(array_merge($contacto, ['activo' => true]));
+                    Proveedor::create(array_merge(['activo' => true], $contacto));
                     $creados++;
                 }
             } catch (\Throwable $e) {

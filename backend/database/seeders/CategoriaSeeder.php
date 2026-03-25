@@ -23,8 +23,9 @@ class CategoriaSeeder extends Seeder
             ['SNACK',             null],
             ['JUGETE',            null],
             ['VENENO',            null],
-            ['COMBO',             null],
-            ['OFERTA',            null],
+            ['ACCESORIOS',        null],
+            ['OTROS',             null],
+            
 
             // ── ALIMENTOS ─────────────────────────────────────────────────────
             ['GATO',              'ALIMENTOS'],

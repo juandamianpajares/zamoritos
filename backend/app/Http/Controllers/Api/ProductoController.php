@@ -62,7 +62,7 @@ class ProductoController extends Controller
 
         // Calcular stock virtual para combos
         foreach ($productos as $producto) {
-            if ($producto->es_combo && $producto->comboItems->isNotEmpty()) {
+            if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO && $producto->comboItems->isNotEmpty()) {
                 $stockVirtual = $producto->comboItems->map(function ($item) {
                     if (!$item->componente) return 0;
                     return floor($item->componente->stock / $item->cantidad);
@@ -92,7 +92,7 @@ class ProductoController extends Controller
             'stock'             => 'nullable|numeric|min:0',
             'fraccionable'      => 'nullable|boolean',
             'modo_fraccion'     => 'nullable|in:kg,unidad',
-            'es_combo'          => 'nullable|boolean',
+            'en_promo'          => 'nullable|integer|in:0,1,2,3',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
             'combo_items'                          => 'nullable|array',
@@ -132,7 +132,7 @@ class ProductoController extends Controller
             'precio_venta'      => 'required|integer|min:0',
             'fraccionable'      => 'nullable|boolean',
             'modo_fraccion'     => 'nullable|in:kg,unidad',
-            'es_combo'          => 'nullable|boolean',
+            'en_promo'          => 'nullable|integer|in:0,1,2,3',
             'foto_url'          => 'nullable|string|max:500',
             'destacado'         => 'nullable|boolean',
             'combo_items'                          => 'nullable|array',

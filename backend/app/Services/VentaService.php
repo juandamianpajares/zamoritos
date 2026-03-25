@@ -79,7 +79,7 @@ class VentaService
 
                 $producto = Producto::with('comboItems')->findOrFail($d['producto_id']);
 
-                if ($producto->es_combo) {
+                if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO) {
                     // Descontar stock de cada componente del combo
                     foreach ($producto->comboItems as $item) {
                         $componente = Producto::findOrFail($item->componente_producto_id);
@@ -154,7 +154,7 @@ class VentaService
             $producto = Producto::with('comboItems')->find($d['producto_id']);
             if (!$producto) continue;
 
-            if ($producto->es_combo) {
+            if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO) {
                 foreach ($producto->comboItems as $item) {
                     $componente = Producto::find($item->componente_producto_id);
                     if (!$componente) continue;

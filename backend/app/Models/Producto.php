@@ -16,7 +16,7 @@ class Producto extends Model
     protected $fillable = [
         'codigo_barras', 'nombre', 'marca', 'marca_id', 'categoria_id',
         'peso', 'unidad_medida', 'precio_venta', 'precio_compra', 'stock', 'activo',
-        'fraccionado_de', 'fraccionable', 'modo_fraccion', 'es_combo',
+        'fraccionado_de', 'fraccionable', 'modo_fraccion',
         'en_promo', 'precio_promo', 'promo_producto_id',
         'foto', 'thumb', 'foto_externa',
         'notificar_stock_bajo', 'destacado',
@@ -24,15 +24,27 @@ class Producto extends Model
 
     protected $appends = ['foto_url', 'thumb_url'];
 
+    // en_promo: 0=sin promo | 1=COMBO | 2=OFERTA | 3=REGALO
+    public const PROMO_NINGUNA = 0;
+    public const PROMO_COMBO   = 1;
+    public const PROMO_OFERTA  = 2;
+    public const PROMO_REGALO  = 3;
+
+    public const PROMO_LABELS = [
+        self::PROMO_NINGUNA => null,
+        self::PROMO_COMBO   => 'COMBO',
+        self::PROMO_OFERTA  => 'OFERTA',
+        self::PROMO_REGALO  => 'REGALO',
+    ];
+
     protected $casts = [
         'precio_venta'        => 'integer',
-        'precio_compra'       => 'float',
+        'precio_compra'       => 'integer',
         'stock'               => 'float',
         'peso'                => 'float',
         'activo'              => 'boolean',
         'fraccionable'        => 'boolean',
-        'es_combo'            => 'boolean',
-        'en_promo'            => 'boolean',
+        'en_promo'            => 'integer',   // 0-3 (ver constantes PROMO_*)
         'precio_promo'        => 'integer',
         'notificar_stock_bajo'=> 'boolean',
         'destacado'           => 'boolean',
