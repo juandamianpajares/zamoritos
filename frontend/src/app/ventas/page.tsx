@@ -336,6 +336,18 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     }
   }, [creditoCanje, canjeMedioPago]);
 
+  // Mapa id → nombre normalizado para filtros de animal
+  const catNombres = useMemo(() => {
+    const m = new Map<number, string>();
+    categorias.forEach(c => m.set(c.id, c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+    return m;
+  }, [categorias]);
+
+  // IDs de los top-10 más vendidos con stock (para badge ⭐ en tarjeta)
+  const top10Ids = useMemo(() =>
+    new Set(productos.filter(p => p.activo && p.stock > 0).slice(0, 10).map(p => p.id)),
+  [productos]);
+
   // Productos filtrados — orden: destacado → más vendidos → stock desc → sin stock al fondo
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
@@ -394,18 +406,6 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     const ids = new Set(productos.filter(p => p.activo && p.categoria_id).map(p => p.categoria_id!));
     return categorias.filter(c => ids.has(c.id));
   }, [productos, categorias]);
-
-  // Mapa id → nombre normalizado para filtros de animal
-  const catNombres = useMemo(() => {
-    const m = new Map<number, string>();
-    categorias.forEach(c => m.set(c.id, c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
-    return m;
-  }, [categorias]);
-
-  // IDs de los top-10 más vendidos con stock (para badge ⭐ en tarjeta)
-  const top10Ids = useMemo(() =>
-    new Set(productos.filter(p => p.activo && p.stock > 0).slice(0, 10).map(p => p.id)),
-  [productos]);
 
   // Lista modal combos existentes
   const promosFiltrados = useMemo(() => {
