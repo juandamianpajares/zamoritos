@@ -183,7 +183,7 @@ export default function ProveedoresPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  {['Estado', 'Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', ''].map(h => (
+                  {['Estado', 'Nombre', 'RUT', 'Teléfono', 'Email', 'Contacto', 'Saldo', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -206,14 +206,7 @@ export default function ProveedoresPage() {
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 font-medium text-zinc-800">
-                      {p.nombre}
-                      {(p.saldo_total ?? 0) > 0 && (
-                        <span className="ml-2 text-[10px] text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-full border border-rose-100">
-                          ${(p.saldo_total ?? 0).toLocaleString('es-CL')} deuda
-                        </span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-zinc-800">{p.nombre}</td>
                     <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{p.rut ?? '—'}</td>
                     <td className="px-4 py-3 text-zinc-500">{p.telefono ?? '—'}</td>
                     <td className="px-4 py-3 text-zinc-500">
@@ -222,6 +215,12 @@ export default function ProveedoresPage() {
                         : <span className="text-zinc-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-zinc-500">{p.contacto ?? '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {(p.saldo_total ?? 0) > 0
+                        ? <span className="text-sm font-semibold text-rose-600">${(p.saldo_total ?? 0).toLocaleString('es-CL')}</span>
+                        : <span className="text-zinc-300 text-xs">—</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => openEdit(p)}
                         className="text-zinc-500 hover:text-zinc-800 text-xs transition-colors">
@@ -232,7 +231,7 @@ export default function ProveedoresPage() {
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-zinc-400">
+                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-zinc-400">
                       {search ? 'Sin resultados para esa búsqueda' : 'Sin proveedores'}
                     </td>
                   </tr>

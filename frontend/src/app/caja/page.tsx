@@ -25,7 +25,6 @@ function fmtDiff(n: number) {
   return { text: s, cls: n > 0 ? 'text-emerald-600' : 'text-rose-600' };
 }
 
-type Vista = 'arqueo' | 'compras';
 
 // ── Agrupador de medios de pago ───────────────────────────────────────────────
 const TARJETAS = new Set(['tarjeta', 'master', 'oca', 'cabal', 'anda', 'sicfe']);
@@ -380,7 +379,6 @@ function CierreCajaModal({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CajaPage() {
-  const [vista, setVista]         = useState<Vista>('arqueo');
   const [fecha, setFecha]         = useState(new Date().toISOString().slice(0, 10));
   const [datos, setDatos]         = useState<CajaDia | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -479,7 +477,7 @@ export default function CajaPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1">
+    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1 pb-24 sm:pb-8">
 
       {/* ── CSS de impresión: márgenes y sin páginas en blanco ── */}
       <style>{`
@@ -599,25 +597,11 @@ export default function CajaPage() {
             onChange={e => setFecha(e.target.value)}
             className="border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white"
           />
-          {/* Tabs */}
-          <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-xl">
-            {(['arqueo', 'compras'] as Vista[]).map(v => (
-              <button
-                key={v}
-                onClick={() => setVista(v)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  vista === v ? 'text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-                style={vista === v ? { background: 'var(--brand-purple)' } : {}}
-              >
-                {v === 'arqueo' ? 'Arqueo' : 'Compras'}
-              </button>
-            ))}
-          </div>
+          {/* Cerrar caja — solo visible en desktop; en mobile aparece abajo */}
           <button
             onClick={handleCerrarCaja}
             disabled={saving}
-            className="flex items-center gap-1.5 text-white text-sm px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+            className="hidden sm:flex items-center gap-1.5 text-white text-sm px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
             style={{ background: 'var(--brand-purple)' }}
           >
             {saving ? (
@@ -637,7 +621,7 @@ export default function CajaPage() {
           <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" />
           Cargando...
         </div>
-      ) : vista === 'arqueo' ? (
+      ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
           {/* ── Izquierda: Contador por denominación ── */}
@@ -902,51 +886,28 @@ export default function CajaPage() {
           </div>
         </div>
 
-      ) : (
-        /* ── Vista Compras ── */
-        <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
-          {datos?.compras.length === 0 ? (
-            <div className="py-16 text-center text-sm text-zinc-400">
-              No hay compras registradas para esta fecha
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-100">
-                    {['#', 'Proveedor', 'Factura', 'Productos', 'Total', 'Fecha'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {datos?.compras.map(c => (
-                    <tr key={c.id} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
-                      <td className="px-4 py-3 text-zinc-400 text-xs font-mono">#{c.id}</td>
-                      <td className="px-4 py-3 font-medium text-zinc-800">{c.proveedor?.nombre ?? '—'}</td>
-                      <td className="px-4 py-3 text-zinc-500 text-xs font-mono">{c.factura ?? '—'}</td>
-                      <td className="px-4 py-3 text-zinc-500 text-xs">{c.detalles?.length ?? 0} ítem(s)</td>
-                      <td className="px-4 py-3 font-semibold tabular-nums text-rose-600">{fmt(c.total)}</td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs tabular-nums">
-                        {new Date(c.fecha).toLocaleString('es-CL')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-zinc-100 bg-zinc-50">
-                    <td colSpan={4} className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Total</td>
-                    <td className="px-4 py-3 font-bold text-base tabular-nums text-rose-600">{fmt(datos?.total_compras ?? 0)}</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
       )}
 
       </div>{/* end print:hidden */}
+
+      {/* ── Mobile: botón Cerrar caja como barra inferior ── */}
+      <div className="fixed bottom-0 left-0 right-0 sm:hidden z-20 p-3 bg-white/95 backdrop-blur border-t border-zinc-100 shadow-lg print:hidden">
+        <button
+          onClick={handleCerrarCaja}
+          disabled={saving}
+          className="w-full flex items-center justify-center gap-2 text-white text-sm font-semibold px-4 py-3.5 rounded-xl transition-colors disabled:opacity-50"
+          style={{ background: 'var(--brand-purple)' }}
+        >
+          {saving ? (
+            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          ) : (
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+          )}
+          Cerrar caja
+        </button>
+      </div>
 
       {/* ── Modal cierre de caja ── */}
       {cierreOpen && datos && (

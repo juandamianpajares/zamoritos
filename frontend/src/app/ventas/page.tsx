@@ -717,12 +717,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
               {/* ── Tags especiales ── */}
               {([
-                { tag: 'top10'        as TagFiltro, label: '⭐ Top 10', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400',   active: '#b45309' },
-                { tag: 'fraccionadas' as TagFiltro, label: '✂ Fracc.',  cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',           active: '#0284c7' },
-                { tag: 'promos'       as TagFiltro, label: '🔥 Promos', cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',       active: '#e11d48' },
-                { tag: 'combos'       as TagFiltro, label: 'COMBO',     cls: 'bg-violet-50 text-violet-600 border-violet-200 hover:border-violet-400', active: '#7c3aed' },
-                { tag: 'ofertas'      as TagFiltro, label: 'OFERTA',    cls: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:border-emerald-400', active: '#059669' },
-                { tag: 'regalos'      as TagFiltro, label: 'REGALO',    cls: 'bg-pink-50 text-pink-600 border-pink-200 hover:border-pink-400',       active: '#db2777' },
+                { tag: 'top10'        as TagFiltro, label: '⭐ Top 10', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400', active: '#b45309' },
+                { tag: 'fraccionadas' as TagFiltro, label: '✂ Fracc.',  cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',         active: '#0284c7' },
+                { tag: 'promos'       as TagFiltro, label: '🔥 Promos', cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',     active: '#e11d48' },
               ] as const).map(({ tag, label, cls, active }) => (
                 <button
                   key={tag}
@@ -735,54 +732,6 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   {label}
                 </button>
               ))}
-
-              {categoriasConProductos.map(c => {
-                const cs = getCatStyle(c.nombre);
-                const activo = catActiva === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => { setCatActiva(activo ? null : c.id); setTagActivo(null); }}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
-                      activo ? 'text-white border-transparent shadow-sm' : cs.idle
-                    }`}
-                    style={activo ? { background: cs.activeBg } : {}}
-                  >
-                    {cs.icon === 'zamoritos' && (
-                      <img src="/logo.png" alt="" className="w-4 h-4 object-contain" />
-                    )}
-                    {cs.icon === 'paw' && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <ellipse cx="6" cy="7" rx="2.5" ry="3.5"/><ellipse cx="18" cy="7" rx="2.5" ry="3.5"/>
-                        <ellipse cx="10" cy="3.5" rx="2" ry="3"/><ellipse cx="14" cy="3.5" rx="2" ry="3"/>
-                        <path d="M12 10c-4 0-7 2.5-7 5.5 0 2 1.5 3.5 3.5 3.5.8 0 1.5-.2 2-.5l1.5-.8 1.5.8c.5.3 1.2.5 2 .5 2 0 3.5-1.5 3.5-3.5 0-3-3-5.5-7-5.5z"/>
-                      </svg>
-                    )}
-                    {cs.icon === 'conejo' && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <ellipse cx="12" cy="15" rx="5" ry="6"/><ellipse cx="8" cy="7" rx="2" ry="5"/><ellipse cx="16" cy="7" rx="2" ry="5"/>
-                      </svg>
-                    )}
-                    {cs.icon === 'pez' && (
-                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="15" cy="10" r="1.5" fill="white"/>
-                        <path d="M22 7l-2 5 2 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                    {cs.icon === 'ave' && (
-                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 3C8 3 4 6 4 9c0 2 1 3.5 2.5 4.5L4 20h16l-2.5-6.5C19 12.5 20 11 20 9c0-3-4-6-8-6z"/>
-                      </svg>
-                    )}
-                    {cs.icon === 'caballo' && (
-                      <svg width="11" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M7 3h4l2 4h3l2-2 1 5-3 1-1 9H9l-1-8-3-1L4 6l3-1V3z"/>
-                      </svg>
-                    )}
-                    {c.nombre}
-                  </button>
-                );
-              })}
             </div>
           )}
         </div>
