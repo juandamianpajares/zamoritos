@@ -4,33 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 class Categoria extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nombre', 'parent_id', 'foto'];
+    protected $fillable = ['nombre', 'descripcion', 'tags', 'parent_id'];
 
-    protected $appends = ['foto_url'];
-
-    public function getFotoUrlAttribute(): ?string
-    {
-        if (empty($this->attributes['foto'])) return null;
-        return '/storage/' . $this->attributes['foto'];
-    }
-
-    public function parent(): BelongsTo
-    {
-        return $this->belongsTo(Categoria::class, 'parent_id');
-    }
-
-    public function children(): HasMany
-    {
-        return $this->hasMany(Categoria::class, 'parent_id')->with('children');
-    }
+    protected $casts = [
+        'tags' => 'array',
+    ];
 
     public function productos(): HasMany
     {

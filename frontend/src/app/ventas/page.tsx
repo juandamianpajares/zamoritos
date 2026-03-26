@@ -336,10 +336,10 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     }
   }, [creditoCanje, canjeMedioPago]);
 
-  // Mapa id → nombre normalizado para filtros de animal
-  const catNombres = useMemo(() => {
-    const m = new Map<number, string>();
-    categorias.forEach(c => m.set(c.id, c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+  // Mapa id → Categoria para filtros por tag
+  const catById = useMemo(() => {
+    const m = new Map<number, typeof categorias[0]>();
+    categorias.forEach(c => m.set(c.id, c));
     return m;
   }, [categorias]);
 
@@ -352,10 +352,10 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
 
-    const catNom = (p: Producto) =>
-      p.categoria_id ? (catNombres.get(p.categoria_id) ?? '') : '';
-    const esPerro = (p: Producto) => { const n = catNom(p); return n.includes('perro') || n.includes('canino'); };
-    const esGato  = (p: Producto) => { const n = catNom(p); return n.includes('gato')  || n.includes('felino'); };
+    const tags = (p: Producto): string[] => p.categoria_id ? (catById.get(p.categoria_id)?.tags ?? []) : [];
+    const esPerro = (p: Producto) => tags(p).includes('perro');
+    const esGato  = (p: Producto) => tags(p).includes('gato');
+    const esResto = (p: Producto) => tags(p).some(t => ['ave', 'granja', 'conejo', 'pez'].includes(t));
 
     if (tagActivo === 'top10') {
       lista = lista.filter(p => p.stock > 0).slice(0, 10);
@@ -374,7 +374,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     } else if (tagActivo === 'gato') {
       lista = lista.filter(esGato);
     } else if (tagActivo === 'resto') {
-      lista = lista.filter(p => !esPerro(p) && !esGato(p));
+      lista = lista.filter(esResto);
     } else if (catActiva) {
       lista = lista.filter(p => p.categoria_id === catActiva);
     } else {
@@ -399,7 +399,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       ];
     }
     return lista;
-  }, [productos, catActiva, tagActivo, busqueda, catNombres]);
+  }, [productos, catActiva, tagActivo, busqueda, catById]);
 
   // Categorías que tienen al menos un producto activo
   const categoriasConProductos = useMemo(() => {

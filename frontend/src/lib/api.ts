@@ -40,6 +40,9 @@ export const api = {
 export interface Categoria {
   id: number;
   nombre: string;
+  descripcion?: string;
+  /** Tags de filtrado: animales (perro|gato|ave|granja|conejo|pez|todos) y tipo (alimento|higiene|accesorio|sanitario|medicamento|parasitos|hogar|paseo) */
+  tags?: string[];
   foto?: string;
   foto_url?: string;
   parent_id?: number;

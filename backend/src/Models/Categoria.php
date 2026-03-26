@@ -10,7 +10,11 @@ class Categoria extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nombre'];
+    protected $fillable = ['nombre', 'descripcion', 'tags', 'parent_id'];
+
+    protected $casts = [
+        'tags' => 'array',
+    ];
 
     public function productos(): HasMany
     {

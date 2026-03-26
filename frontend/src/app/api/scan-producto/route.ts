@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   "marca": "marca del fabricante (ej: Lager, Nutrapet, Matisse, Bravecto)",
   "peso": número o null (peso/volumen del envase en la unidad indicada, ej: 22, 7.5, 1),
   "unidad_medida": "kg", "g", "lt", "ml" o "unidad" según corresponda,
-  "categoria_sugerida": clasifica en una de: "Alimento Perros", "Alimento Gatos", "Alimento Aves y Granja", "Arena Sanitaria", "Antiparasitarios", "Higiene y Belleza", "Collares y Accesorios", "Comederos y Bebederos", "Snacks y Premios", "Medicamentos", "Varios",
+  "categoria_sugerida": clasifica en una de estas opciones exactas: "Alimento Perros", "Alimento Gatos", "Alimento Húmedo y Snacks", "Alimento Aves y Granja", "Antiparasitarios", "Medicamentos", "Arena Sanitaria", "Bandejas y Accesorios Sanitarios", "Collares", "Correas y Arneses", "Juguetes", "Comederos y Bebederos", "Higiene y Belleza", "Ropa para Mascotas", "Camas y Descanso", "Peines y Grooming", "Artículos del Hogar y Jardín", "Control de Plagas", "Transporte", "Rascadores", "Accesorios Varios",
   "codigo_barras": "código EAN visible en la imagen o null",
   "descripcion_breve": "descripción corta útil para el vendedor, máx 80 caracteres (ej: Alimento seco adultos todas las razas, enriquecido con Omega 3)"
 }

@@ -23,7 +23,7 @@ Campos:
 - codigo_barras: código EAN visible en el envase o null
 - peso: número o null (peso/volumen del envase en la unidad indicada)
 - unidad_medida: "kg", "g", "lt", "ml" o "unidad"
-- categoria_sugerida: una de: "Alimento Perros", "Alimento Gatos", "Alimento Aves y Granja", "Arena Sanitaria", "Antiparasitarios", "Higiene y Belleza", "Collares y Accesorios", "Comederos y Bebederos", "Snacks y Premios", "Medicamentos", "Varios"
+- categoria_sugerida: una de estas opciones exactas: "Alimento Perros", "Alimento Gatos", "Alimento Húmedo y Snacks", "Alimento Aves y Granja", "Antiparasitarios", "Medicamentos", "Arena Sanitaria", "Bandejas y Accesorios Sanitarios", "Collares", "Correas y Arneses", "Juguetes", "Comederos y Bebederos", "Higiene y Belleza", "Ropa para Mascotas", "Camas y Descanso", "Peines y Grooming", "Artículos del Hogar y Jardín", "Control de Plagas", "Transporte", "Rascadores", "Accesorios Varios"
 - descripcion_breve: descripción útil para el vendedor, máx 80 caracteres
 
 Ejemplo: {"nombre":"Lager Adulto 10kg","marca":"LAGER","codigo_barras":"7730918030044","peso":10,"unidad_medida":"kg","categoria_sugerida":"Alimento Perros","descripcion_breve":"Alimento seco perros adultos todas las razas"}`;

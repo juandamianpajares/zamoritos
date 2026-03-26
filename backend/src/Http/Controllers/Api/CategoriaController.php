@@ -16,13 +16,23 @@ class CategoriaController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate(['nombre' => 'required|string|unique:categorias,nombre']);
+        $data = $request->validate([
+            'nombre'      => 'required|string|unique:categorias,nombre',
+            'descripcion' => 'nullable|string|max:300',
+            'tags'        => 'nullable|array',
+            'tags.*'      => 'string',
+        ]);
         return response()->json(Categoria::create($data), 201);
     }
 
     public function update(Request $request, Categoria $categoria): JsonResponse
     {
-        $data = $request->validate(['nombre' => 'required|string|unique:categorias,nombre,' . $categoria->id]);
+        $data = $request->validate([
+            'nombre'      => 'required|string|unique:categorias,nombre,' . $categoria->id,
+            'descripcion' => 'nullable|string|max:300',
+            'tags'        => 'nullable|array',
+            'tags.*'      => 'string',
+        ]);
         $categoria->update($data);
         return response()->json($categoria);
     }
