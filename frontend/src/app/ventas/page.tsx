@@ -1082,9 +1082,19 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onClose={() => setFraccionando(null)}
           onDone={(resultado) => {
             setFraccionando(null);
-            recargarProductos();
+            // Actualiza al instante: original con stock reducido, fraccionado nuevo o actualizado
+            setProductos(prev => {
+              const sinOriginal = prev.map(p =>
+                p.id === resultado.original.id    ? resultado.original    :
+                p.id === resultado.fraccionado.id ? resultado.fraccionado : p
+              );
+              // Si el fraccionado es nuevo (no estaba en la lista), agregarlo
+              const yaExiste = sinOriginal.some(p => p.id === resultado.fraccionado.id);
+              return yaExiste ? sinOriginal : [...sinOriginal, resultado.fraccionado];
+            });
+            recargarProductos(); // recarga en background para consistencia total
             const unidadLabel = resultado.modo_fraccion === 'unidad' ? 'unidades' : 'kg';
-            setSuccess(`✓ ${resultado.unidades_generadas} ${unidadLabel} generados · código ${resultado.codigo_fraccionado}`);
+            setSuccess(`✓ ${resultado.unidades_generadas} ${unidadLabel} · ${resultado.codigo_fraccionado}`);
           }}
         />
       )}
