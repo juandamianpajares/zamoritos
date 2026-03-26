@@ -480,6 +480,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     const p2 = crearComp2 ? productos.find(p => p.id === Number(crearComp2)) : null;
     const nombre = p2 ? `${p1.nombre} + ${p2.nombre}` : `${p1.nombre} × 2`;
     const codigo = (p1.codigo_barras ?? String(p1.id)) + 'C';
+    // COMBO = mismo producto × 2; OFERTA = dos productos distintos
+    const esComboIgual = !p2;
     const items = p2
       ? [{ componente_producto_id: p1.id, cantidad: 1 }, { componente_producto_id: p2.id, cantidad: 1 }]
       : [{ componente_producto_id: p1.id, cantidad: 2 }];
@@ -491,6 +493,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         precio_venta: Number(crearPrecio),
         unidad_medida: 'unidad',
         es_combo: true,
+        en_promo: esComboIgual ? 1 : 2,   // 1=COMBO, 2=OFERTA
         combo_items: items,
       });
       recargarProductos();
@@ -1178,90 +1181,104 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   <div className="flex-1 overflow-y-auto divide-y divide-zinc-50">
                     {promosFiltrados.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-zinc-400">
-                        <p>Sin combos aún</p>
+                        <p>Sin promos aún</p>
                         <button onClick={() => setPromoTab('crear')}
                           className="text-xs text-violet-600 font-semibold hover:text-violet-800">
                           Crear el primero →
                         </button>
                       </div>
-                    ) : promosFiltrados.map(p => (
-                      <button key={p.id} onClick={() => agregarDesdePromoModal(p)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 text-left transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white">COMBO</span>
-                            <p className="text-sm font-medium text-zinc-800 truncate">{p.nombre}</p>
+                    ) : promosFiltrados.map(p => {
+                      const promoLabel = p.en_promo === 2 ? 'OFERTA' : p.en_promo === 3 ? 'REGALO' : 'COMBO';
+                      const promoBg    = p.en_promo === 2 ? 'bg-amber-500' : p.en_promo === 3 ? 'bg-rose-500' : 'bg-violet-500';
+                      return (
+                        <button key={p.id} onClick={() => agregarDesdePromoModal(p)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 text-left transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${promoBg}`}>{promoLabel}</span>
+                              <p className="text-sm font-medium text-zinc-800 truncate">{p.nombre}</p>
+                            </div>
+                            {p.combo_items && p.combo_items.length > 0 && (
+                              <p className="text-[10px] text-zinc-400 truncate">
+                                {p.combo_items.map((ci: import('@/lib/api').ComboItem) => `${ci.componente?.nombre ?? `#${ci.componente_producto_id}`}${ci.cantidad !== 1 ? ` ×${ci.cantidad}` : ''}`).join(' + ')}
+                              </p>
+                            )}
                           </div>
-                          {p.combo_items && p.combo_items.length > 0 && (
-                            <p className="text-[10px] text-zinc-400 truncate">
-                              {p.combo_items.map(ci => ci.componente?.nombre ?? `#${ci.componente_producto_id}`).join(' + ')}
-                            </p>
-                          )}
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-bold text-violet-700 tabular-nums">{fmt(p.precio_venta)}</p>
-                          <p className="text-[10px] text-zinc-400">{p.stock} uds</p>
-                        </div>
-                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-zinc-300 shrink-0">
-                          <line x1="0" y1="7" x2="12" y2="7"/><polyline points="7 2 12 7 7 12"/>
-                        </svg>
-                      </button>
-                    ))}
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-bold text-violet-700 tabular-nums">{fmt(p.precio_venta)}</p>
+                            <p className="text-[10px] text-zinc-400">{p.stock} uds</p>
+                          </div>
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-zinc-300 shrink-0">
+                            <line x1="0" y1="7" x2="12" y2="7"/><polyline points="7 2 12 7 7 12"/>
+                          </svg>
+                        </button>
+                      );
+                    })}
                   </div>
                 </>
               ) : (
-                /* ── Crear combo ── */
+                /* ── Crear promo/combo ── */
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                  <p className="text-xs text-zinc-400">
-                    Seleccioná los productos del combo. Se creará un nuevo producto vinculado que
-                    descuenta stock de los componentes al vender.
-                  </p>
 
-                  {/* Componente 1 */}
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Producto 1 *</label>
-                    <select value={crearComp1} onChange={e => setCrearComp1(e.target.value)}
-                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
-                      <option value="">Seleccioná un producto…</option>
-                      {productos.filter(p => p.en_promo !== 1 && p.stock > 0).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Componente 2 */}
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">
-                      Producto 2 <span className="text-zinc-400 font-normal">(vacío = mismo × 2)</span>
-                    </label>
-                    <select value={crearComp2} onChange={e => setCrearComp2(e.target.value)}
-                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
-                      <option value="">— Mismo producto × 2 —</option>
-                      {productos.filter(p => p.en_promo !== 1 && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Preview nombre */}
+                  {/* Tipo detectado automáticamente */}
                   {p1obj && (
-                    <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-2.5 text-sm">
-                      <span className="text-violet-500 font-medium">
-                        {p2obj ? `${p1obj.nombre} + ${p2obj.nombre}` : `${p1obj.nombre} × 2`}
-                      </span>
-                      <span className="text-zinc-400 text-xs ml-2">
-                        código: {(p1obj.codigo_barras ?? String(p1obj.id)) + 'C'}
-                      </span>
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                      p2obj ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-violet-50 text-violet-700 border border-violet-200'
+                    }`}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                      {p2obj ? 'OFERTA — dos productos distintos' : 'COMBO — mismo producto × 2'}
                     </div>
                   )}
 
-                  {/* Precio promo */}
+                  {/* Producto principal */}
                   <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio del combo *</label>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Producto *</label>
+                    <select value={crearComp1} onChange={e => setCrearComp1(e.target.value)}
+                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
+                      <option value="">Seleccioná un producto…</option>
+                      {productos.filter(p => !p.es_combo && p.stock > 0).map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Segundo producto (opcional → OFERTA) */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">
+                      Segundo producto <span className="text-zinc-400 font-normal">(opcional — convierte en OFERTA)</span>
+                    </label>
+                    <select value={crearComp2} onChange={e => setCrearComp2(e.target.value)}
+                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
+                      <option value="">— COMBO: mismo × 2 —</option>
+                      {productos.filter(p => !p.es_combo && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Preview */}
+                  {p1obj && (
+                    <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-2.5">
+                      <p className="text-xs text-zinc-400 mb-0.5">Nombre generado</p>
+                      <p className="text-sm font-semibold text-zinc-800">
+                        {p2obj ? `${p1obj.nombre} + ${p2obj.nombre}` : `${p1obj.nombre} × 2`}
+                      </p>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">
+                        Código: {(p1obj.codigo_barras ?? String(p1obj.id)) + 'C'}
+                        {' · '}Descuenta stock: {p2obj
+                          ? `1 u. de cada producto`
+                          : `2 u. de ${p1obj.nombre}`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Precio */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Precio de venta *</label>
                     <input
                       type="number" step="1" min="0"
                       value={crearPrecio}
@@ -1276,7 +1293,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     )}
                     {p1obj && !p1obj.precio_compra && (
                       <p className="text-xs text-zinc-400 mt-1">
-                        Sin precio de compra registrado — ingresá compras para ver margen.
+                        Sin precio de compra — ingresá compras para ver margen.
                       </p>
                     )}
                   </div>
@@ -1913,7 +1930,7 @@ function FraccionarModal({
   onDone: (r: FraccionarResult) => void;
 }) {
   const cantPorEnv      = producto.peso ?? 1;   // kg/bolsa  ó  unidades/caja
-  const [modo, setModo] = useState<'kg' | 'unidad'>(() => detectarModoFraccion(producto.nombre));
+  const [modo, setModo] = useState<'kg' | 'unidad'>(producto.modo_fraccion ?? detectarModoFraccion(producto.nombre));
 
   const labelEnvase   = modo === 'unidad' ? 'envase' : 'bolsa';
   const labelEnvases  = modo === 'unidad' ? 'envases' : 'bolsas';
@@ -2015,10 +2032,10 @@ function FraccionarModal({
           <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
             Cantidad de {labelEnvases} a fraccionar
           </label>
-          <div className="flex items-center gap-3">
+          <div className="flex rounded-xl border border-zinc-200 overflow-hidden">
             <button
               onClick={() => setBolsas(b => Math.max(1, b - 1))}
-              className="w-11 h-11 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 text-xl transition-colors shrink-0"
+              className="px-5 py-3 bg-zinc-50 hover:bg-zinc-100 font-bold text-zinc-700 text-xl transition-colors border-r border-zinc-200 shrink-0"
             >−</button>
             <input
               type="number"
@@ -2027,14 +2044,14 @@ function FraccionarModal({
               max={Math.floor(producto.stock)}
               value={bolsas}
               onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value)))))}
-              className="flex-1 text-center text-lg font-bold border border-zinc-200 rounded-xl px-2 py-2.5 focus:outline-none focus:border-amber-400"
+              className="flex-1 min-w-0 text-center text-lg font-bold py-3 focus:outline-none"
             />
             <button
               onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
-              className="w-11 h-11 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 text-xl transition-colors shrink-0"
+              className="px-5 py-3 bg-zinc-50 hover:bg-zinc-100 font-bold text-zinc-700 text-xl transition-colors border-l border-zinc-200 shrink-0"
             >+</button>
           </div>
-          <p className="text-xs text-zinc-400 mt-1.5 text-right">de {producto.stock} disponibles</p>
+          <p className="text-xs text-zinc-400 mt-1 text-right">de {producto.stock} disponibles</p>
         </div>
 
         {/* Preview generación */}
@@ -2097,9 +2114,9 @@ function FraccionarModal({
             <div className="flex items-center gap-2 border border-zinc-200 rounded-xl px-3 py-2 focus-within:border-amber-400 transition-colors">
               <span className="text-sm text-zinc-400 font-medium">$</span>
               <input
-                type="number" min={0} value={precio}
-                onChange={e => { setPrecio(Number(e.target.value)); setUsarPct(false); }}
-                className="flex-1 text-base font-bold focus:outline-none bg-transparent"
+                type="number" min={0} step={1} value={Math.round(precio)}
+                onChange={e => { setPrecio(Math.round(Number(e.target.value))); setUsarPct(false); }}
+                className="flex-1 min-w-0 text-base font-bold focus:outline-none bg-transparent"
               />
               <span className="text-xs text-zinc-400">/{modo === 'kg' ? 'kg' : 'ud'}</span>
             </div>
