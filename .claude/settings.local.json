@@ -27,7 +27,8 @@
       "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && docker compose up -d 2>&1 | tail -5\")",
       "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && docker compose exec frontend npm run build 2>&1 | tail -15\")",
       "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose exec frontend npm run build 2>&1 | tail -10\")",
-      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose exec frontend npm run build 2>&1 | tail -8\")"
+      "Bash(ssh juan@localhost \"cd /home/juan/zamoritos && git pull && docker compose exec frontend npm run build 2>&1 | tail -8\")",
+      "Bash(node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

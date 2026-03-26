@@ -8,9 +8,13 @@ import Toast from '@/components/Toast';
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
 interface LineaCarrito {
+  key: string;             // `${producto.id}` normal | `${producto.id}-g` granel
   producto: Producto;
-  cantidad: number;
-  precio_unitario: number;
+  cantidad: number;        // unidades, o fracción de bolsa si esGranel
+  precio_unitario: number; // por unidad, o precio*peso si esGranel
+  esGranel?: boolean;
+  granelKg?: number;       // kg a mostrar en carrito
+  granelPrecioKg?: number; // precio/kg a mostrar en carrito
 }
 
 type Vista = 'pos' | 'historial';
@@ -241,7 +245,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [cartOpen, setCartOpen]         = useState(false);
   const [addedId, setAddedId]           = useState<number | null>(null);
   const [fraccionando, setFraccionando] = useState<Producto | null>(null);
-  const [kgPicker,    setKgPicker]     = useState<{ producto: Producto; kg: string } | null>(null);
+  const [kgPicker, setKgPicker] = useState<{ producto: Producto; kg: string; precio: string } | null>(null);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
   const [lastFacturaNum, setLastFacturaNum] = useState(0);
@@ -254,6 +258,11 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [crearComp2,  setCrearComp2]      = useState('');
   const [crearPrecio, setCrearPrecio]     = useState('');
   const [creandoCombo, setCreandoCombo]   = useState(false);
+  const [fraccionarGranel, setFraccionarGranel] = useState<Producto | null>(null);
+  const [guardarNombre, setGuardarNombre]       = useState('');
+  const [guardarModalOpen, setGuardarModalOpen] = useState(false);
+  const [cargarModalOpen,  setCargarModalOpen]  = useState(false);
+  const [carritoGuardados, setCarritoGuardados] = useState<Array<{id: string; nombre: string; fecha: string; items: LineaCarrito[]}>>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const promoBusquedaRef = useRef<HTMLInputElement>(null);
 
@@ -282,6 +291,13 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     api.get<Categoria[]>('/categorias').then(setCategorias);
     searchRef.current?.focus();
   }, [recargarProductos]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('zamoritos_carritos');
+      if (raw) setCarritoGuardados(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   // Pre-seleccionar medio de pago del canje (preserva el método original de la venta devuelta)
   useEffect(() => {
@@ -329,13 +345,14 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     return lista;
   }, [productos, promoBusqueda]);
 
-  const agregarAlCarrito = useCallback((p: Producto, cantidad = 1) => {
+  const agregarAlCarrito = useCallback((p: Producto, cantidad = 1, customPrice?: number) => {
+    const key = String(p.id);
     setCarrito(prev => {
-      const existente = prev.find(l => l.producto.id === p.id);
+      const existente = prev.find(l => l.key === key);
       if (existente) {
-        return prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + cantidad } : l);
+        return prev.map(l => l.key === key ? { ...l, cantidad: l.cantidad + cantidad } : l);
       }
-      return [...prev, { producto: p, cantidad, precio_unitario: p.precio_venta }];
+      return [...prev, { key, producto: p, cantidad, precio_unitario: customPrice ?? p.precio_venta }];
     });
     setAddedId(p.id);
     setTimeout(() => setAddedId(null), 600);
@@ -343,12 +360,42 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     searchRef.current?.focus();
   }, []);
 
-  const agregarDesdePromoModal = useCallback((p: Producto) => {
+  const agregarGranelAlCarrito = useCallback((p: Producto, kg: number, precioKg: number) => {
+    const peso = p.peso ?? 1;
+    const key  = `${p.id}-g`;
     setCarrito(prev => {
-      const existe = prev.find(l => l.producto.id === p.id);
+      const existente = prev.find(l => l.key === key);
+      if (existente) {
+        const newKg = (existente.granelKg ?? 0) + kg;
+        return prev.map(l => l.key === key ? {
+          ...l,
+          cantidad: newKg / peso,
+          granelKg: newKg,
+          granelPrecioKg: precioKg,
+          precio_unitario: precioKg * peso,
+        } : l);
+      }
+      return [...prev, {
+        key,
+        producto: p,
+        cantidad: kg / peso,
+        precio_unitario: precioKg * peso,
+        esGranel: true,
+        granelKg: kg,
+        granelPrecioKg: precioKg,
+      }];
+    });
+    setAddedId(p.id);
+    setTimeout(() => setAddedId(null), 600);
+  }, []);
+
+  const agregarDesdePromoModal = useCallback((p: Producto) => {
+    const key = String(p.id);
+    setCarrito(prev => {
+      const existe = prev.find(l => l.key === key);
       return existe
-        ? prev.map(l => l.producto.id === p.id ? { ...l, cantidad: l.cantidad + 1 } : l)
-        : [...prev, { producto: p, cantidad: 1, precio_unitario: p.precio_venta }];
+        ? prev.map(l => l.key === key ? { ...l, cantidad: l.cantidad + 1 } : l)
+        : [...prev, { key, producto: p, cantidad: 1, precio_unitario: p.precio_venta }];
     });
     setAddedId(p.id);
     setTimeout(() => setAddedId(null), 600);
@@ -387,25 +434,53 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     }
   };
 
-  const cambiarCantidad = (id: number, delta: number) => {
+  const cambiarCantidad = (key: string, delta: number) => {
     setCarrito(prev =>
-      prev.map(l => l.producto.id === id ? { ...l, cantidad: l.cantidad + delta } : l)
-          .filter(l => l.cantidad > 0)
+      prev.map(l => {
+        if (l.key !== key) return l;
+        if (l.esGranel && l.granelKg != null) {
+          const peso   = l.producto.peso ?? 1;
+          const newKg  = Math.max(0.1, l.granelKg + delta * 0.5);
+          return { ...l, granelKg: newKg, cantidad: newKg / peso };
+        }
+        return { ...l, cantidad: l.cantidad + delta };
+      }).filter(l => l.cantidad > 0)
     );
   };
 
-  const quitarItem = (id: number) => setCarrito(prev => prev.filter(l => l.producto.id !== id));
+  const quitarItem = (key: string) => setCarrito(prev => prev.filter(l => l.key !== key));
 
-  const cambiarPrecio = (id: number, precio: string) => {
+  const cambiarPrecio = (key: string, precio: string) => {
     const val = parseFloat(precio);
     if (isNaN(val) || val < 0) return;
-    setCarrito(prev => prev.map(l => l.producto.id === id ? { ...l, precio_unitario: val } : l));
+    setCarrito(prev => prev.map(l => {
+      if (l.key !== key) return l;
+      if (l.esGranel) {
+        const peso = l.producto.peso ?? 1;
+        return { ...l, granelPrecioKg: val, precio_unitario: val * peso };
+      }
+      return { ...l, precio_unitario: val };
+    }));
   };
 
   const vaciarCarrito = () => { setCarrito([]); setError(''); };
 
-  const total     = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
-  const totalItems = carrito.reduce((s, l) => s + l.cantidad, 0);
+  const guardarCarrito = (nombre: string) => {
+    const nuevo = { id: Date.now().toString(), nombre, fecha: new Date().toLocaleString('es-UY'), items: carrito };
+    const nuevos = [nuevo, ...carritoGuardados].slice(0, 10);
+    setCarritoGuardados(nuevos);
+    try { localStorage.setItem('zamoritos_carritos', JSON.stringify(nuevos)); } catch {}
+    setGuardarModalOpen(false);
+  };
+
+  const eliminarCarritoGuardado = (id: string) => {
+    const nuevos = carritoGuardados.filter(c => c.id !== id);
+    setCarritoGuardados(nuevos);
+    try { localStorage.setItem('zamoritos_carritos', JSON.stringify(nuevos)); } catch {}
+  };
+
+  const total      = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
+  const totalItems = carrito.reduce((s, l) => s + (l.esGranel ? 1 : l.cantidad), 0);
 
   const confirmarVenta = () => {
     if (carrito.length === 0) return;
@@ -671,7 +746,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
                       {/* Cuerpo: toca para agregar al carrito */}
                       <button
-                        onClick={() => !agotado && (esVentaKg ? setKgPicker({ producto: p, kg: '' }) : agregarAlCarrito(p))}
+                        onClick={() => !agotado && (esVentaKg ? setKgPicker({ producto: p, kg: '', precio: String(p.precio_venta) }) : agregarAlCarrito(p))}
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
@@ -719,7 +794,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                       {puedeFraccionar && (
                         <div className="flex border-t border-zinc-100 rounded-b-2xl overflow-hidden">
                           <button
-                            onClick={() => setFraccionando(p)}
+                            onClick={() => setFraccionarGranel(p)}
                             title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
                             className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                           >
@@ -761,6 +836,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onModoPago={setModoPago}
           onSetPagos={setPagos}
           onConfirmar={confirmarVenta}
+          onGuardar={() => { setGuardarNombre(`Carrito · ${new Date().toLocaleTimeString('es-UY', {hour:'2-digit',minute:'2-digit'})}`); setGuardarModalOpen(true); }}
+          onCargar={() => setCargarModalOpen(true)}
+          hayGuardados={carritoGuardados.length > 0}
         />
         </div>
       </div>
@@ -795,7 +873,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              Confirmar · {fmt(total)}
+              <span className="truncate">Confirmar · {fmt(total)}</span>
             </>
           )}
         </button>
@@ -803,9 +881,10 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
       {/* ── Modal venta por kg ── */}
       {kgPicker && (() => {
-        const p   = kgPicker.producto;
-        const kg  = parseFloat(kgPicker.kg.replace(',', '.')) || 0;
-        const sub = kg * p.precio_venta;
+        const p    = kgPicker.producto;
+        const kg   = parseFloat(kgPicker.kg.replace(',', '.')) || 0;
+        const prec = parseFloat(kgPicker.precio.replace(',', '.')) || p.precio_venta;
+        const sub  = kg * prec;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setKgPicker(null)}>
             <div className="bg-white rounded-2xl shadow-xl w-72 p-5 space-y-4" onClick={e => e.stopPropagation()}>
@@ -824,13 +903,29 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     type="number" step="0.001" min="0.001" max={p.stock}
                     value={kgPicker.kg}
                     onChange={e => setKgPicker(prev => prev && { ...prev, kg: e.target.value })}
-                    onKeyDown={e => e.key === 'Enter' && kg > 0 && kg <= p.stock && (agregarAlCarrito(p, kg), setKgPicker(null))}
+                    onKeyDown={e => e.key === 'Enter' && kg > 0 && kg <= p.stock && (agregarAlCarrito(p, kg, prec), setKgPicker(null))}
                     className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
                     placeholder="0.000"
                   />
                   <button onClick={() => setKgPicker(prev => prev && { ...prev, kg: String((parseFloat(prev.kg.replace(',','.')) || 0) + 0.5) })}
                     className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100">+</button>
                 </div>
+              </div>
+              <div className="mt-3">
+                <label className="text-xs text-zinc-500 font-medium block mb-1.5">Precio /kg</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={kgPicker.precio}
+                    onChange={e => setKgPicker(prev => prev && { ...prev, precio: e.target.value })}
+                    className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-base font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+                  />
+                  <span className="text-xs text-zinc-400">/kg</span>
+                </div>
+              </div>
+              <div>
                 {kg > 0 && (
                   <p className="text-xs text-zinc-500 mt-1.5 text-center">
                     Subtotal: <strong className="text-zinc-800">${Math.round(sub).toLocaleString('es-CL')}</strong>
@@ -843,7 +938,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   className="flex-1 py-2.5 text-sm rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50">Cancelar</button>
                 <button
                   disabled={kg <= 0 || kg > p.stock}
-                  onClick={() => { agregarAlCarrito(p, kg); setKgPicker(null); }}
+                  onClick={() => { agregarAlCarrito(p, kg, prec); setKgPicker(null); }}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
                   style={{ background: 'var(--brand-teal)' }}>
                   Agregar {kg > 0 ? `${kg} kg` : ''}
@@ -889,6 +984,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onModoPago={setModoPago}
           onSetPagos={setPagos}
           onConfirmar={() => { confirmarVenta(); }}
+          onGuardar={() => { setGuardarNombre(`Carrito · ${new Date().toLocaleTimeString('es-UY', {hour:'2-digit',minute:'2-digit'})}`); setGuardarModalOpen(true); }}
+          onCargar={() => setCargarModalOpen(true)}
+          hayGuardados={carritoGuardados.length > 0}
         />
       </Modal>
 
@@ -1131,6 +1229,88 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         </div>
       )}
 
+      {/* ── Modal fraccionar granel ── */}
+      {fraccionarGranel && (
+        <FraccionarGranelModal
+          producto={fraccionarGranel}
+          onClose={() => setFraccionarGranel(null)}
+          onAgregar={(kg, precioKg) => {
+            agregarGranelAlCarrito(fraccionarGranel, kg, precioKg);
+            setFraccionarGranel(null);
+          }}
+        />
+      )}
+
+      {/* ── Modal guardar carrito ── */}
+      {guardarModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setGuardarModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-zinc-900">Guardar carrito</h2>
+            <input
+              autoFocus
+              type="text"
+              value={guardarNombre}
+              onChange={e => setGuardarNombre(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && guardarNombre.trim()) { guardarCarrito(guardarNombre.trim()); } }}
+              placeholder="Nombre del carrito…"
+              className="w-full px-4 py-3 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setGuardarModalOpen(false)} className="flex-1 py-3 text-sm rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50">Cancelar</button>
+              <button
+                onClick={() => guardarCarrito(guardarNombre.trim())}
+                disabled={!guardarNombre.trim()}
+                className="flex-1 py-3 text-sm font-bold rounded-xl text-white disabled:opacity-40"
+                style={{ background: 'var(--brand-purple)' }}
+              >Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal cargar carrito ── */}
+      {cargarModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setCargarModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" style={{ maxHeight: '70vh' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 shrink-0">
+              <h2 className="font-bold text-zinc-900">Carritos guardados</h2>
+              <button onClick={() => setCargarModalOpen(false)} className="text-zinc-400 hover:text-zinc-700">
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="15" y2="15"/><line x1="15" y1="1" x2="1" y2="15"/></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-50">
+              {carritoGuardados.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-zinc-400">No hay carritos guardados</div>
+              ) : carritoGuardados.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-zinc-800 truncate">{c.nombre}</p>
+                    <p className="text-xs text-zinc-400">{c.fecha} · {c.items.length} líneas</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (carrito.length > 0 && !confirm('¿Reemplazar el carrito actual?')) return;
+                      setCarrito(c.items);
+                      setCargarModalOpen(false);
+                    }}
+                    className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg text-white"
+                    style={{ background: 'var(--brand-purple)' }}
+                  >Cargar</button>
+                  <button
+                    onClick={() => eliminarCarritoGuardado(c.id)}
+                    className="shrink-0 text-zinc-300 hover:text-rose-400 transition-colors"
+                  >
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="12" y2="12"/><line x1="12" y1="1" x2="1" y2="12"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal venta exitosa ── */}
       {ventaModal && (
         <>
@@ -1213,15 +1393,18 @@ interface CarritoPanelProps {
   submitting:        boolean;
   creditoCanje:      number;
   onClearCanje:      () => void;
-  onCambiarCantidad: (id: number, delta: number) => void;
-  onCambiarPrecio:   (id: number, precio: string) => void;
-  onQuitarItem:      (id: number) => void;
+  onCambiarCantidad: (key: string, delta: number) => void;
+  onCambiarPrecio:   (key: string, precio: string) => void;
+  onQuitarItem:      (key: string) => void;
   onVaciar:          () => void;
   onTipoPago:        (v: 'contado' | 'credito') => void;
   onMedioPago:       (v: string) => void;
   onModoPago:        (v: 'unico' | 'combinado') => void;
   onSetPagos:        (p: PagoLinea[]) => void;
   onConfirmar:       () => void;
+  onGuardar:         () => void;
+  onCargar:          () => void;
+  hayGuardados:      boolean;
 }
 
 const CarritoPanel = memo(function CarritoPanel({
@@ -1229,6 +1412,7 @@ const CarritoPanel = memo(function CarritoPanel({
   creditoCanje, onClearCanje,
   onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar,
   onTipoPago, onMedioPago, onModoPago, onSetPagos, onConfirmar,
+  onGuardar, onCargar, hayGuardados,
 }: CarritoPanelProps) {
   const totalItems  = carrito.reduce((s, l) => s + l.cantidad, 0);
   const totalAPagar = Math.max(0, total - creditoCanje);
@@ -1277,14 +1461,34 @@ const CarritoPanel = memo(function CarritoPanel({
             </span>
           )}
         </div>
-        {carrito.length > 0 && (
-          <button onClick={onVaciar} className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-500 transition-colors">
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-            </svg>
-            Vaciar
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hayGuardados && (
+            <button onClick={onCargar} title="Cargar carrito guardado"
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-violet-600 transition-colors">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Cargar
+            </button>
+          )}
+          {carrito.length > 0 && (
+            <button onClick={onGuardar} title="Guardar carrito"
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-emerald-600 transition-colors">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Guardar
+            </button>
+          )}
+          {carrito.length > 0 && (
+            <button onClick={onVaciar} className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-500 transition-colors">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+              Vaciar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Items */}
@@ -1300,41 +1504,64 @@ const CarritoPanel = memo(function CarritoPanel({
         ) : (
           <div className="divide-y divide-zinc-50">
             {carrito.map(l => (
-              <div key={l.producto.id} className="px-4 py-3 flex items-start gap-3 group hover:bg-zinc-50/50 transition-colors">
+              <div key={l.key} className="px-4 py-3 flex items-start gap-3 group hover:bg-zinc-50/50 transition-colors">
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-800 leading-snug line-clamp-2">{l.producto.nombre}</p>
                   {/* Precio editable */}
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <span className="text-xs text-zinc-400">$</span>
-                    <input
-                      type="number"
-                      value={l.precio_unitario}
-                      onChange={e => onCambiarPrecio(l.producto.id, e.target.value)}
-                      className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-[var(--brand-purple)] tabular-nums"
-                    />
-                    <span className="text-xs text-zinc-400">c/u</span>
-                  </div>
+                  {l.esGranel && l.granelKg != null ? (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="text-xs text-zinc-400">$</span>
+                      <input
+                        type="number" min={0}
+                        value={l.granelPrecioKg ?? ''}
+                        onChange={e => onCambiarPrecio(l.key, e.target.value)}
+                        className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-[var(--brand-purple)] tabular-nums"
+                      />
+                      <span className="text-xs text-zinc-400">/kg</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="text-xs text-zinc-400">$</span>
+                      <input
+                        type="number"
+                        value={l.precio_unitario}
+                        onChange={e => onCambiarPrecio(l.key, e.target.value)}
+                        className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-[var(--brand-purple)] tabular-nums"
+                      />
+                      <span className="text-xs text-zinc-400">c/u</span>
+                    </div>
+                  )}
                 </div>
                 {/* Controles cantidad */}
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => onCambiarCantidad(l.producto.id, -1)}
+                      onClick={() => onCambiarCantidad(l.key, -1)}
                       className="w-7 h-7 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-600 font-bold transition-colors flex items-center justify-center text-base leading-none"
                     >−</button>
-                    <span className="w-7 text-center text-sm font-bold tabular-nums text-zinc-900">{l.cantidad}</span>
+                    {l.esGranel && l.granelKg != null ? (
+                      <span className="w-16 text-center text-sm font-bold tabular-nums text-zinc-900">
+                        {l.granelKg >= 1
+                          ? `${l.granelKg % 1 === 0 ? l.granelKg : l.granelKg.toFixed(2)} kg`
+                          : `${Math.round(l.granelKg * 1000)} g`}
+                      </span>
+                    ) : (
+                      <span className="w-7 text-center text-sm font-bold tabular-nums text-zinc-900">{l.cantidad}</span>
+                    )}
                     <button
-                      onClick={() => onCambiarCantidad(l.producto.id, 1)}
+                      onClick={() => onCambiarCantidad(l.key, 1)}
                       className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-600 font-bold transition-colors flex items-center justify-center text-base leading-none"
                     >+</button>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold tabular-nums text-zinc-700">
-                      {fmt(l.cantidad * l.precio_unitario)}
+                      {l.esGranel && l.granelKg != null && l.granelPrecioKg
+                        ? `$${Math.round(l.granelKg * l.granelPrecioKg).toLocaleString('es-CL')}`
+                        : fmt(l.cantidad * l.precio_unitario)}
                     </span>
                     <button
-                      onClick={() => onQuitarItem(l.producto.id)}
+                      onClick={() => onQuitarItem(l.key)}
                       className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-rose-400 transition-all"
                       title="Quitar"
                     >
@@ -1799,6 +2026,127 @@ function FraccionarModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── FraccionarGranelModal ────────────────────────────────────────────────────
+
+function FraccionarGranelModal({
+  producto,
+  onClose,
+  onAgregar,
+}: {
+  producto: Producto;
+  onClose: () => void;
+  onAgregar: (kg: number, precioKg: number) => void;
+}) {
+  const peso = producto.peso ?? 1;
+  const stockKgTotal = producto.stock * peso;
+  const precioKgSugerido = producto.precio_venta > 0 ? Math.ceil(producto.precio_venta / peso) : 0;
+
+  const [unidad,   setUnidad]  = useState<'kg' | 'g'>('kg');
+  const [cantidad, setCantidad] = useState('');
+  const [precioKg, setPrecioKg] = useState(String(precioKgSugerido));
+
+  const cantKg = (() => {
+    const n = parseFloat(cantidad.replace(',', '.')) || 0;
+    return unidad === 'g' ? n / 1000 : n;
+  })();
+  const subtotal = cantKg * (parseFloat(precioKg) || 0);
+  const excede   = cantKg > stockKgTotal;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-80 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div>
+          <p className="text-xs text-zinc-400 uppercase font-semibold tracking-wide">Fraccionar · Venta a granel</p>
+          <p className="text-sm font-semibold text-zinc-800 leading-snug mt-0.5">{producto.nombre}</p>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Stock aprox: <strong className="text-zinc-700">{stockKgTotal % 1 === 0 ? stockKgTotal : stockKgTotal.toFixed(1)} kg</strong>
+            {` (${producto.stock} ${producto.stock === 1 ? 'bolsa' : 'bolsas'} × ${peso} kg)`}
+          </p>
+        </div>
+
+        {/* Unidad toggle */}
+        <div className="flex rounded-xl overflow-hidden border border-zinc-200">
+          {(['kg', 'g'] as const).map(u => (
+            <button
+              key={u}
+              onClick={() => setUnidad(u)}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                unidad === u ? 'bg-amber-500 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'
+              }`}
+            >
+              {u === 'kg' ? 'Kilogramos (kg)' : 'Gramos (g)'}
+            </button>
+          ))}
+        </div>
+
+        {/* Cantidad */}
+        <div>
+          <label className="text-xs text-zinc-500 font-medium block mb-1.5">Cantidad ({unidad})</label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const step = unidad === 'kg' ? 0.5 : 100;
+                const cur = parseFloat(cantidad.replace(',', '.')) || 0;
+                if (cur > step) setCantidad(String(+(cur - step).toFixed(3)));
+              }}
+              className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100"
+            >−</button>
+            <input
+              autoFocus
+              type="number" step={unidad === 'kg' ? '0.1' : '50'} min="0.001"
+              value={cantidad}
+              onChange={e => setCantidad(e.target.value)}
+              className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+              placeholder={unidad === 'kg' ? '0.5' : '500'}
+            />
+            <button
+              onClick={() => {
+                const step = unidad === 'kg' ? 0.5 : 100;
+                const cur = parseFloat(cantidad.replace(',', '.')) || 0;
+                setCantidad(String(+(cur + step).toFixed(3)));
+              }}
+              className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100"
+            >+</button>
+          </div>
+        </div>
+
+        {/* Precio */}
+        <div>
+          <label className="text-xs text-zinc-500 font-medium block mb-1.5">Precio / kg</label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-500">$</span>
+            <input
+              type="number" min={0}
+              value={precioKg}
+              onChange={e => setPrecioKg(e.target.value)}
+              className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+            />
+          </div>
+        </div>
+
+        {cantKg > 0 && (
+          <p className="text-xs text-zinc-500 text-center">
+            Subtotal: <strong className="text-zinc-800">${Math.round(subtotal).toLocaleString('es-CL')}</strong>
+            {excede && <span className="text-rose-500 ml-2">⚠ supera el stock</span>}
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50">Cancelar</button>
+          <button
+            disabled={cantKg <= 0 || excede || !precioKg}
+            onClick={() => onAgregar(cantKg, parseFloat(precioKg) || 0)}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
+            style={{ background: 'var(--brand-teal)' }}
+          >
+            Agregar {cantKg > 0 ? (unidad === 'kg' ? `${cantKg.toFixed(2)} kg` : `${Math.round(cantKg * 1000)} g`) : ''}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
