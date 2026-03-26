@@ -289,6 +289,7 @@ class ProductoController extends Controller
                     'stock'          => 0,
                     'activo'         => true,
                     'fraccionado_de' => $producto->id,
+                    'fraccionable'   => true,
                 ]
             );
 
@@ -297,6 +298,7 @@ class ProductoController extends Controller
                 'precio_venta'   => $data['precio_fraccionado'],
                 'unidad_medida'  => $unidadFrac,
                 'fraccionado_de' => $producto->id,
+                'fraccionable'   => true,
             ]);
 
             $producto->decrement('stock', $data['cantidad_bolsas']);

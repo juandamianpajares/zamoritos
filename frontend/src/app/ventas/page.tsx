@@ -718,8 +718,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   const esCombo        = p.en_promo === 1;
                   // unidad + fraccionable + peso → Fraccionar bolsas en kg
                   const puedeFraccionar = !agotado && p.unidad_medida !== 'kg' && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
-                  // kg + fraccionable → picker de peso al vender
-                  const esVentaKg      = !!p.fraccionable && p.unidad_medida === 'kg';
+                  // kg + fraccionable (o es producto fraccionado) → picker de peso al vender
+                  const esVentaKg      = (!!p.fraccionable || !!p.fraccionado_de) && p.unidad_medida === 'kg';
                   return (
                     <div
                       key={p.id}
@@ -794,7 +794,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                       {puedeFraccionar && (
                         <div className="flex border-t border-zinc-100 rounded-b-2xl overflow-hidden">
                           <button
-                            onClick={() => setFraccionarGranel(p)}
+                            onClick={() => setFraccionando(p)}
                             title={`Fraccionar bolsa (${p.peso} kg/bolsa)`}
                             className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-zinc-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                           >
