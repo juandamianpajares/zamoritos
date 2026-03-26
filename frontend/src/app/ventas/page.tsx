@@ -2043,28 +2043,26 @@ function FraccionarModal({
         )}
 
         {/* Cantidad */}
-        <div>
-          <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
-            Cantidad de {labelEnvases} a fraccionar
-          </label>
-          <div className="flex flex-col items-center gap-1">
-            <button
-              onClick={() => setBolsas(b => Math.max(1, b - 1))}
-              className="w-full py-3 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 font-bold text-rose-500 text-2xl transition-colors leading-none"
-            >−</button>
+        <div className="flex items-center justify-between gap-4 py-1">
+          <button
+            onClick={() => setBolsas(b => Math.max(1, b - 1))}
+            className="w-16 h-16 shrink-0 rounded-full bg-rose-100 hover:bg-rose-200 active:scale-95 text-rose-500 text-4xl font-light flex items-center justify-center transition-all select-none"
+          >−</button>
+          <div className="flex-1 text-center">
             <input
-              type="text"
-              inputMode="numeric"
+              type="number"
+              min={1}
+              max={Math.floor(producto.stock)}
               value={bolsas}
-              onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value.replace(/\D/g, '')) || 1))))}
-              className="w-full text-center text-3xl font-bold py-3 border border-zinc-200 rounded-xl focus:outline-none focus:border-amber-400 bg-zinc-50"
+              onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, parseInt(e.target.value) || 1)))}
+              className="w-full text-center text-5xl font-black text-zinc-900 bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
-            <button
-              onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
-              className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 font-bold text-emerald-600 text-2xl transition-colors leading-none"
-            >+</button>
+            <p className="text-xs text-zinc-400 mt-0.5">de {producto.stock} {labelEnvases}</p>
           </div>
-          <p className="text-xs text-zinc-400 mt-1 text-right">de {producto.stock} disponibles</p>
+          <button
+            onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
+            className="w-16 h-16 shrink-0 rounded-full bg-emerald-100 hover:bg-emerald-200 active:scale-95 text-emerald-600 text-4xl font-light flex items-center justify-center transition-all select-none"
+          >+</button>
         </div>
 
         {/* Preview generación */}
