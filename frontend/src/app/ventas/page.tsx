@@ -968,7 +968,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setKgPicker(null)}>
-            <div className="bg-white rounded-2xl shadow-xl w-72 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5 space-y-4" onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div>
                 <p className="text-xs text-zinc-400 uppercase font-semibold tracking-wide">Venta por peso</p>
@@ -1015,7 +1015,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     value={kgPicker.kg}
                     onChange={e => setKgPicker(prev => prev && { ...prev, kg: e.target.value })}
                     onKeyDown={e => e.key === 'Enter' && stockOk && (agregarAlCarrito(p, cantKg, precKg), setKgPicker(null))}
-                    className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+                    className="flex-1 min-w-0 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     placeholder={isG ? '0' : '0.000'}
                   />
                   <button
@@ -1042,7 +1042,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     min={0}
                     value={kgPicker.precio}
                     onChange={e => setKgPicker(prev => prev && { ...prev, precio: e.target.value })}
-                    className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-base font-bold tabular-nums focus:outline-none focus:border-zinc-400"
+                    className="flex-1 min-w-0 border border-zinc-200 rounded-xl px-3 py-2 text-center text-base font-bold tabular-nums focus:outline-none focus:border-zinc-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                   <span className="text-xs text-zinc-400">{isG ? '/100g' : '/kg'}</span>
                 </div>
