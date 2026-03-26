@@ -258,8 +258,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [promoBusqueda, setPromoBusqueda] = useState('');
   const [promoTab, setPromoTab]           = useState<'existentes' | 'crear'>('existentes');
-  const [crearComp1,  setCrearComp1]      = useState('');
-  const [crearComp2,  setCrearComp2]      = useState('');
+  const [crearSearch,      setCrearSearch]      = useState('');
+  const [crearComponentes, setCrearComponentes] = useState<{producto_id: number; nombre: string; cantidad: number}[]>([]);
+  const [crearEnPromo,     setCrearEnPromo]     = useState<1|2|3>(1);
   const [crearPrecio, setCrearPrecio]     = useState('');
   const [creandoCombo, setCreandoCombo]   = useState(false);
   const [fraccionarGranel, setFraccionarGranel] = useState<Producto | null>(null);
@@ -474,17 +475,16 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   }, []);
 
   const crearComboYAgregar = async () => {
-    if (!crearComp1 || !crearPrecio) return;
-    const p1 = productos.find(p => p.id === Number(crearComp1));
-    if (!p1) return;
-    const p2 = crearComp2 ? productos.find(p => p.id === Number(crearComp2)) : null;
-    const nombre = p2 ? `${p1.nombre} + ${p2.nombre}` : `${p1.nombre} × 2`;
-    const codigo = (p1.codigo_barras ?? String(p1.id)) + 'C';
-    // COMBO = mismo producto × 2; OFERTA = dos productos distintos
-    const esComboIgual = !p2;
-    const items = p2
-      ? [{ componente_producto_id: p1.id, cantidad: 1 }, { componente_producto_id: p2.id, cantidad: 1 }]
-      : [{ componente_producto_id: p1.id, cantidad: 2 }];
+    if (crearComponentes.length === 0 || !crearPrecio) return;
+    const firstP = productos.find(p => p.id === crearComponentes[0].producto_id);
+    const nombre = crearEnPromo === 1
+      ? `${firstP?.nombre ?? crearComponentes[0].nombre} × ${crearComponentes.reduce((s, ci) => s + ci.cantidad, 0)}`
+      : crearComponentes.map(ci => {
+          const p = productos.find(pp => pp.id === ci.producto_id);
+          return ci.cantidad !== 1 ? `${p?.nombre ?? ci.nombre} ×${ci.cantidad}` : (p?.nombre ?? ci.nombre);
+        }).join(' + ');
+    const codigo = ((firstP?.codigo_barras ?? String(firstP?.id ?? '')) + 'C');
+    const items = crearComponentes.map(ci => ({ componente_producto_id: ci.producto_id, cantidad: ci.cantidad }));
     setCreandoCombo(true);
     setError('');
     try {
@@ -493,13 +493,13 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         precio_venta: Number(crearPrecio),
         unidad_medida: 'unidad',
         es_combo: true,
-        en_promo: esComboIgual ? 1 : 2,   // 1=COMBO, 2=OFERTA
+        en_promo: crearEnPromo,
         combo_items: items,
       });
       recargarProductos();
       agregarAlCarrito({ ...nuevo, stock: 999 });
       setPromoModalOpen(false);
-      setCrearComp1(''); setCrearComp2(''); setCrearPrecio('');
+      setCrearSearch(''); setCrearComponentes([]); setCrearPrecio(''); setCrearEnPromo(1);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -1118,15 +1118,24 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
       {/* ── Modal agregar promo / combo ── */}
       {promoModalOpen && (() => {
-        const p1obj = productos.find(p => p.id === Number(crearComp1));
-        const p2obj = crearComp2 ? productos.find(p => p.id === Number(crearComp2)) : null;
-        const costoEst = p2obj
-          ? (p1obj?.precio_compra ?? 0) + (p2obj?.precio_compra ?? 0)
-          : (p1obj?.precio_compra ?? 0) * 2;
+        const costoEst = crearComponentes.reduce((s, ci) => {
+          const p = productos.find(pp => pp.id === ci.producto_id);
+          return s + (p?.precio_compra ?? 0) * ci.cantidad;
+        }, 0);
         const precioNum = Number(crearPrecio);
         const margen = costoEst > 0 && precioNum > 0
           ? Math.round(((precioNum - costoEst) / costoEst) * 100)
           : null;
+        const matchSearch = crearSearch.trim().toLowerCase();
+        const sugeridos = matchSearch.length >= 2
+          ? productos.filter(p =>
+              !p.es_combo &&
+              (p.nombre.toLowerCase().includes(matchSearch) || (p.codigo_barras ?? '').includes(matchSearch)) &&
+              p.stock > 0
+            ).slice(0, 6)
+          : [];
+        const promoTypeColors: Record<number, string> = { 1: 'bg-violet-500', 2: 'bg-amber-500', 3: 'bg-rose-500' };
+        const promoTypeLabels: Record<number, string> = { 1: 'COMBO', 2: 'OFERTA', 3: 'REGALO' };
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPromoModalOpen(false)} />
@@ -1220,60 +1229,68 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                 /* ── Crear promo/combo ── */
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-                  {/* Tipo detectado automáticamente */}
-                  {p1obj && (
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${
-                      p2obj ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-violet-50 text-violet-700 border border-violet-200'
-                    }`}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                      {p2obj ? 'OFERTA — dos productos distintos' : 'COMBO — mismo producto × 2'}
-                    </div>
-                  )}
-
-                  {/* Producto principal */}
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Producto *</label>
-                    <select value={crearComp1} onChange={e => setCrearComp1(e.target.value)}
-                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
-                      <option value="">Seleccioná un producto…</option>
-                      {productos.filter(p => !p.es_combo && p.stock > 0).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Selector de tipo */}
+                  <div className="flex rounded-xl overflow-hidden border border-zinc-200">
+                    {([1, 2, 3] as const).map(t => (
+                      <button key={t} onClick={() => setCrearEnPromo(t)}
+                        className={`flex-1 py-2 text-xs font-bold transition-colors ${crearEnPromo === t ? 'text-white' : 'bg-white text-zinc-400 hover:bg-zinc-50'}`}
+                        style={crearEnPromo === t ? { background: promoTypeColors[t].replace('bg-', '').includes('violet') ? 'var(--brand-purple)' : promoTypeColors[t] === 'bg-amber-500' ? '#f59e0b' : '#f43f5e' } : {}}>
+                        {promoTypeLabels[t]}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Segundo producto (opcional → OFERTA) */}
+                  {/* Buscar y agregar componente */}
                   <div>
-                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">
-                      Segundo producto <span className="text-zinc-400 font-normal">(opcional — convierte en OFERTA)</span>
-                    </label>
-                    <select value={crearComp2} onChange={e => setCrearComp2(e.target.value)}
-                      className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-zinc-400 bg-white">
-                      <option value="">— COMBO: mismo × 2 —</option>
-                      {productos.filter(p => !p.es_combo && p.stock > 0 && p.id !== Number(crearComp1)).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.nombre}{p.codigo_barras ? ` [${p.codigo_barras}]` : ''} — stock: {p.stock}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block text-xs font-medium text-zinc-500 mb-1.5">Agregar producto al combo</label>
+                    <input
+                      type="text" value={crearSearch}
+                      onChange={e => setCrearSearch(e.target.value)}
+                      placeholder="Buscar por nombre o código…"
+                      className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:border-violet-400"
+                    />
+                    {sugeridos.length > 0 && (
+                      <div className="mt-1 border border-zinc-100 rounded-xl overflow-hidden shadow-sm">
+                        {sugeridos.map(p => (
+                          <button key={p.id} type="button"
+                            onClick={() => {
+                              setCrearComponentes(prev => {
+                                const existing = prev.find(ci => ci.producto_id === p.id);
+                                if (existing) return prev.map(ci => ci.producto_id === p.id ? { ...ci, cantidad: ci.cantidad + 1 } : ci);
+                                return [...prev, { producto_id: p.id, nombre: p.nombre, cantidad: 1 }];
+                              });
+                              setCrearSearch('');
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-violet-50 flex items-center justify-between border-b border-zinc-50 last:border-0">
+                            <span className="font-medium text-zinc-700 truncate">{p.nombre}</span>
+                            <span className="text-zinc-400 shrink-0 ml-2">stock: {p.stock}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Preview */}
-                  {p1obj && (
-                    <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-2.5">
-                      <p className="text-xs text-zinc-400 mb-0.5">Nombre generado</p>
-                      <p className="text-sm font-semibold text-zinc-800">
-                        {p2obj ? `${p1obj.nombre} + ${p2obj.nombre}` : `${p1obj.nombre} × 2`}
-                      </p>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">
-                        Código: {(p1obj.codigo_barras ?? String(p1obj.id)) + 'C'}
-                        {' · '}Descuenta stock: {p2obj
-                          ? `1 u. de cada producto`
-                          : `2 u. de ${p1obj.nombre}`}
-                      </p>
+                  {/* Lista de componentes */}
+                  {crearComponentes.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-zinc-500">Componentes ({crearComponentes.length})</p>
+                      {crearComponentes.map((ci, idx) => (
+                        <div key={ci.producto_id} className="flex items-center gap-2 bg-zinc-50 rounded-xl px-3 py-2">
+                          <span className="flex-1 text-xs font-medium text-zinc-700 truncate">{ci.nombre}</span>
+                          <input type="number" min="1" step="1"
+                            value={ci.cantidad}
+                            onChange={e => setCrearComponentes(prev => prev.map((x, i) => i === idx ? { ...x, cantidad: Math.max(1, Math.round(Number(e.target.value))) } : x))}
+                            className="w-14 px-2 py-1 text-xs border border-zinc-200 rounded-lg text-center focus:outline-none focus:border-violet-400"
+                          />
+                          <span className="text-[10px] text-zinc-400">uds</span>
+                          <button type="button"
+                            onClick={() => setCrearComponentes(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-rose-300 hover:text-rose-600 text-xs px-1.5 py-0.5 rounded hover:bg-rose-50 transition-colors">✕</button>
+                        </div>
+                      ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-zinc-300 text-center py-2">Sin componentes — buscá un producto arriba</p>
                   )}
 
                   {/* Precio */}
@@ -1291,20 +1308,18 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                         Margen: {margen > 0 ? '+' : ''}{margen}% sobre costo estimado {fmt(costoEst)}
                       </p>
                     )}
-                    {p1obj && !p1obj.precio_compra && (
-                      <p className="text-xs text-zinc-400 mt-1">
-                        Sin precio de compra — ingresá compras para ver margen.
-                      </p>
+                    {costoEst === 0 && crearComponentes.length > 0 && (
+                      <p className="text-xs text-zinc-400 mt-1">Sin precio de compra — ingresá compras para ver margen.</p>
                     )}
                   </div>
 
                   <button
                     onClick={crearComboYAgregar}
-                    disabled={!crearComp1 || !crearPrecio || creandoCombo}
+                    disabled={crearComponentes.length === 0 || !crearPrecio || creandoCombo}
                     className="w-full py-3 text-sm font-semibold rounded-xl text-white disabled:opacity-40 transition-colors"
                     style={{ background: 'var(--brand-purple)' }}
                   >
-                    {creandoCombo ? 'Creando…' : 'Crear combo y agregar al carrito'}
+                    {creandoCombo ? 'Creando…' : `Crear ${promoTypeLabels[crearEnPromo]} y agregar al carrito`}
                   </button>
                 </div>
               )}
@@ -2038,13 +2053,11 @@ function FraccionarModal({
               className="px-5 py-3 bg-zinc-50 hover:bg-zinc-100 font-bold text-zinc-700 text-xl transition-colors border-r border-zinc-200 shrink-0"
             >−</button>
             <input
-              type="number"
-              step={1}
-              min={1}
-              max={Math.floor(producto.stock)}
+              type="text"
+              inputMode="numeric"
               value={bolsas}
-              onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value)))))}
-              className="flex-1 min-w-0 text-center text-lg font-bold py-3 focus:outline-none"
+              onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value.replace(/\D/g, '')) || 1))))}
+              className="w-0 flex-1 text-center text-lg font-bold py-3 focus:outline-none"
             />
             <button
               onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
