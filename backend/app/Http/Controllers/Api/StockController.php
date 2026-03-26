@@ -8,6 +8,7 @@ use App\Models\MovimientoStock;
 use App\Models\Producto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
@@ -31,26 +32,60 @@ class StockController extends Controller
             'usuario'     => 'nullable|string',
         ]);
 
-        $producto = Producto::findOrFail($data['producto_id']);
-        $nuevoStock = $producto->stock + $data['cantidad'];
+        $producto = Producto::with('comboItems')->findOrFail($data['producto_id']);
 
-        if ($nuevoStock < 0) {
-            return response()->json([
-                'message' => 'El ajuste dejaría el stock en negativo. Stock actual: ' . $producto->stock,
-            ], 422);
-        }
+        $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
+            && $producto->comboItems->isNotEmpty();
 
-        $producto->update(['stock' => $nuevoStock]);
+        return DB::transaction(function () use ($data, $producto, $esPromoConComponentes) {
+            if ($esPromoConComponentes) {
+                // Combo/promo: propagar ajuste a cada componente según su cantidad
+                foreach ($producto->comboItems as $item) {
+                    $componente    = Producto::findOrFail($item->componente_producto_id);
+                    $qtdComponente = $item->cantidad * $data['cantidad'];
+                    $nuevoStock    = $componente->stock + $qtdComponente;
 
-        $movimiento = MovimientoStock::create([
-            'producto_id' => $data['producto_id'],
-            'tipo'        => 'ajuste',
-            'cantidad'    => $data['cantidad'],
-            'usuario'     => $data['usuario'] ?? null,
-            'observacion' => $data['observacion'] ?? null,
-        ]);
+                    if ($nuevoStock < 0) {
+                        return response()->json([
+                            'message' => "El ajuste dejaría en negativo a «{$componente->nombre}» (stock actual: {$componente->stock}).",
+                        ], 422);
+                    }
 
-        return response()->json($movimiento->load('producto'), 201);
+                    $componente->update(['stock' => $nuevoStock]);
+
+                    MovimientoStock::create([
+                        'producto_id' => $componente->id,
+                        'tipo'        => 'ajuste',
+                        'cantidad'    => $qtdComponente,
+                        'usuario'     => $data['usuario'] ?? null,
+                        'observacion' => ($data['observacion'] ?? '') . ' (promo «' . $producto->nombre . '»)',
+                    ]);
+                }
+
+                return response()->json(['message' => 'Ajuste aplicado a componentes del combo.'], 201);
+            }
+
+            // Producto individual
+            $nuevoStock = $producto->stock + $data['cantidad'];
+
+            if ($nuevoStock < 0) {
+                return response()->json([
+                    'message' => 'El ajuste dejaría el stock en negativo. Stock actual: ' . $producto->stock,
+                ], 422);
+            }
+
+            $producto->update(['stock' => $nuevoStock]);
+
+            $movimiento = MovimientoStock::create([
+                'producto_id' => $data['producto_id'],
+                'tipo'        => 'ajuste',
+                'cantidad'    => $data['cantidad'],
+                'usuario'     => $data['usuario'] ?? null,
+                'observacion' => $data['observacion'] ?? null,
+            ]);
+
+            return response()->json($movimiento->load('producto'), 201);
+        });
     }
 
     public function bajo(): JsonResponse
