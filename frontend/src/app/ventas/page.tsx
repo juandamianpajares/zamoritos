@@ -1129,7 +1129,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         const matchSearch = crearSearch.trim().toLowerCase();
         const sugeridos = matchSearch.length >= 2
           ? productos.filter(p =>
-              !p.es_combo &&
+              !p.en_promo &&
               (p.nombre.toLowerCase().includes(matchSearch) || (p.codigo_barras ?? '').includes(matchSearch)) &&
               p.stock > 0
             ).slice(0, 6)
