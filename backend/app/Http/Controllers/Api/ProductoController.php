@@ -60,14 +60,19 @@ class ProductoController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        // Calcular stock virtual para combos
+        // Calcular stock virtual para combos.
+        // Regla: si algún miembro tiene stock <= cantidad requerida (quedaría en 0 o menos),
+        // el combo no puede venderse (se reserva la última unidad para venta individual).
         foreach ($productos as $producto) {
             if ($producto->en_promo === \App\Models\Producto::PROMO_COMBO && $producto->comboItems->isNotEmpty()) {
                 $stockVirtual = $producto->comboItems->map(function ($item) {
                     if (!$item->componente) return 0;
-                    return floor($item->componente->stock / $item->cantidad);
+                    $s = $item->componente->stock;
+                    $q = $item->cantidad;
+                    // Si quedaría sin stock, no permitir combo
+                    return $s > $q ? (int) floor($s / $q) : 0;
                 })->min();
-                $producto->stock = max(0, (int) $stockVirtual);
+                $producto->stock = max(0, $stockVirtual);
             }
         }
 
