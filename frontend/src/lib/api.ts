@@ -106,6 +106,7 @@ export interface Proveedor {
   activo: boolean;
   saldo_manual?: number;
   saldo_compras?: number;
+  saldo_a_favor?: number;
   saldo_total?: number;
 }
 

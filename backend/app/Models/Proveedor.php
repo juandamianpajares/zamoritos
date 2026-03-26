@@ -22,7 +22,7 @@ class Proveedor extends Model
         'saldo_manual' => 'float',
     ];
 
-    protected $appends = ['saldo_compras', 'saldo_total'];
+    protected $appends = ['saldo_compras', 'saldo_a_favor', 'saldo_total'];
 
     /** Suma del saldo pendiente de todas las compras diferidas de este proveedor. */
     public function getSaldoComprasAttribute(): float
@@ -33,10 +33,19 @@ class Proveedor extends Model
             ->value('saldo') ?? 0;
     }
 
-    /** Deuda total: compras diferidas + saldo cargado manualmente. */
+    /** Pagos adelantados (pre_compra) sin asociar a ninguna compra todavía. */
+    public function getSaldoAFavorAttribute(): float
+    {
+        return (float) $this->pagos()
+            ->where('tipo', 'pre_compra')
+            ->whereNull('compra_id')
+            ->sum('monto') ?? 0;
+    }
+
+    /** Saldo neto: compras pendientes + deuda manual − pagos a favor aún no aplicados. */
     public function getSaldoTotalAttribute(): float
     {
-        return round($this->saldo_manual + $this->saldo_compras, 2);
+        return round($this->saldo_manual + $this->saldo_compras - $this->saldo_a_favor, 2);
     }
 
     public function compras(): HasMany
