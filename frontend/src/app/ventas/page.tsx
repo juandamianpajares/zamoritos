@@ -249,7 +249,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [cartOpen, setCartOpen]         = useState(false);
   const [addedId, setAddedId]           = useState<number | null>(null);
   const [fraccionando, setFraccionando] = useState<Producto | null>(null);
-  const [kgPicker, setKgPicker] = useState<{ producto: Producto; kg: string; precio: string } | null>(null);
+  const [kgPicker, setKgPicker] = useState<{ producto: Producto; kg: string; precio: string; modo: 'kg' | 'g' } | null>(null);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
   const [lastFacturaNum, setLastFacturaNum] = useState(0);
@@ -793,7 +793,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
                       {/* Cuerpo: toca para agregar al carrito */}
                       <button
-                        onClick={() => !agotado && (esVentaKg ? setKgPicker({ producto: p, kg: '', precio: String(p.precio_venta) }) : agregarAlCarrito(p))}
+                        onClick={() => !agotado && (esVentaKg ? setKgPicker({ producto: p, kg: '', precio: String(p.precio_venta), modo: 'kg' }) : agregarAlCarrito(p))}
                         disabled={agotado}
                         className="flex-1 text-left p-3.5 pb-2 active:scale-95 transition-transform disabled:cursor-not-allowed"
                       >
@@ -932,40 +932,106 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         </button>
       </div>
 
-      {/* ── Modal venta por kg ── */}
+      {/* ── Modal venta por kg / g ── */}
       {kgPicker && (() => {
-        const p    = kgPicker.producto;
-        const kg   = parseFloat(kgPicker.kg.replace(',', '.')) || 0;
-        const prec = parseFloat(kgPicker.precio.replace(',', '.')) || p.precio_venta;
-        const sub  = kg * prec;
+        const p     = kgPicker.producto;
+        const modo  = kgPicker.modo;
+        const isG   = modo === 'g';
+        // In g-mode: input is grams (integer), precio is per 100g
+        // In kg-mode: input is kg (decimal), precio is per kg
+        const rawVal = parseFloat(kgPicker.kg.replace(',', '.')) || 0;
+        const prec   = parseFloat(kgPicker.precio.replace(',', '.')) || p.precio_venta;
+        // Normalise to kg for validation and cart
+        const cantKg   = isG ? rawVal / 1000 : rawVal;
+        const precKg   = isG ? prec * 10 : prec;         // /100g → /kg
+        const sub      = cantKg * precKg;
+        const stockOk  = cantKg > 0 && cantKg <= p.stock;
+
+        const switchModo = (next: 'kg' | 'g') => {
+          if (next === modo) return;
+          setKgPicker(prev => {
+            if (!prev) return prev;
+            const cur = parseFloat(prev.kg.replace(',', '.')) || 0;
+            const curPrec = parseFloat(prev.precio.replace(',', '.')) || p.precio_venta;
+            if (next === 'g') {
+              // kg → g: multiply amount by 1000, divide price by 10 (kg→100g)
+              return { ...prev, modo: 'g', kg: String(Math.round(cur * 1000)), precio: String(Math.round(curPrec / 10)) };
+            } else {
+              // g → kg: divide amount by 1000, multiply price by 10 (100g→kg)
+              return { ...prev, modo: 'kg', kg: cur > 0 ? (cur / 1000).toFixed(3) : '', precio: String(Math.round(curPrec * 10)) };
+            }
+          });
+        };
+
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setKgPicker(null)}>
             <div className="bg-white rounded-2xl shadow-xl w-72 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+              {/* Header */}
               <div>
                 <p className="text-xs text-zinc-400 uppercase font-semibold tracking-wide">Venta por peso</p>
                 <p className="text-sm font-semibold text-zinc-800 leading-snug mt-0.5">{p.nombre}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">Stock: {p.stock} kg · Precio: ${Math.round(p.precio_venta).toLocaleString('es-CL')}/kg</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Stock: {p.stock} kg · Ref: ${Math.round(p.precio_venta).toLocaleString('es-CL')}/kg</p>
               </div>
+
+              {/* kg / g toggle */}
+              <div className="flex rounded-xl border border-zinc-200 overflow-hidden text-sm font-semibold">
+                <button
+                  onClick={() => switchModo('kg')}
+                  className={`flex-1 py-2 transition-colors ${!isG ? 'text-white' : 'text-zinc-400 hover:bg-zinc-50'}`}
+                  style={!isG ? { background: 'var(--brand-teal)' } : {}}>
+                  kg
+                </button>
+                <button
+                  onClick={() => switchModo('g')}
+                  className={`flex-1 py-2 transition-colors ${isG ? 'text-white' : 'text-zinc-400 hover:bg-zinc-50'}`}
+                  style={isG ? { background: 'var(--brand-teal)' } : {}}>
+                  g
+                </button>
+              </div>
+
+              {/* Cantidad */}
               <div>
-                <label className="text-xs text-zinc-500 font-medium block mb-1.5">Cantidad (kg)</label>
+                <label className="text-xs text-zinc-500 font-medium block mb-1.5">
+                  Cantidad {isG ? '(gramos)' : '(kg)'}
+                </label>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setKgPicker(prev => prev && { ...prev, kg: String(Math.max(0, parseFloat(prev.kg.replace(',','.')) - 0.5 || 0).toFixed(3)) })}
+                  <button
+                    onClick={() => setKgPicker(prev => {
+                      if (!prev) return prev;
+                      const cur = parseFloat(prev.kg.replace(',','.')) || 0;
+                      const step = isG ? 100 : 0.5;
+                      const next = Math.max(0, cur - step);
+                      return { ...prev, kg: isG ? String(Math.round(next)) : next.toFixed(3) };
+                    })}
                     className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100">−</button>
                   <input
                     autoFocus
-                    type="number" step="0.001" min="0.001" max={p.stock}
+                    type="number"
+                    step={isG ? 100 : 0.001}
+                    min={isG ? 1 : 0.001}
                     value={kgPicker.kg}
                     onChange={e => setKgPicker(prev => prev && { ...prev, kg: e.target.value })}
-                    onKeyDown={e => e.key === 'Enter' && kg > 0 && kg <= p.stock && (agregarAlCarrito(p, kg, prec), setKgPicker(null))}
+                    onKeyDown={e => e.key === 'Enter' && stockOk && (agregarAlCarrito(p, cantKg, precKg), setKgPicker(null))}
                     className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-lg font-bold tabular-nums focus:outline-none focus:border-zinc-400"
-                    placeholder="0.000"
+                    placeholder={isG ? '0' : '0.000'}
                   />
-                  <button onClick={() => setKgPicker(prev => prev && { ...prev, kg: String((parseFloat(prev.kg.replace(',','.')) || 0) + 0.5) })}
+                  <button
+                    onClick={() => setKgPicker(prev => {
+                      if (!prev) return prev;
+                      const cur = parseFloat(prev.kg.replace(',','.')) || 0;
+                      const step = isG ? 100 : 0.5;
+                      const next = cur + step;
+                      return { ...prev, kg: isG ? String(Math.round(next)) : next.toFixed(3) };
+                    })}
                     className="w-9 h-9 rounded-xl border border-zinc-200 flex items-center justify-center text-lg font-bold text-zinc-500 hover:bg-zinc-100">+</button>
                 </div>
               </div>
-              <div className="mt-3">
-                <label className="text-xs text-zinc-500 font-medium block mb-1.5">Precio /kg</label>
+
+              {/* Precio */}
+              <div>
+                <label className="text-xs text-zinc-500 font-medium block mb-1.5">
+                  Precio {isG ? '/100g' : '/kg'}
+                </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-zinc-500">$</span>
                   <input
@@ -975,26 +1041,30 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     onChange={e => setKgPicker(prev => prev && { ...prev, precio: e.target.value })}
                     className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-center text-base font-bold tabular-nums focus:outline-none focus:border-zinc-400"
                   />
-                  <span className="text-xs text-zinc-400">/kg</span>
+                  <span className="text-xs text-zinc-400">{isG ? '/100g' : '/kg'}</span>
                 </div>
               </div>
+
+              {/* Subtotal */}
               <div>
-                {kg > 0 && (
+                {cantKg > 0 && (
                   <p className="text-xs text-zinc-500 mt-1.5 text-center">
                     Subtotal: <strong className="text-zinc-800">${Math.round(sub).toLocaleString('es-CL')}</strong>
-                    {kg > p.stock && <span className="text-rose-500 ml-2">⚠ supera el stock</span>}
+                    {cantKg > p.stock && <span className="text-rose-500 ml-2">⚠ supera el stock</span>}
                   </p>
                 )}
               </div>
+
+              {/* Acciones */}
               <div className="flex gap-2">
                 <button onClick={() => setKgPicker(null)}
                   className="flex-1 py-2.5 text-sm rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50">Cancelar</button>
                 <button
-                  disabled={kg <= 0 || kg > p.stock}
-                  onClick={() => { agregarAlCarrito(p, kg, prec); setKgPicker(null); }}
+                  disabled={!stockOk}
+                  onClick={() => { agregarAlCarrito(p, cantKg, precKg); setKgPicker(null); }}
                   className="flex-1 py-2.5 text-sm font-semibold rounded-xl text-white disabled:opacity-40"
                   style={{ background: 'var(--brand-teal)' }}>
-                  Agregar {kg > 0 ? `${kg} kg` : ''}
+                  Agregar {cantKg > 0 ? (isG ? `${rawVal}g` : `${cantKg.toFixed(3)} kg`) : ''}
                 </button>
               </div>
             </div>
