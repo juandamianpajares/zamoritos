@@ -297,6 +297,13 @@ export interface VentasSemanaItem {
   fecha: string;
   total: number;
   cantidad: number;
+  ganancia_neta: number;
+}
+
+export interface StockMovimientoItem {
+  fecha: string;
+  ingresos: number;
+  egresos: number;
 }
 
 export interface GananciaProveedorItem {

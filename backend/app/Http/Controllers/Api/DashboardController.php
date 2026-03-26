@@ -124,9 +124,11 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function ventasSemana(): JsonResponse
+    public function ventasSemana(Request $request): JsonResponse
     {
-        $inicio = now()->subDays(6)->startOfDay();
+        $dias  = (int) $request->get('dias', 7);
+        $dias  = min(max($dias, 7), 365);
+        $inicio = now()->subDays($dias - 1)->startOfDay();
 
         $ventasPorDia = Venta::select(
                 DB::raw('DATE(fecha) as dia'),
@@ -139,16 +141,61 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('dia');
 
-        $dias = collect(range(6, 0))->map(function ($i) use ($ventasPorDia) {
+        $costoPorDia = DB::table('detalle_ventas as dv')
+            ->join('ventas as v', 'v.id', '=', 'dv.venta_id')
+            ->join('productos as p', 'p.id', '=', 'dv.producto_id')
+            ->select(
+                DB::raw('DATE(v.fecha) as dia'),
+                DB::raw('SUM(dv.cantidad * COALESCE(p.precio_compra, 0)) as costo')
+            )
+            ->where('v.estado', 'confirmada')
+            ->where('v.fecha', '>=', $inicio)
+            ->groupBy('dia')
+            ->get()
+            ->keyBy('dia');
+
+        $result = collect(range($dias - 1, 0))->map(function ($i) use ($ventasPorDia, $costoPorDia) {
             $fecha = now()->subDays($i)->toDateString();
+            $total = (float) ($ventasPorDia[$fecha]->total ?? 0);
+            $costo = (float) ($costoPorDia[$fecha]->costo ?? 0);
             return [
-                'fecha'    => $fecha,
-                'total'    => (float) ($ventasPorDia[$fecha]->total ?? 0),
-                'cantidad' => (int) ($ventasPorDia[$fecha]->cantidad ?? 0),
+                'fecha'         => $fecha,
+                'total'         => $total,
+                'cantidad'      => (int) ($ventasPorDia[$fecha]->cantidad ?? 0),
+                'ganancia_neta' => round($total - $costo, 2),
             ];
         });
 
-        return response()->json($dias);
+        return response()->json($result);
+    }
+
+    public function stockMovimientos(Request $request): JsonResponse
+    {
+        $dias  = (int) $request->get('dias', 7);
+        $dias  = min(max($dias, 7), 365);
+        $inicio = now()->subDays($dias - 1)->startOfDay();
+
+        $movs = DB::table('movimientos_stock')
+            ->select(
+                DB::raw('DATE(fecha) as dia'),
+                DB::raw('SUM(CASE WHEN cantidad > 0 THEN cantidad ELSE 0 END) as ingresos'),
+                DB::raw('SUM(CASE WHEN cantidad < 0 THEN ABS(cantidad) ELSE 0 END) as egresos')
+            )
+            ->where('fecha', '>=', $inicio)
+            ->groupBy('dia')
+            ->get()
+            ->keyBy('dia');
+
+        $result = collect(range($dias - 1, 0))->map(function ($i) use ($movs) {
+            $fecha = now()->subDays($i)->toDateString();
+            return [
+                'fecha'    => $fecha,
+                'ingresos' => (float) ($movs[$fecha]->ingresos ?? 0),
+                'egresos'  => (float) ($movs[$fecha]->egresos ?? 0),
+            ];
+        });
+
+        return response()->json($result);
     }
 
     public function ganancia(Request $request): JsonResponse

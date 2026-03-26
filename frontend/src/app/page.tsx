@@ -2,9 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { api, type VentasDia, type TopProductos, type DashboardStats, type VentasSemanaItem, type GananciaDashboard } from '@/lib/api';
+import { api, type VentasDia, type TopProductos, type DashboardStats, type VentasSemanaItem, type StockMovimientoItem, type GananciaDashboard } from '@/lib/api';
 
-type Periodo = 'hoy' | 'semana' | 'mes';
+type Periodo = 'hoy' | 'semana' | 'mes' | 'año';
+
+function periodoDias(p: Periodo): number {
+  if (p === 'mes') return 30;
+  if (p === 'año') return 365;
+  return 7;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,20 +44,42 @@ const MEDIO_COLOR: Record<string, string> = {
   'sin especificar': 'bg-zinc-100 text-zinc-500',
 };
 
-// ─── Gráfico de barras (7 días) ───────────────────────────────────────────────
+// ─── Gráfico de barras ────────────────────────────────────────────────────────
 
-function BarChart({ data }: { data: VentasSemanaItem[] }) {
-  const max = Math.max(...data.map(d => d.total), 1);
+function BarChart({ data, mode = 'ventas' }: { data: VentasSemanaItem[]; mode?: 'ventas' | 'ganancia' }) {
+  // Para > 30 días, agrupar por semana/mes
+  const grouped = (() => {
+    if (data.length <= 30) return data.map(d => ({ ...d, label: '' }));
+    // año: agrupar por mes
+    const byMonth: Record<string, { total: number; ganancia_neta: number; cantidad: number; fecha: string }> = {};
+    for (const d of data) {
+      const key = d.fecha.slice(0, 7); // YYYY-MM
+      if (!byMonth[key]) byMonth[key] = { total: 0, ganancia_neta: 0, cantidad: 0, fecha: d.fecha };
+      byMonth[key].total += d.total;
+      byMonth[key].ganancia_neta += d.ganancia_neta;
+      byMonth[key].cantidad += d.cantidad;
+    }
+    return Object.entries(byMonth).map(([k, v]) => ({ ...v, label: k.slice(5) }));
+  })();
+
+  const values = grouped.map(d => mode === 'ganancia' ? d.ganancia_neta : d.total);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
   const dias = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
   const [hovered, setHovered] = useState<number | null>(null);
 
+  const showLabel = grouped.length <= 30;
+
   return (
-    <div className="flex items-end gap-1.5 w-full px-1" style={{ height: 108 }}>
-      {data.map((d, i) => {
-        const barH = Math.max(6, Math.round((d.total / max) * 76));
-        const isToday = i === data.length - 1;
+    <div className="flex items-end gap-0.5 w-full px-1" style={{ height: 108 }}>
+      {grouped.map((d, i) => {
+        const val = mode === 'ganancia' ? d.ganancia_neta : d.total;
+        const isNeg = val < 0;
+        const barH = Math.max(4, Math.round((Math.abs(val) / range) * 72));
+        const isToday = i === grouped.length - 1 && data.length <= 30;
         const isHov   = hovered === i;
-        const diaSemana = dias[new Date(d.fecha + 'T12:00:00').getDay()];
+        const diaSemana = showLabel ? (d.label || dias[new Date(d.fecha + 'T12:00:00').getDay()]) : (d.label || '');
         return (
           <div
             key={d.fecha}
@@ -60,9 +88,9 @@ function BarChart({ data }: { data: VentasSemanaItem[] }) {
             onMouseLeave={() => setHovered(null)}
           >
             {/* Tooltip */}
-            {isHov && d.total > 0 && (
+            {isHov && Math.abs(val) > 0 && (
               <div className="absolute bottom-full mb-1 z-10 bg-zinc-900 text-white text-[10px] font-semibold rounded-lg px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none">
-                {fmt(d.total)}
+                {fmt(val)}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
               </div>
             )}
@@ -72,12 +100,16 @@ function BarChart({ data }: { data: VentasSemanaItem[] }) {
                 className="w-full rounded-t-lg transition-all duration-150"
                 style={{
                   height: `${barH}px`,
-                  background: isToday
+                  background: isNeg
+                    ? '#f43f5e'
+                    : isToday
                     ? 'var(--brand-purple)'
                     : isHov
                     ? 'var(--brand-teal)'
+                    : mode === 'ganancia'
+                    ? 'color-mix(in srgb, #10b981 60%, white)'
                     : 'color-mix(in srgb, var(--brand-teal) 60%, white)',
-                  opacity: d.total === 0 ? 0.15 : 1,
+                  opacity: val === 0 ? 0.15 : 1,
                   transform: isHov ? 'scaleY(1.04)' : 'scaleY(1)',
                   transformOrigin: 'bottom',
                 }}
@@ -86,6 +118,60 @@ function BarChart({ data }: { data: VentasSemanaItem[] }) {
             <span className={`text-[9px] font-semibold ${isToday ? 'text-[var(--brand-purple)]' : 'text-zinc-400'}`}>
               {diaSemana}
             </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Gráfico de stock (ingresos vs egresos) ──────────────────────────────────
+
+function StockChart({ data }: { data: StockMovimientoItem[] }) {
+  const grouped = (() => {
+    if (data.length <= 30) return data;
+    const byMonth: Record<string, { ingresos: number; egresos: number; fecha: string }> = {};
+    for (const d of data) {
+      const key = d.fecha.slice(0, 7);
+      if (!byMonth[key]) byMonth[key] = { ingresos: 0, egresos: 0, fecha: d.fecha };
+      byMonth[key].ingresos += d.ingresos;
+      byMonth[key].egresos += d.egresos;
+    }
+    return Object.values(byMonth);
+  })();
+
+  const max = Math.max(...grouped.map(d => Math.max(d.ingresos, d.egresos)), 1);
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  if (grouped.every(d => d.ingresos === 0 && d.egresos === 0)) {
+    return <div className="h-24 flex items-center justify-center text-sm text-zinc-300">Sin movimientos</div>;
+  }
+
+  return (
+    <div className="flex items-end gap-0.5 w-full px-1" style={{ height: 108 }}>
+      {grouped.map((d, i) => {
+        const ingH = Math.max(d.ingresos > 0 ? 4 : 0, Math.round((d.ingresos / max) * 72));
+        const egH  = Math.max(d.egresos > 0 ? 4 : 0, Math.round((d.egresos / max) * 72));
+        const isHov = hovered === i;
+        const label = data.length > 30 ? d.fecha.slice(5, 7) : '';
+        return (
+          <div key={d.fecha} className="flex-1 flex flex-col items-center gap-0.5 cursor-default relative"
+            onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
+            {isHov && (d.ingresos > 0 || d.egresos > 0) && (
+              <div className="absolute bottom-full mb-1 z-10 bg-zinc-900 text-white text-[10px] rounded-lg px-2 py-1 whitespace-nowrap shadow-lg pointer-events-none">
+                <span className="text-emerald-400">↑{Math.round(d.ingresos)}</span>
+                {' · '}
+                <span className="text-rose-400">↓{Math.round(d.egresos)}</span>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900" />
+              </div>
+            )}
+            <div className="w-full flex flex-col justify-end gap-px" style={{ height: 80 }}>
+              <div className="flex gap-px justify-center items-end h-full">
+                {ingH > 0 && <div style={{ height: ingH, background: '#10b981', opacity: isHov ? 1 : 0.7 }} className="flex-1 rounded-t-sm transition-all" />}
+                {egH > 0 && <div style={{ height: egH, background: '#f43f5e', opacity: isHov ? 1 : 0.7 }} className="flex-1 rounded-t-sm transition-all" />}
+              </div>
+            </div>
+            {label && <span className="text-[9px] text-zinc-400">{label}</span>}
           </div>
         );
       })}
@@ -221,23 +307,21 @@ function CierreCajaModal({ ventasDia, onClose }: { ventasDia: VentasDia; onClose
 export default function DashboardPage() {
   const [ventasDia, setVentasDia] = useState<VentasDia | null>(null);
   const [ventasSemana, setVentasSemana] = useState<VentasSemanaItem[]>([]);
+  const [stockMovs, setStockMovs] = useState<StockMovimientoItem[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductos | null>(null);
   const [alertas, setAlertas] = useState<DashboardStats | null>(null);
   const [ganancia, setGanancia] = useState<GananciaDashboard | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>('hoy');
+  const [graficoMode, setGraficoMode] = useState<'ventas' | 'ganancia'>('ventas');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadTop = useCallback((p: Periodo) => {
-    api.get<TopProductos>(`/dashboard/top-productos?periodo=${p}`)
-      .then(setTopProductos)
-      .catch(() => {});
-  }, []);
-
-  const loadGanancia = useCallback((p: Periodo) => {
-    api.get<GananciaDashboard>(`/dashboard/ganancia?periodo=${p}`)
-      .then(setGanancia)
-      .catch(() => {});
+  const loadPeriodo = useCallback((p: Periodo) => {
+    const dias = periodoDias(p);
+    api.get<TopProductos>(`/dashboard/top-productos?periodo=${p}`).then(setTopProductos).catch(() => {});
+    api.get<GananciaDashboard>(`/dashboard/ganancia?periodo=${p}`).then(setGanancia).catch(() => {});
+    api.get<VentasSemanaItem[]>(`/dashboard/ventas-semana?dias=${dias}`).then(setVentasSemana).catch(() => {});
+    api.get<StockMovimientoItem[]>(`/dashboard/stock-movimientos?dias=${dias}`).then(setStockMovs).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -246,15 +330,21 @@ export default function DashboardPage() {
       api.get<VentasDia>('/dashboard/ventas-dia'),
       api.get<TopProductos>(`/dashboard/top-productos?periodo=${periodo}`),
       api.get<DashboardStats>('/dashboard/stats'),
-      api.get<VentasSemanaItem[]>('/dashboard/ventas-semana'),
+      api.get<VentasSemanaItem[]>('/dashboard/ventas-semana?dias=7'),
       api.get<GananciaDashboard>(`/dashboard/ganancia?periodo=${periodo}`),
+      api.get<StockMovimientoItem[]>('/dashboard/stock-movimientos?dias=7'),
     ])
-      .then(([v, t, s, sem, g]) => { setVentasDia(v); setTopProductos(t); setAlertas(s); setVentasSemana(sem); setGanancia(g); })
+      .then(([v, t, s, sem, g, sm]) => {
+        setVentasDia(v); setTopProductos(t); setAlertas(s);
+        setVentasSemana(sem as VentasSemanaItem[]);
+        setGanancia(g);
+        setStockMovs(sm as StockMovimientoItem[]);
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadTop(periodo); loadGanancia(periodo); }, [periodo, loadTop, loadGanancia]);
+  useEffect(() => { loadPeriodo(periodo); }, [periodo, loadPeriodo]);
 
   if (error) return (
     <div className="p-8">
@@ -314,10 +404,10 @@ export default function DashboardPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
-            {periodo === 'hoy' ? 'Ventas del día' : periodo === 'semana' ? 'Ventas de la semana' : 'Ventas del mes'}
+            {periodo === 'hoy' ? 'Ventas del día' : periodo === 'semana' ? 'Última semana' : periodo === 'mes' ? 'Último mes' : 'Último año'}
           </h2>
           <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-xl">
-            {(['hoy', 'semana', 'mes'] as Periodo[]).map(p => (
+            {(['hoy', 'semana', 'mes', 'año'] as Periodo[]).map(p => (
               <button
                 key={p}
                 onClick={() => setPeriodo(p)}
@@ -326,7 +416,7 @@ export default function DashboardPage() {
                 }`}
                 style={periodo === p ? { background: 'var(--brand-purple)' } : {}}
               >
-                {p === 'hoy' ? 'Hoy' : p === 'semana' ? 'Semana' : 'Mes'}
+                {p === 'hoy' ? 'Hoy' : p === 'semana' ? '7d' : p === 'mes' ? '30d' : '365d'}
               </button>
             ))}
           </div>
@@ -364,22 +454,37 @@ export default function DashboardPage() {
         {/* Gráfico + desglose */}
         <div className="grid lg:grid-cols-2 gap-3">
 
-          {/* Gráfico 7 días */}
+          {/* Gráfico ventas/ganancia */}
           <div className="bg-white rounded-2xl border border-zinc-100 p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
-                Ventas últimos 7 días
+                {graficoMode === 'ventas' ? 'Ventas' : 'Ganancia neta'}
               </p>
-              {ventasSemana.length > 0 && (
-                <p className="text-xs text-zinc-400 tabular-nums">
-                  Total: <strong className="text-zinc-700">{fmt(ventasSemana.reduce((s, d) => s + d.total, 0))}</strong>
-                </p>
-              )}
+              <div className="flex gap-1 bg-zinc-100 p-0.5 rounded-lg">
+                <button onClick={() => setGraficoMode('ventas')}
+                  className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-md transition-colors ${graficoMode === 'ventas' ? 'bg-white text-zinc-700 shadow-sm' : 'text-zinc-400'}`}>
+                  Ventas
+                </button>
+                <button onClick={() => setGraficoMode('ganancia')}
+                  className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-md transition-colors ${graficoMode === 'ganancia' ? 'bg-white text-emerald-700 shadow-sm' : 'text-zinc-400'}`}>
+                  Ganancia
+                </button>
+              </div>
             </div>
+            {ventasSemana.length > 0 && (
+              <p className="text-xs text-zinc-400 tabular-nums mb-3">
+                Total: <strong className={graficoMode === 'ganancia' ? ((ganancia?.ganancia_neta ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600') : 'text-zinc-700'}>
+                  {fmt(graficoMode === 'ganancia'
+                    ? ventasSemana.reduce((s, d) => s + d.ganancia_neta, 0)
+                    : ventasSemana.reduce((s, d) => s + d.total, 0)
+                  )}
+                </strong>
+              </p>
+            )}
             {ventasSemana.length === 0 ? (
               <div className="h-24 flex items-center justify-center text-sm text-zinc-300">Sin datos</div>
             ) : (
-              <BarChart data={ventasSemana} />
+              <BarChart data={ventasSemana} mode={graficoMode} />
             )}
           </div>
 
@@ -441,6 +546,20 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* ── Panel 1b: Stock movimientos ── */}
+      <section>
+        <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Movimientos de stock</p>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />Ingresos</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />Egresos</span>
+            </div>
+          </div>
+          <StockChart data={stockMovs} />
         </div>
       </section>
 

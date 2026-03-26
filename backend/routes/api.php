@@ -19,7 +19,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('dashboard/stats',          [DashboardController::class, 'stats']);
 Route::get('dashboard/ventas-dia',     [DashboardController::class, 'ventasDia']);
-Route::get('dashboard/ventas-semana',  [DashboardController::class, 'ventasSemana']);
+Route::get('dashboard/ventas-semana',      [DashboardController::class, 'ventasSemana']);
+Route::get('dashboard/stock-movimientos',  [DashboardController::class, 'stockMovimientos']);
 Route::get('dashboard/top-productos',  [DashboardController::class, 'topProductos']);
 Route::get('dashboard/ganancia',       [DashboardController::class, 'ganancia']);
 Route::get('dashboard/caja',           [DashboardController::class, 'caja']);

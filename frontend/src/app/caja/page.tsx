@@ -77,7 +77,136 @@ function CierreCajaModal({
 
   const handlePrint = () => {
     onClose();
-    setTimeout(() => window.print(), 80);
+    setTimeout(() => {
+      const logoSrc = window.location.origin + '/logo.png';
+      const resultado = datos.total_ventas - datos.total_compras;
+      const resColor  = resultado >= 0 ? '#15803d' : '#dc2626';
+      const resBg     = resultado >= 0 ? '#f0fdf4' : '#fff1f2';
+      const resBorder = resultado >= 0 ? '#16a34a' : '#dc2626';
+
+      const gruposRows = grupos.map(g =>
+        `<tr><td>${g.label} (${g.cantidad} transac.)</td><td class="r">${fmt(g.total)}</td></tr>`
+      ).join('');
+
+      const comprasRows = datos.compras_por_prov.map(p =>
+        `<tr><td>${p.proveedor} (${p.cantidad})</td><td class="r red">${fmt(p.total)}</td></tr>`
+      ).join('');
+
+      const arqueoRows = DENOMS.map(d => {
+        const qty = parseInt(cantidades[d] || '0') || 0;
+        if (qty === 0) return '';
+        return `<tr><td>$${d.toLocaleString('es-CL')} × ${qty}</td><td class="r">${fmt(d * qty)}</td></tr>`;
+      }).join('');
+
+      const html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>Cierre de Caja – ${fecha}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #18181b; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .logo-wrap { display: flex; align-items: center; gap: 8px; }
+  .logo-img { width: 40px; height: 40px; object-fit: contain; }
+  .logo-text { font-size: 20px; font-weight: 900; color: #7B2D8B; line-height: 1; }
+  .logo-sub { font-size: 9px; color: #a1a1aa; margin-top: 2px; }
+  .header-right { text-align: right; }
+  .titulo { font-size: 15px; font-weight: 800; color: #18181b; }
+  .fecha { font-size: 10px; color: #52525b; margin-top: 3px; text-transform: capitalize; }
+  .impreso { font-size: 9px; color: #a1a1aa; margin-top: 1px; }
+  h2 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+       color: #71717a; border-bottom: 1px solid #e4e4e7; padding-bottom: 4px; margin: 14px 0 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 3px 0; vertical-align: middle; }
+  td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total-row td { font-weight: 700; border-top: 1px solid #d4d4d8; padding-top: 5px; margin-top: 3px; }
+  .green { color: #15803d; }
+  .red { color: #dc2626; }
+  .big-total {
+    margin: 18px 0 10px;
+    padding: 14px 18px;
+    border: 2px solid ${resBorder};
+    border-radius: 10px;
+    background: ${resBg};
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .big-total .lbl { font-size: 11px; color: #52525b; }
+  .big-total .lbl2 { font-size: 9px; color: #71717a; margin-top: 2px; }
+  .big-total .amount { font-size: 30px; font-weight: 900; color: ${resColor}; font-variant-numeric: tabular-nums; }
+  .firma { margin-top: 28px; padding-top: 10px; border-top: 1px solid #d4d4d8;
+           display: flex; justify-content: space-between; font-size: 10px; color: #a1a1aa; }
+  .footer { margin-top: 8px; font-size: 9px; color: #d4d4d8; text-align: center; }
+  .ventas-total td { font-size: 13px; color: #059669; }
+</style>
+</head><body>
+<header>
+  <div class="logo-wrap">
+    <img class="logo-img" src="${logoSrc}" onerror="this.style.display='none'" alt="Logo">
+    <div>
+      <div class="logo-text">Zamoritos</div>
+      <div class="logo-sub">Agroveterinaria</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="titulo">CIERRE DE CAJA</div>
+    <div class="fecha">${fechaLabel}</div>
+    <div class="impreso">Impreso: ${new Date().toLocaleString('es-CL')}</div>
+  </div>
+</header>
+
+<h2>Ventas del día</h2>
+<table>
+  ${gruposRows}
+  <tr class="total-row ventas-total">
+    <td>Total ventas</td>
+    <td class="r green">${fmt(datos.total_ventas)}</td>
+  </tr>
+</table>
+
+${datos.total_compras > 0 ? `
+<h2>Egresos de caja (contado)</h2>
+<table>
+  ${comprasRows}
+  <tr class="total-row"><td>Total egresado</td><td class="r red">${fmt(datos.total_compras)}</td></tr>
+</table>` : ''}
+
+${arqueoRows ? `
+<h2>Arqueo de efectivo</h2>
+<table>
+  ${arqueoRows}
+  ${fondoCambio > 0 ? `<tr><td>Fondo de cambio</td><td class="r">${fmt(fondoCambio)}</td></tr>` : ''}
+  <tr class="total-row"><td>Total contado</td><td class="r">${fmt(suma)}</td></tr>
+  <tr><td>Esperado en caja</td><td class="r">${fmt(esperado)}</td></tr>
+  <tr class="total-row">
+    <td>Diferencia</td>
+    <td class="r ${diferencia === 0 ? '' : diferencia > 0 ? 'green' : 'red'}">${diferencia >= 0 ? '+' : ''}${fmt(diferencia)}</td>
+  </tr>
+</table>` : ''}
+
+<div class="big-total">
+  <div>
+    <div class="lbl">Resultado del día</div>
+    <div class="lbl2">Ventas − Egresos contado</div>
+  </div>
+  <div class="amount">${resultado >= 0 ? '+' : ''}${fmt(resultado)}</div>
+</div>
+
+<div class="firma">
+  <span>Firma responsable: ____________________________</span>
+  <span>Sello</span>
+</div>
+<div class="footer">Zamoritos · Sistema de Gestión</div>
+</body></html>`;
+
+      const w = window.open('', '_blank', 'width=794,height=1123,menubar=0,toolbar=0,location=0,scrollbars=1');
+      if (!w) { alert('Habilitá las ventanas emergentes para imprimir.'); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 400);
+    }, 80);
   };
 
   const generarImagenCanvas = async (): Promise<string> => {
@@ -476,113 +605,135 @@ export default function CajaPage() {
     setCierreOpen(true);
   };
 
+  const handlePrintSemana = async () => {
+    const dias: CajaDia[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(fecha + 'T12:00:00');
+      d.setDate(d.getDate() - i);
+      const f = d.toISOString().slice(0, 10);
+      try {
+        const res = await api.get<CajaDia>(`/dashboard/caja?fecha=${f}`);
+        dias.push(res);
+      } catch { /* skip */ }
+    }
+    const logoSrc = window.location.origin + '/logo.png';
+    const rows = dias.map(d => {
+      const resultado = d.total_ventas - d.total_compras;
+      const resColor  = resultado >= 0 ? '#15803d' : '#dc2626';
+      const fLabel = new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      return `<tr>
+        <td>${fLabel}</td>
+        <td class="r green">${fmt(d.total_ventas)}</td>
+        <td class="r">${d.cantidad_ventas}</td>
+        <td class="r red">${d.total_compras > 0 ? fmt(d.total_compras) : '—'}</td>
+        <td class="r" style="color:${resColor};font-weight:700">${resultado >= 0 ? '+' : ''}${fmt(resultado)}</td>
+      </tr>`;
+    }).join('');
+    const totalVentas  = dias.reduce((s, d) => s + d.total_ventas, 0);
+    const totalCompras = dias.reduce((s, d) => s + d.total_compras, 0);
+    const totalRes     = totalVentas - totalCompras;
+    const resColor     = totalRes >= 0 ? '#15803d' : '#dc2626';
+    const resBg        = totalRes >= 0 ? '#f0fdf4' : '#fff1f2';
+    const resBorder    = totalRes >= 0 ? '#16a34a' : '#dc2626';
+    const desdeLabel = dias[0] ? new Date(dias[0].fecha + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'long' }) : '';
+    const hastaLabel = dias[dias.length - 1] ? new Date(dias[dias.length - 1].fecha + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+
+    const html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>Resumen Semanal – ${fecha}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #18181b; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .logo-wrap { display: flex; align-items: center; gap: 8px; }
+  .logo-img { width: 36px; height: 36px; object-fit: contain; }
+  .logo-text { font-size: 18px; font-weight: 900; color: #7B2D8B; }
+  .logo-sub { font-size: 9px; color: #a1a1aa; margin-top: 1px; }
+  .titulo { font-size: 15px; font-weight: 800; }
+  .periodo { font-size: 10px; color: #52525b; margin-top: 3px; }
+  .impreso { font-size: 9px; color: #a1a1aa; margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+       color: #71717a; border-bottom: 2px solid #d4d4d8; padding: 4px 0; }
+  th.r, td.r { text-align: right; }
+  td { padding: 5px 0; border-bottom: 1px solid #f4f4f5; font-variant-numeric: tabular-nums; }
+  tr.total-row td { font-weight: 700; border-top: 2px solid #18181b; border-bottom: none; font-size: 13px; padding-top: 7px; }
+  .green { color: #15803d; }
+  .red { color: #dc2626; }
+  .big-total {
+    margin: 20px 0 10px;
+    padding: 14px 18px;
+    border: 2px solid ${resBorder};
+    border-radius: 10px;
+    background: ${resBg};
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .big-total .lbl { font-size: 11px; color: #52525b; }
+  .big-total .lbl2 { font-size: 9px; color: #71717a; margin-top: 2px; }
+  .big-total .amount { font-size: 30px; font-weight: 900; color: ${resColor}; }
+  .footer { margin-top: 12px; font-size: 9px; color: #d4d4d8; text-align: center; }
+</style>
+</head><body>
+<header>
+  <div class="logo-wrap">
+    <img class="logo-img" src="${logoSrc}" onerror="this.style.display='none'" alt="">
+    <div>
+      <div class="logo-text">Zamoritos</div>
+      <div class="logo-sub">Agroveterinaria</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="titulo">RESUMEN SEMANAL</div>
+    <div class="periodo">${desdeLabel} → ${hastaLabel}</div>
+    <div class="impreso">Impreso: ${new Date().toLocaleString('es-CL')}</div>
+  </div>
+</header>
+<table>
+  <thead>
+    <tr>
+      <th>Día</th>
+      <th class="r">Ventas</th>
+      <th class="r">Transac.</th>
+      <th class="r">Egresos</th>
+      <th class="r">Resultado</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+    <tr class="total-row">
+      <td>TOTAL</td>
+      <td class="r green">${fmt(totalVentas)}</td>
+      <td class="r">${dias.reduce((s, d) => s + d.cantidad_ventas, 0)}</td>
+      <td class="r red">${fmt(totalCompras)}</td>
+      <td class="r" style="color:${resColor}">${totalRes >= 0 ? '+' : ''}${fmt(totalRes)}</td>
+    </tr>
+  </tbody>
+</table>
+<div class="big-total">
+  <div>
+    <div class="lbl">Resultado de la semana</div>
+    <div class="lbl2">Total ventas − Egresos contado</div>
+  </div>
+  <div class="amount">${totalRes >= 0 ? '+' : ''}${fmt(totalRes)}</div>
+</div>
+<div class="footer">Zamoritos · Sistema de Gestión</div>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=794,height=1123,menubar=0,toolbar=0,location=0,scrollbars=1');
+    if (!w) { alert('Habilitá las ventanas emergentes para imprimir.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1 pb-24 sm:pb-8">
 
-      {/* ── CSS de impresión: márgenes y sin páginas en blanco ── */}
-      <style>{`
-        @media print {
-          @page { margin: 12mm 15mm; size: A4 portrait; }
-          body > * { display: none !important; }
-          .print\\:block { display: block !important; }
-          .print\\:hidden { display: none !important; }
-          html, body { height: auto !important; overflow: visible !important; }
-        }
-      `}</style>
-
-      {/* ── Print-only cierre de caja ── */}
-      <div className="hidden print:block font-sans text-zinc-900">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold">CIERRE DE CAJA</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {new Date(fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-          </p>
-          <p className="text-xs text-zinc-400 mt-0.5">Impreso: {new Date().toLocaleString('es-CL')}</p>
-        </div>
-
-        {/* Ventas — agrupadas */}
-        <div className="mb-5">
-          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Ventas del día</h2>
-          {datos && agruparMedios(datos.ventas_por_medio).map(g => (
-            <div key={g.label} className="flex justify-between text-sm py-0.5">
-              <span>{g.label} ({g.cantidad} transacciones)</span>
-              <span className="tabular-nums font-medium">{fmt(g.total)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between text-sm font-bold border-t border-zinc-200 pt-1 mt-1">
-            <span>Total ventas</span>
-            <span className="tabular-nums">{fmt(datos?.total_ventas ?? 0)}</span>
-          </div>
-        </div>
-
-        {/* Compras */}
-        <div className="mb-5">
-          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Compras del día</h2>
-          {datos?.compras_por_prov.map(p => (
-            <div key={p.proveedor} className="flex justify-between text-sm py-0.5">
-              <span>{p.proveedor} ({p.cantidad})</span>
-              <span className="tabular-nums font-medium">{fmt(p.total)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between text-sm font-bold border-t border-zinc-200 pt-1 mt-1">
-            <span>Total compras</span>
-            <span className="tabular-nums">{fmt(datos?.total_compras ?? 0)}</span>
-          </div>
-        </div>
-
-        {/* Arqueo */}
-        <div className="mb-5">
-          <h2 className="text-sm font-bold uppercase tracking-wide border-b border-zinc-300 pb-1 mb-2">Arqueo de efectivo</h2>
-          {DENOMS.map(d => {
-            const qty = parseInt(cantidades[d] || '0') || 0;
-            if (qty === 0) return null;
-            return (
-              <div key={d} className="flex justify-between text-sm py-0.5">
-                <span>{fmt(d)} × {qty}</span>
-                <span className="tabular-nums">{fmt(d * qty)}</span>
-              </div>
-            );
-          })}
-          {fondoCambio > 0 && (
-            <div className="flex justify-between text-sm py-0.5">
-              <span>Fondo de cambio</span>
-              <span className="tabular-nums">{fmt(fondoCambio)}</span>
-            </div>
-          )}
-          <div className="border-t border-zinc-200 pt-1 mt-1 space-y-0.5">
-            <div className="flex justify-between text-sm">
-              <span>Total contado</span>
-              <span className="tabular-nums font-medium">{fmt(suma)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Esperado en caja</span>
-              <span className="tabular-nums font-medium">{fmt(esperado)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold">
-              <span>Diferencia</span>
-              <span className={`tabular-nums ${diferencia === 0 ? '' : diferencia > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {fmtDiff(diferencia).text}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Resultado neto */}
-        <div className="border-t-2 border-zinc-900 pt-3">
-          <div className="flex justify-between text-base font-bold">
-            <span>Resultado del día (ventas − compras)</span>
-            <span className="tabular-nums">{fmt((datos?.total_ventas ?? 0) - (datos?.total_compras ?? 0))}</span>
-          </div>
-        </div>
-
-        <div className="mt-8 pt-4 border-t border-zinc-300 flex justify-between text-xs text-zinc-400">
-          <span>Firma responsable: ______________________________</span>
-          <span>Sello</span>
-        </div>
-      </div>
-
-      {/* ── Screen content (hidden on print) ── */}
-      <div className="print:hidden">
+      <div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -591,6 +742,16 @@ export default function CajaPage() {
           <p className="text-sm text-zinc-400 mt-0.5">Arqueo y movimientos del día</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrintSemana}
+            title="Imprimir resumen de los últimos 7 días"
+            className="hidden sm:flex items-center gap-1.5 text-zinc-600 text-sm px-3 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition-colors"
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Semana
+          </button>
           <input
             type="date"
             value={fecha}

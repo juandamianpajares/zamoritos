@@ -2047,21 +2047,21 @@ function FraccionarModal({
           <label className="block text-xs font-semibold text-zinc-600 mb-1.5">
             Cantidad de {labelEnvases} a fraccionar
           </label>
-          <div className="flex rounded-xl border border-zinc-200 overflow-hidden">
+          <div className="flex flex-col items-center gap-1">
             <button
               onClick={() => setBolsas(b => Math.max(1, b - 1))}
-              className="px-5 py-3 bg-zinc-50 hover:bg-zinc-100 font-bold text-zinc-700 text-xl transition-colors border-r border-zinc-200 shrink-0"
+              className="w-full py-3 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 font-bold text-rose-500 text-2xl transition-colors leading-none"
             >−</button>
             <input
               type="text"
               inputMode="numeric"
               value={bolsas}
               onChange={e => setBolsas(Math.min(Math.floor(producto.stock), Math.max(1, Math.round(Number(e.target.value.replace(/\D/g, '')) || 1))))}
-              className="w-0 flex-1 text-center text-lg font-bold py-3 focus:outline-none"
+              className="w-full text-center text-3xl font-bold py-3 border border-zinc-200 rounded-xl focus:outline-none focus:border-amber-400 bg-zinc-50"
             />
             <button
               onClick={() => setBolsas(b => Math.min(Math.floor(producto.stock), b + 1))}
-              className="px-5 py-3 bg-zinc-50 hover:bg-zinc-100 font-bold text-zinc-700 text-xl transition-colors border-l border-zinc-200 shrink-0"
+              className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 font-bold text-emerald-600 text-2xl transition-colors leading-none"
             >+</button>
           </div>
           <p className="text-xs text-zinc-400 mt-1 text-right">de {producto.stock} disponibles</p>
