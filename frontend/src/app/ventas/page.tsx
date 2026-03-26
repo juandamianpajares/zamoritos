@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from '
 import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
+import { useStockSubscriber, useRefetchOnFocus } from '@/hooks/useProductoSync';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -18,6 +19,9 @@ interface LineaCarrito {
 }
 
 type Vista = 'pos' | 'historial';
+type TagFiltro = 'top10' | 'fraccionadas' | 'promos' | 'combos' | 'ofertas' | 'regalos';
+
+const RENDER_LIMIT = 60; // nodos DOM iniciales en el grid
 
 type MedioPago = 'efectivo' | 'tarjeta' | 'master' | 'anda' | 'cabal' | 'transferencia' | 'otro';
 
@@ -263,6 +267,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [guardarModalOpen, setGuardarModalOpen] = useState(false);
   const [cargarModalOpen,  setCargarModalOpen]  = useState(false);
   const [carritoGuardados, setCarritoGuardados] = useState<Array<{id: string; nombre: string; fecha: string; items: LineaCarrito[]}>>([]);
+  const [tagActivo,  setTagActivo]  = useState<TagFiltro | null>(null);
+  const [renderLimit, setRenderLimit] = useState(RENDER_LIMIT);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const promoBusquedaRef = useRef<HTMLInputElement>(null);
 
@@ -299,6 +306,29 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     } catch {}
   }, []);
 
+  // ── Sync real-time de stock desde otras tabs (BroadcastChannel) ──────────────
+  useStockSubscriber(useCallback(({ productoId, newStock }) => {
+    setProductos(prev => prev.map(p => p.id === productoId ? { ...p, stock: newStock } : p));
+  }, []));
+
+  // ── Refetch silencioso cuando la tab recupera el foco ────────────────────────
+  useRefetchOnFocus(recargarProductos);
+
+  // ── Infinite scroll: ampliar render limit al llegar al centinela ─────────────
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setRenderLimit(l => l + RENDER_LIMIT); },
+      { rootMargin: '300px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // Resetear render limit cada vez que cambia el filtro/búsqueda
+  useEffect(() => { setRenderLimit(RENDER_LIMIT); }, [catActiva, tagActivo, busqueda]);
+
   // Pre-seleccionar medio de pago del canje (preserva el método original de la venta devuelta)
   useEffect(() => {
     if (creditoCanje > 0 && canjeMedioPago) {
@@ -309,8 +339,25 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   // Productos filtrados — orden: destacado → más vendidos → stock desc → sin stock al fondo
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
-    if (catActiva === -1) lista = lista.filter(p => p.en_promo === 1);
-    else if (catActiva) lista = lista.filter(p => p.categoria_id === catActiva);
+
+    // Tags especiales (tienen precedencia sobre catActiva)
+    if (tagActivo === 'top10') {
+      // Top 10 con stock — backend ya ordenó por veces_vendido DESC
+      lista = lista.filter(p => p.stock > 0).slice(0, 10);
+    } else if (tagActivo === 'fraccionadas') {
+      lista = lista.filter(p => !!p.fraccionado_de);
+    } else if (tagActivo === 'promos') {
+      lista = lista.filter(p => (p.en_promo ?? 0) > 0);
+    } else if (tagActivo === 'combos') {
+      lista = lista.filter(p => p.en_promo === 1);
+    } else if (tagActivo === 'ofertas') {
+      lista = lista.filter(p => p.en_promo === 2);
+    } else if (tagActivo === 'regalos') {
+      lista = lista.filter(p => p.en_promo === 3);
+    } else if (catActiva) {
+      lista = lista.filter(p => p.categoria_id === catActiva);
+    }
+
     const q = busqueda.trim().toLowerCase();
     if (q) {
       lista = lista.filter(p =>
@@ -320,16 +367,16 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         String(p.precio_venta).includes(q)
       );
     }
-    // El backend ya ordena por destacado DESC, veces_vendido DESC, nombre ASC.
-    // En el cliente separamos con stock > 0 primero, luego sin stock.
-    if (!q) {
+    // Backend ya ordena por destacado DESC, veces_vendido DESC, nombre ASC.
+    // En el cliente: con stock primero, sin stock al fondo (salvo top10 ya filtrado)
+    if (!q && tagActivo !== 'top10') {
       lista = [
         ...lista.filter(p => p.stock > 0),
         ...lista.filter(p => p.stock <= 0),
       ];
     }
     return lista;
-  }, [productos, catActiva, busqueda]);
+  }, [productos, catActiva, tagActivo, busqueda]);
 
   // Categorías que tienen al menos un producto activo
   const categoriasConProductos = useMemo(() => {
@@ -578,7 +625,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               <input
                 ref={searchRef}
                 value={busqueda}
-                onChange={e => { setBusqueda(e.target.value); setCatActiva(null); }}
+                onChange={e => { setBusqueda(e.target.value); setCatActiva(null); setTagActivo(null); }}
                 placeholder="Buscar por nombre, código, precio…"
                 className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl bg-slate-50 focus:outline-none focus:border-[var(--brand-purple)] focus:bg-white transition-colors"
               />
@@ -611,36 +658,42 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
             </button>
           </div>
 
-          {/* Categorías */}
+          {/* Categorías + tags especiales */}
           {!busqueda && (
             <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {/* Todos */}
               <button
-                onClick={() => setCatActiva(null)}
+                onClick={() => { setCatActiva(null); setTagActivo(null); }}
                 className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
-                  catActiva === null
+                  catActiva === null && !tagActivo
                     ? 'text-white border-transparent shadow-sm'
                     : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300'
                 }`}
-                style={catActiva === null ? { background: 'var(--brand-purple)' } : {}}
+                style={catActiva === null && !tagActivo ? { background: 'var(--brand-purple)' } : {}}
               >
                 Todos
               </button>
 
-              {/* Promos */}
-              <button
-                onClick={() => setCatActiva(catActiva === -1 ? null : -1)}
-                className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
-                  catActiva === -1
-                    ? 'text-white border-transparent shadow-sm'
-                    : 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400'
-                }`}
-                style={catActiva === -1 ? { background: '#e11d48' } : {}}
-              >
-                <svg width="10" height="10" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12.79 2.76 3.29 13h7.42l-.71 8.24 9.5-10.24H12l.79-8.24z"/>
-                </svg>
-                Promos
-              </button>
+              {/* ── Tags especiales ── */}
+              {([
+                { tag: 'top10'       as TagFiltro, label: '⭐ Top 10',      cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400',   active: '#b45309' },
+                { tag: 'fraccionadas'as TagFiltro, label: '✂ Fracc.',       cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',           active: '#0284c7' },
+                { tag: 'promos'      as TagFiltro, label: '🔥 Promos',      cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',       active: '#e11d48' },
+                { tag: 'combos'      as TagFiltro, label: 'COMBO',          cls: 'bg-violet-50 text-violet-600 border-violet-200 hover:border-violet-400', active: '#7c3aed' },
+                { tag: 'ofertas'     as TagFiltro, label: 'OFERTA',         cls: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:border-emerald-400', active: '#059669' },
+                { tag: 'regalos'     as TagFiltro, label: 'REGALO',         cls: 'bg-pink-50 text-pink-600 border-pink-200 hover:border-pink-400',       active: '#db2777' },
+              ] as const).map(({ tag, label, cls, active }) => (
+                <button
+                  key={tag}
+                  onClick={() => { setTagActivo(prev => prev === tag ? null : tag); setCatActiva(null); }}
+                  className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
+                    tagActivo === tag ? 'text-white border-transparent shadow-sm' : cls
+                  }`}
+                  style={tagActivo === tag ? { background: active } : {}}
+                >
+                  {label}
+                </button>
+              ))}
 
               {categoriasConProductos.map(c => {
                 const cs = getCatStyle(c.nombre);
@@ -648,7 +701,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setCatActiva(activo ? null : c.id)}
+                    onClick={() => { setCatActiva(activo ? null : c.id); setTagActivo(null); }}
                     className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all whitespace-nowrap ${
                       activo ? 'text-white border-transparent shadow-sm' : cs.idle
                     }`}
@@ -706,11 +759,14 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
             <>
               <p className="text-xs text-zinc-400 mb-3">
                 {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}
-                {catActiva === -1 ? ' · Promos' : catActiva ? ` · ${categorias.find(c => c.id === catActiva)?.nombre}` : ''}
+                {tagActivo === 'top10' ? ' · Top 10' : tagActivo === 'fraccionadas' ? ' · Fraccionadas' : tagActivo === 'promos' ? ' · Promos' : tagActivo === 'combos' ? ' · Combos' : tagActivo === 'ofertas' ? ' · Ofertas' : tagActivo === 'regalos' ? ' · Regalos' : catActiva ? ` · ${categorias.find(c => c.id === catActiva)?.nombre}` : ''}
                 {busqueda && ` · "${busqueda}"`}
+                {renderLimit < productosFiltrados.length && (
+                  <span className="text-zinc-300"> · mostrando {renderLimit}</span>
+                )}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
-                {productosFiltrados.map(p => {
+                {productosFiltrados.slice(0, renderLimit).map(p => {
                   const agotado        = p.stock <= 0;
                   const stockBajo      = !agotado && p.stock <= 5;
                   const added          = addedId === p.id;
@@ -809,6 +865,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   );
                 })}
               </div>
+              <div ref={sentinelRef} className="h-4" />
             </>
           )}
         </div>

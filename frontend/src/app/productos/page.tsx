@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { api, type Producto, type Categoria } from '@/lib/api';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
+import { useStockPublisher } from '@/hooks/useProductoSync';
 
 const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
@@ -731,12 +732,16 @@ export default function ProductosPage() {
   // Marcas únicas del listado actual (para el dropdown)
   const marcas = [...new Set(productos.map(p => p.marca).filter(Boolean) as string[])].sort();
 
+  const publishStock = useStockPublisher();
+
   const ajustarStockRapido = async (p: Producto, delta: number) => {
     if (stockAdj[p.id]) return;
     setStockAdj(prev => ({ ...prev, [p.id]: true }));
     try {
       await api.post('/stock/ajuste', { producto_id: p.id, cantidad: delta, observacion: `Ajuste rápido ${delta > 0 ? '+' : ''}${delta}` });
-      setProductos(prev => prev.map(x => x.id === p.id ? { ...x, stock: x.stock + delta } : x));
+      const newStock = p.stock + delta;
+      setProductos(prev => prev.map(x => x.id === p.id ? { ...x, stock: newStock } : x));
+      publishStock(p.id, newStock);  // sync a otras tabs en tiempo real
     } finally {
       setStockAdj(prev => ({ ...prev, [p.id]: false }));
     }
