@@ -1205,10 +1205,23 @@ export default function ProductosPage() {
                               })));
                               setComboSearch('');
                             }}
-                            className="text-violet-500 hover:text-violet-700 text-xs px-2 py-1 rounded-lg hover:bg-violet-50 transition-colors mr-1"
-                          >Componentes</button>
+                            title="Editar componentes de la promo"
+                            className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-800 text-xs px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors mr-1 font-medium"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Promo
+                          </button>
                         )}
-                        <button onClick={() => openEdit(p)} className="text-zinc-400 hover:text-zinc-800 text-xs px-2 py-1 rounded-lg hover:bg-zinc-100 transition-colors mr-1">Editar</button>
+                        <button
+                          onClick={() => openEdit(p)}
+                          title="Editar producto"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors mr-1"
+                        >
+                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
                         <button onClick={() => handleDelete(p.id)} className="text-rose-300 hover:text-rose-600 text-xs px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors">Eliminar</button>
                       </td>
                     </tr>
@@ -1410,7 +1423,7 @@ export default function ProductosPage() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setForm(p => ({ ...p, modo_fraccion: opt.value }))}
+                    onClick={() => setForm(p => ({ ...p, modo_fraccion: opt.value, unidad_medida: opt.value }))}
                     className={`flex-1 text-left px-3 py-2 rounded-lg border transition-colors ${
                       form.modo_fraccion === opt.value
                         ? 'border-amber-400 bg-amber-50 text-amber-800'
