@@ -1999,7 +1999,7 @@ function FraccionarModal({
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="Fraccionar producto" size="md">
+    <Modal isOpen onClose={onClose} title="Fraccionar producto" size="lg">
       <div className="space-y-5">
         {/* Toggle modo */}
         <div className="flex rounded-xl overflow-hidden border border-zinc-200">
