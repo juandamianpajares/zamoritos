@@ -832,7 +832,7 @@ export default function ProductosPage() {
       const catMatch = catRaw ? categorias.find(c => {
         const n = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return n === catRaw || catRaw.includes(n) || n.includes(catRaw) ||
-          catRaw.split(/\s+/).some(w => w.length > 3 && n.includes(w));
+          catRaw.split(/\s+/).some((w: string) => w.length > 3 && n.includes(w));
       }) : null;
       // También genera thumb preview para la imagen escaneada
       generarThumbPreview(file).then(t => setThumbPreview(t));
@@ -1615,7 +1615,7 @@ export default function ProductosPage() {
             const catMatch = categorias.find(c => {
               const n = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
               return n === catRaw || catRaw.includes(n) || n.includes(catRaw) ||
-                catRaw.split(/\s+/).some(w => w.length > 3 && n.includes(w));
+                catRaw.split(/\s+/).some((w: string) => w.length > 3 && n.includes(w));
             });
             // Si nos pasaron el archivo de imagen, usarlo como foto del producto
             if (imgFile) {
