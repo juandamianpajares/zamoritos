@@ -19,7 +19,7 @@ interface LineaCarrito {
 }
 
 type Vista = 'pos' | 'historial';
-type TagFiltro = 'top10' | 'fraccionadas' | 'promos' | 'combos' | 'ofertas' | 'regalos';
+type TagFiltro = 'top10' | 'fraccionadas' | 'promos' | 'combos' | 'ofertas' | 'regalos' | 'perro' | 'gato' | 'resto';
 
 const RENDER_LIMIT = 60; // nodos DOM iniciales en el grid
 
@@ -340,9 +340,12 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const productosFiltrados = useMemo(() => {
     let lista = productos.filter(p => p.activo);
 
-    // Tags especiales (tienen precedencia sobre catActiva)
+    const catNom = (p: Producto) =>
+      p.categoria_id ? (catNombres.get(p.categoria_id) ?? '') : '';
+    const esPerro = (p: Producto) => { const n = catNom(p); return n.includes('perro') || n.includes('canino'); };
+    const esGato  = (p: Producto) => { const n = catNom(p); return n.includes('gato')  || n.includes('felino'); };
+
     if (tagActivo === 'top10') {
-      // Top 10 con stock — backend ya ordenó por veces_vendido DESC
       lista = lista.filter(p => p.stock > 0).slice(0, 10);
     } else if (tagActivo === 'fraccionadas') {
       lista = lista.filter(p => !!p.fraccionado_de);
@@ -354,8 +357,18 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       lista = lista.filter(p => p.en_promo === 2);
     } else if (tagActivo === 'regalos') {
       lista = lista.filter(p => p.en_promo === 3);
+    } else if (tagActivo === 'perro') {
+      lista = lista.filter(esPerro);
+    } else if (tagActivo === 'gato') {
+      lista = lista.filter(esGato);
+    } else if (tagActivo === 'resto') {
+      lista = lista.filter(p => !esPerro(p) && !esGato(p));
     } else if (catActiva) {
       lista = lista.filter(p => p.categoria_id === catActiva);
+    } else {
+      // Vista por defecto: Top 10 + fraccionadas + promos (home curada para POS)
+      const t10 = new Set(lista.filter(p => p.stock > 0).slice(0, 10).map(p => p.id));
+      lista = lista.filter(p => t10.has(p.id) || !!p.fraccionado_de || (p.en_promo ?? 0) > 0);
     }
 
     const q = busqueda.trim().toLowerCase();
@@ -367,8 +380,6 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         String(p.precio_venta).includes(q)
       );
     }
-    // Backend ya ordena por destacado DESC, veces_vendido DESC, nombre ASC.
-    // En el cliente: con stock primero, sin stock al fondo (salvo top10 ya filtrado)
     if (!q && tagActivo !== 'top10') {
       lista = [
         ...lista.filter(p => p.stock > 0),
@@ -376,13 +387,25 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       ];
     }
     return lista;
-  }, [productos, catActiva, tagActivo, busqueda]);
+  }, [productos, catActiva, tagActivo, busqueda, catNombres]);
 
   // Categorías que tienen al menos un producto activo
   const categoriasConProductos = useMemo(() => {
     const ids = new Set(productos.filter(p => p.activo && p.categoria_id).map(p => p.categoria_id!));
     return categorias.filter(c => ids.has(c.id));
   }, [productos, categorias]);
+
+  // Mapa id → nombre normalizado para filtros de animal
+  const catNombres = useMemo(() => {
+    const m = new Map<number, string>();
+    categorias.forEach(c => m.set(c.id, c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+    return m;
+  }, [categorias]);
+
+  // IDs de los top-10 más vendidos con stock (para badge ⭐ en tarjeta)
+  const top10Ids = useMemo(() =>
+    new Set(productos.filter(p => p.activo && p.stock > 0).slice(0, 10).map(p => p.id)),
+  [productos]);
 
   // Lista modal combos existentes
   const promosFiltrados = useMemo(() => {
@@ -674,14 +697,32 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                 Todos
               </button>
 
+              {/* ── Tags animales principales ── */}
+              {([
+                { tag: 'perro' as TagFiltro, label: '🐶 Perro',  cls: 'bg-violet-50 text-violet-700 border-violet-200 hover:border-violet-500', active: '#7C3AED' },
+                { tag: 'gato'  as TagFiltro, label: '🐱 Gato',   cls: 'bg-orange-50 text-orange-600 border-orange-200 hover:border-orange-500', active: '#EA580C' },
+                { tag: 'resto' as TagFiltro, label: '🐾 Resto',  cls: 'bg-teal-50 text-teal-700 border-teal-200 hover:border-teal-400',         active: '#0D9488' },
+              ] as const).map(({ tag, label, cls, active }) => (
+                <button
+                  key={tag}
+                  onClick={() => { setTagActivo(prev => prev === tag ? null : tag); setCatActiva(null); }}
+                  className={`shrink-0 px-4 py-1.5 text-sm font-bold rounded-xl border transition-all whitespace-nowrap ${
+                    tagActivo === tag ? 'text-white border-transparent shadow-sm' : cls
+                  }`}
+                  style={tagActivo === tag ? { background: active } : {}}
+                >
+                  {label}
+                </button>
+              ))}
+
               {/* ── Tags especiales ── */}
               {([
-                { tag: 'top10'       as TagFiltro, label: '⭐ Top 10',      cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400',   active: '#b45309' },
-                { tag: 'fraccionadas'as TagFiltro, label: '✂ Fracc.',       cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',           active: '#0284c7' },
-                { tag: 'promos'      as TagFiltro, label: '🔥 Promos',      cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',       active: '#e11d48' },
-                { tag: 'combos'      as TagFiltro, label: 'COMBO',          cls: 'bg-violet-50 text-violet-600 border-violet-200 hover:border-violet-400', active: '#7c3aed' },
-                { tag: 'ofertas'     as TagFiltro, label: 'OFERTA',         cls: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:border-emerald-400', active: '#059669' },
-                { tag: 'regalos'     as TagFiltro, label: 'REGALO',         cls: 'bg-pink-50 text-pink-600 border-pink-200 hover:border-pink-400',       active: '#db2777' },
+                { tag: 'top10'        as TagFiltro, label: '⭐ Top 10', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400',   active: '#b45309' },
+                { tag: 'fraccionadas' as TagFiltro, label: '✂ Fracc.',  cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',           active: '#0284c7' },
+                { tag: 'promos'       as TagFiltro, label: '🔥 Promos', cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',       active: '#e11d48' },
+                { tag: 'combos'       as TagFiltro, label: 'COMBO',     cls: 'bg-violet-50 text-violet-600 border-violet-200 hover:border-violet-400', active: '#7c3aed' },
+                { tag: 'ofertas'      as TagFiltro, label: 'OFERTA',    cls: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:border-emerald-400', active: '#059669' },
+                { tag: 'regalos'      as TagFiltro, label: 'REGALO',    cls: 'bg-pink-50 text-pink-600 border-pink-200 hover:border-pink-400',       active: '#db2777' },
               ] as const).map(({ tag, label, cls, active }) => (
                 <button
                   key={tag}
@@ -759,7 +800,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
             <>
               <p className="text-xs text-zinc-400 mb-3">
                 {productosFiltrados.length} producto{productosFiltrados.length !== 1 ? 's' : ''}
-                {tagActivo === 'top10' ? ' · Top 10' : tagActivo === 'fraccionadas' ? ' · Fraccionadas' : tagActivo === 'promos' ? ' · Promos' : tagActivo === 'combos' ? ' · Combos' : tagActivo === 'ofertas' ? ' · Ofertas' : tagActivo === 'regalos' ? ' · Regalos' : catActiva ? ` · ${categorias.find(c => c.id === catActiva)?.nombre}` : ''}
+                {tagActivo === 'top10' ? ' · Top 10' : tagActivo === 'fraccionadas' ? ' · Fraccionadas' : tagActivo === 'promos' ? ' · Promos' : tagActivo === 'combos' ? ' · Combos' : tagActivo === 'ofertas' ? ' · Ofertas' : tagActivo === 'regalos' ? ' · Regalos' : tagActivo === 'perro' ? ' · Perro' : tagActivo === 'gato' ? ' · Gato' : tagActivo === 'resto' ? ' · Resto animales' : catActiva ? ` · ${categorias.find(c => c.id === catActiva)?.nombre}` : ' · Destacados'}
                 {busqueda && ` · "${busqueda}"`}
                 {renderLimit < productosFiltrados.length && (
                   <span className="text-zinc-300"> · mostrando {renderLimit}</span>
@@ -772,6 +813,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
                   const esCombo        = p.en_promo === 1;
+                  const esTop10        = top10Ids.has(p.id);
                   // unidad + fraccionable + peso → Fraccionar bolsas en kg
                   const puedeFraccionar = !agotado && p.unidad_medida !== 'kg' && (p.peso ?? 0) > 0 && !esFraccionado && !!p.fraccionable;
                   // kg + fraccionable (o es producto fraccionado) → picker de peso al vender
@@ -818,8 +860,11 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                           {esVentaKg && !esFraccionado && !esCombo && (
                             <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500 text-white shadow-sm">⚖ KG</span>
                           )}
-                          {p.destacado && !esCombo && !esFraccionado && (
+                          {p.destacado && !esCombo && !esFraccionado && !esTop10 && (
                             <span className="absolute top-1 left-1 text-sm leading-none">⭐</span>
+                          )}
+                          {esTop10 && (
+                            <span className="absolute top-1 right-1 text-base leading-none drop-shadow">⭐</span>
                           )}
                           {agotado && (
                             <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
@@ -834,9 +879,11 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                         {p.marca && (
                           <p className="text-[10px] text-zinc-400 mb-1.5 truncate">{p.marca}</p>
                         )}
-                        <p className="text-base font-bold tabular-nums" style={{ color: esCombo ? 'var(--brand-purple)' : 'var(--brand-purple)' }}>
+                        <p className={`font-bold tabular-nums ${esFraccionado || esVentaKg ? 'text-lg' : 'text-base'}`} style={{ color: 'var(--brand-purple)' }}>
                           {fmt(p.precio_venta)}
-                          {esFraccionado && <span className="text-[10px] font-normal text-amber-600 ml-1">/kg</span>}
+                          {(esFraccionado || esVentaKg) && (
+                            <span className="text-xs font-semibold text-amber-600 ml-1">/kg</span>
+                          )}
                         </p>
                         <p className={`text-xs mt-1 font-bold ${
                           agotado ? 'text-rose-500' : stockBajo ? 'text-amber-500' : 'text-zinc-500'
