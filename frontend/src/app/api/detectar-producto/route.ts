@@ -15,22 +15,18 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey });
 
-  const prompt = `Sos un asistente para una tienda de mascotas en Uruguay (Zamoritos Agroveterinaria).
-Analizá la foto del producto y extraé los siguientes datos en formato JSON.
-Si no podés determinar un campo con certeza, dejalo como null.
+  const prompt = `Sos un asistente para Zamoritos Agroveterinaria (Uruguay). Analizá la foto del producto y respondé SOLO con JSON válido, sin markdown ni texto adicional.
 
-Campos a extraer:
-- nombre: nombre comercial del producto (string)
-- marca: marca del producto (string)
-- codigo_barras: código de barras EAN si es visible (string)
-- peso: peso o volumen numérico en la unidad indicada (number)
-- unidad_medida: "kg", "g", "lt", "ml", "unidad" según corresponda (string)
-- categoria: una de: ALIMENTOS, SNACK, HIGIENE, ESTETICA, LIMPIEZA, VENENO, COMEDEROS, PASEO, ROPA, VARIOS (string)
-- descripcion_breve: descripción corta útil para el empleado (string, max 100 chars)
+Campos:
+- nombre: nombre completo incluyendo marca, variante y tamaño (ej: "LAGER Premium Adultos 22kg")
+- marca: marca del fabricante (ej: "Lager", "Nutrapet", "Matisse", "Bravecto")
+- codigo_barras: código EAN visible en el envase o null
+- peso: número o null (peso/volumen del envase en la unidad indicada)
+- unidad_medida: "kg", "g", "lt", "ml" o "unidad"
+- categoria_sugerida: una de: "Alimento Perros", "Alimento Gatos", "Alimento Aves y Granja", "Arena Sanitaria", "Antiparasitarios", "Higiene y Belleza", "Collares y Accesorios", "Comederos y Bebederos", "Snacks y Premios", "Medicamentos", "Varios"
+- descripcion_breve: descripción útil para el vendedor, máx 80 caracteres
 
-Respondé SOLO con el JSON, sin texto adicional ni bloques de código.
-Ejemplo de respuesta:
-{"nombre":"Lager Adulto 10kg","marca":"LAGER","codigo_barras":"7730918030044","peso":10,"unidad_medida":"kg","categoria":"ALIMENTOS","descripcion_breve":"Alimento seco para perros adultos todas las razas"}`;
+Ejemplo: {"nombre":"Lager Adulto 10kg","marca":"LAGER","codigo_barras":"7730918030044","peso":10,"unidad_medida":"kg","categoria_sugerida":"Alimento Perros","descripcion_breve":"Alimento seco perros adultos todas las razas"}`;
 
   try {
     const message = await client.messages.create({

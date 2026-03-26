@@ -188,10 +188,11 @@ const COLUMNAS_EJEMPLO = `| Campo | Descripción | Ejemplo |
 Precio de compra y stock → importar en Compras.`;
 
 // ─── Modal Detectar por Foto (IA) ────────────────────────────────────────────
-type DetectResult = { nombre?: string; marca?: string; codigo_barras?: string; peso?: number; unidad_medida?: string; categoria?: string; descripcion_breve?: string; error?: string };
+type DetectResult = { nombre?: string; marca?: string; codigo_barras?: string; peso?: number; unidad_medida?: string; categoria?: string; categoria_sugerida?: string; descripcion_breve?: string; error?: string };
 
-function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (data: DetectResult) => void }) {
+function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (data: DetectResult, file?: File) => void }) {
   const [preview,  setPreview]  = useState<string | null>(null);
+  const [file,     setFile]     = useState<File | null>(null);
   const [b64,      setB64]      = useState('');
   const [mtype,    setMtype]    = useState('image/jpeg');
   const [loading,  setLoading]  = useState(false);
@@ -199,26 +200,13 @@ function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (
   const [error,    setError]    = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const onFile = (file: File) => {
-    setMtype(file.type || 'image/jpeg');
-    const reader = new FileReader();
-    reader.onload = e => {
-      const dataUrl = e.target?.result as string;
-      setPreview(dataUrl);
-      setB64(dataUrl.split(',')[1]);
-      setResult(null);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const detectar = async () => {
-    if (!b64) return;
-    setLoading(true); setError('');
+  const detectar = async (imageBase64: string, mediaType: string) => {
+    setLoading(true); setError(''); setResult(null);
     try {
       const res = await fetch('/api/detectar-producto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: b64, mediaType: mtype }),
+        body: JSON.stringify({ imageBase64, mediaType }),
       });
       const data: DetectResult = await res.json();
       if (data.error) throw new Error(data.error);
@@ -230,23 +218,51 @@ function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (
     }
   };
 
+  const onFile = (f: File) => {
+    setFile(f);
+    setMtype(f.type || 'image/jpeg');
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target?.result as string;
+      setPreview(dataUrl);
+      const imgB64 = dataUrl.split(',')[1];
+      setB64(imgB64);
+      // Auto-detect al seleccionar la foto
+      detectar(imgB64, f.type || 'image/jpeg');
+    };
+    reader.readAsDataURL(f);
+  };
+
+  const catLabel = result?.categoria_sugerida ?? result?.categoria;
+
   return (
-    <Modal isOpen onClose={onClose} title="Detectar producto por foto · IA">
+    <Modal isOpen onClose={onClose} title="Carga rápida por foto · IA">
       <div className="space-y-4 text-sm">
-        {/* Upload */}
+        {/* Upload / Preview */}
         <div
-          onClick={() => inputRef.current?.click()}
-          className="border-2 border-dashed border-zinc-200 rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer hover:border-violet-300 hover:bg-violet-50/30 transition-colors"
+          onClick={() => !loading && inputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center gap-2 transition-colors ${
+            loading ? 'cursor-wait border-violet-300 bg-violet-50/30' : 'cursor-pointer border-zinc-200 hover:border-violet-300 hover:bg-violet-50/30'
+          }`}
         >
           {preview ? (
-            <img src={preview} alt="preview" className="max-h-48 rounded-lg object-contain" />
+            <div className="relative">
+              <img src={preview} alt="preview" className="max-h-48 rounded-lg object-contain" />
+              {loading && (
+                <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center rounded-lg gap-2">
+                  <span className="w-6 h-6 border-2 border-violet-300 border-t-violet-700 rounded-full animate-spin" />
+                  <span className="text-xs text-violet-700 font-medium">Analizando…</span>
+                </div>
+              )}
+            </div>
           ) : (
             <>
-              <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-300" viewBox="0 0 24 24">
+              <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-300" viewBox="0 0 24 24">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
-              <p className="text-xs text-zinc-400">Tocá para sacar una foto o elegir imagen</p>
+              <p className="text-sm font-medium text-zinc-500">Sacá una foto al producto</p>
+              <p className="text-xs text-zinc-400">El nombre, marca, código y categoría se detectan automáticamente</p>
             </>
           )}
         </div>
@@ -254,14 +270,18 @@ function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (
           onChange={e => { if (e.target.files?.[0]) onFile(e.target.files[0]); }} />
 
         {/* Resultado */}
-        {result && (
-          <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
+        {result && !loading && (
+          <div className="bg-emerald-50 rounded-xl border border-emerald-100 divide-y divide-emerald-100">
+            <div className="px-3 py-2 flex items-center gap-2">
+              <span className="text-emerald-600 text-base">✓</span>
+              <span className="text-xs font-semibold text-emerald-700">Producto detectado</span>
+            </div>
             {[
               ['Nombre',      result.nombre],
               ['Marca',       result.marca],
               ['Código',      result.codigo_barras],
               ['Peso',        result.peso ? `${result.peso} ${result.unidad_medida ?? ''}` : null],
-              ['Categoría',   result.categoria],
+              ['Categoría',   catLabel],
               ['Descripción', result.descripcion_breve],
             ].filter(([, v]) => v).map(([k, v]) => (
               <div key={k as string} className="flex gap-2 px-3 py-2">
@@ -272,14 +292,30 @@ function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (
           </div>
         )}
 
-        {error && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">{error}</p>}
+        {error && (
+          <div className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">
+            <p className="font-semibold mb-0.5">Error al analizar</p>
+            <p>{error}</p>
+            {error.includes('ANTHROPIC_API_KEY') && (
+              <p className="mt-1 text-rose-500">Configurar en <code className="bg-rose-100 px-1 rounded">frontend/.env.local</code></p>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 pt-1 border-t border-zinc-100">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50">Cancelar</button>
-          {!result ? (
+          {result && !loading ? (
             <button
-              onClick={detectar}
-              disabled={!b64 || loading}
+              onClick={() => onUsar(result, file ?? undefined)}
+              className="flex-1 py-2.5 font-semibold rounded-xl text-white"
+              style={{ background: 'var(--brand-teal)' }}
+            >
+              Usar estos datos →
+            </button>
+          ) : (
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={loading}
               className="flex-1 py-2.5 font-semibold rounded-xl text-white disabled:opacity-40"
               style={{ background: 'var(--brand-purple)' }}
             >
@@ -288,15 +324,15 @@ function DetectarFotoModal({ onClose, onUsar }: { onClose: () => void; onUsar: (
                   <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"/>
                   Analizando…
                 </span>
-              ) : 'Detectar con IA'}
-            </button>
-          ) : (
-            <button
-              onClick={() => onUsar(result)}
-              className="flex-1 py-2.5 font-semibold rounded-xl text-white"
-              style={{ background: 'var(--brand-teal)' }}
-            >
-              Usar estos datos
+              ) : (
+                <span className="flex items-center justify-center gap-1.5">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Sacar foto
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -792,16 +828,22 @@ export default function ProductosPage() {
       const res = await fetch('/api/scan-producto', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Error');
+      const catRaw = (data.categoria_sugerida ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const catMatch = catRaw ? categorias.find(c => {
+        const n = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return n === catRaw || catRaw.includes(n) || n.includes(catRaw) ||
+          catRaw.split(/\s+/).some(w => w.length > 3 && n.includes(w));
+      }) : null;
+      // También genera thumb preview para la imagen escaneada
+      generarThumbPreview(file).then(t => setThumbPreview(t));
       setForm(prev => ({
         ...prev,
-        nombre: data.nombre ?? prev.nombre,
-        marca: data.marca ?? prev.marca,
+        nombre:        data.nombre        ?? prev.nombre,
+        marca:         data.marca         ?? prev.marca,
         codigo_barras: data.codigo_barras ?? prev.codigo_barras,
-        peso: data.peso != null ? String(data.peso) : prev.peso,
+        peso:          data.peso != null   ? String(data.peso) : prev.peso,
         unidad_medida: data.unidad_medida ?? prev.unidad_medida,
-        ...(data.categoria_sugerida
-          ? { categoria_id: String(categorias.find(c => c.nombre === data.categoria_sugerida)?.id ?? prev.categoria_id) }
-          : {}),
+        ...(catMatch ? { categoria_id: String(catMatch.id) } : {}),
       }));
     } catch (err: unknown) {
       setScanError((err as Error).message);
@@ -1566,9 +1608,21 @@ export default function ProductosPage() {
       {fotoIaOpen && (
         <DetectarFotoModal
           onClose={() => setFotoIaOpen(false)}
-          onUsar={(data) => {
+          onUsar={(data, imgFile) => {
             setFotoIaOpen(false);
-            const catMatch = categorias.find(c => c.nombre.toUpperCase() === (data.categoria ?? '').toUpperCase());
+            // Coincidencia de categoría: busca la DB que más se parezca al valor sugerido
+            const catRaw = (data.categoria_sugerida ?? data.categoria ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const catMatch = categorias.find(c => {
+              const n = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              return n === catRaw || catRaw.includes(n) || n.includes(catRaw) ||
+                catRaw.split(/\s+/).some(w => w.length > 3 && n.includes(w));
+            });
+            // Si nos pasaron el archivo de imagen, usarlo como foto del producto
+            if (imgFile) {
+              setFotoFile(imgFile);
+              setFotoPreview(URL.createObjectURL(imgFile));
+              generarThumbPreview(imgFile).then(t => setThumbPreview(t));
+            }
             setForm(prev => ({
               ...prev,
               nombre:        data.nombre        ?? prev.nombre,

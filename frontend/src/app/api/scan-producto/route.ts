@@ -1,9 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req: NextRequest) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'ANTHROPIC_API_KEY no configurada. Agregala en frontend/.env.local (dev) o en la variable de entorno del contenedor (Docker).' },
+      { status: 500 }
+    );
+  }
+  const client = new Anthropic({ apiKey });
+
   try {
     const formData = await req.formData();
     const file = formData.get('imagen') as File | null;
@@ -26,15 +33,16 @@ export async function POST(req: NextRequest) {
             },
             {
               type: 'text',
-              text: `Analizá esta imagen de un producto veterinario/mascotas y respondé ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones), con estos campos exactos:
+              text: `Sos un asistente para Zamoritos Agroveterinaria (Uruguay). Analizá esta imagen de un producto y respondé ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
 
 {
-  "nombre": "nombre completo del producto incluyendo marca, variante y tamaño/peso (ej: LAGER Premium Adultos 22kg)",
-  "marca": "marca del producto (ej: Lager, Nutrapet, Matisse)",
-  "peso": número o null (peso del envase en kg como número, ej: 22, 7.5, 1),
-  "unidad_medida": "kg" o "unidad",
-  "categoria_sugerida": una de estas opciones exactas: "Alimento Perros", "Alimento Gatos", "Alimento Aves y Granja", "Arena Sanitaria", "Antiparasitarios", "Higiene y Belleza", "Collares", "Correas y Arneses", "Comederos y Bebederos", "Alimento Húmedo y Snacks",
-  "codigo_barras": "código de barras visible en la imagen o null si no se ve"
+  "nombre": "nombre completo incluyendo marca, variante y tamaño (ej: LAGER Premium Adultos 22kg)",
+  "marca": "marca del fabricante (ej: Lager, Nutrapet, Matisse, Bravecto)",
+  "peso": número o null (peso/volumen del envase en la unidad indicada, ej: 22, 7.5, 1),
+  "unidad_medida": "kg", "g", "lt", "ml" o "unidad" según corresponda,
+  "categoria_sugerida": clasifica en una de: "Alimento Perros", "Alimento Gatos", "Alimento Aves y Granja", "Arena Sanitaria", "Antiparasitarios", "Higiene y Belleza", "Collares y Accesorios", "Comederos y Bebederos", "Snacks y Premios", "Medicamentos", "Varios",
+  "codigo_barras": "código EAN visible en la imagen o null",
+  "descripcion_breve": "descripción corta útil para el vendedor, máx 80 caracteres (ej: Alimento seco adultos todas las razas, enriquecido con Omega 3)"
 }
 
 Solo devolvé el JSON, nada más.`,
