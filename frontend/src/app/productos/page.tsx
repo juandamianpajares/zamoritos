@@ -1079,6 +1079,7 @@ export default function ProductosPage() {
             Cargando productos...
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1280,6 +1281,7 @@ export default function ProductosPage() {
               </button>
             </div>
           )}
+          </>
         )}
       </div>
 
