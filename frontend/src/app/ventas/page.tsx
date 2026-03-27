@@ -379,9 +379,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     } else if (catActiva) {
       lista = lista.filter(p => p.categoria_id === catActiva);
     } else {
-      // Vista por defecto: Top 10 + fraccionadas + promos (home curada para POS)
-      const t10 = new Set(lista.filter(p => p.stock > 0).slice(0, 10).map(p => p.id));
-      lista = lista.filter(p => t10.has(p.id) || !!p.fraccionado_de || (p.en_promo ?? 0) > 0);
+      // Vista por defecto: todos los productos con stock > 0
+      lista = lista.filter(p => p.stock > 0);
     }
 
     const q = busqueda.trim().toLowerCase();
@@ -946,7 +945,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         const prec   = parseFloat(kgPicker.precio.replace(',', '.')) || p.precio_venta;
         // Normalise to kg for validation and cart
         const cantKg   = isG ? rawVal / 1000 : rawVal;
-        const precKg   = isG ? prec * 10 : prec;         // /100g → /kg
+        const precKg   = prec;                             // always /kg
         const sub      = cantKg * precKg;
         const stockOk  = cantKg > 0 && cantKg <= p.stock;
 
@@ -955,13 +954,12 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           setKgPicker(prev => {
             if (!prev) return prev;
             const cur = parseFloat(prev.kg.replace(',', '.')) || 0;
-            const curPrec = parseFloat(prev.precio.replace(',', '.')) || p.precio_venta;
             if (next === 'g') {
-              // kg → g: multiply amount by 1000, divide price by 10 (kg→100g)
-              return { ...prev, modo: 'g', kg: String(Math.round(cur * 1000)), precio: String(Math.round(curPrec / 10)) };
+              // kg → g: multiply amount by 1000, price stays /kg
+              return { ...prev, modo: 'g', kg: String(Math.round(cur * 1000)) };
             } else {
-              // g → kg: divide amount by 1000, multiply price by 10 (100g→kg)
-              return { ...prev, modo: 'kg', kg: cur > 0 ? (cur / 1000).toFixed(3) : '', precio: String(Math.round(curPrec * 10)) };
+              // g → kg: divide amount by 1000, price stays /kg
+              return { ...prev, modo: 'kg', kg: cur > 0 ? (cur / 1000).toFixed(3) : '' };
             }
           });
         };
@@ -1033,7 +1031,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               {/* Precio */}
               <div>
                 <label className="text-xs text-zinc-500 font-medium block mb-1.5">
-                  Precio {isG ? '/100g' : '/kg'}
+                  Precio /kg
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-zinc-500">$</span>
@@ -1044,7 +1042,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                     onChange={e => setKgPicker(prev => prev && { ...prev, precio: e.target.value })}
                     className="flex-1 min-w-0 border border-zinc-200 rounded-xl px-3 py-2 text-center text-base font-bold tabular-nums focus:outline-none focus:border-zinc-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
-                  <span className="text-xs text-zinc-400">{isG ? '/100g' : '/kg'}</span>
+                  <span className="text-xs text-zinc-400">/kg</span>
                 </div>
               </div>
 

@@ -750,6 +750,8 @@ export default function ProductosPage() {
   const [comboPrecioPromo, setComboPrecioPromo] = useState('');
   const [comboSearch,  setComboSearch]  = useState('');
   const [comboSaving,  setComboSaving]  = useState(false);
+  const [sinStock,     setSinStock]     = useState(false);
+  const [visibleCount, setVisibleCount] = useState(25);
   const fileRef = useRef<HTMLInputElement>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -784,13 +786,18 @@ export default function ProductosPage() {
   };
 
   useEffect(() => { load(); }, [search, catFilter, marcaFilter]);
+  useEffect(() => { setVisibleCount(25); }, [search, catFilter, marcaFilter, specialFilter, sinStock]);
+
+  const baseProductos = sinStock
+    ? productos.filter(p => p.stock <= 0)
+    : productos.filter(p => p.stock > 0);
 
   const productosFiltrados =
-    specialFilter === 'destacado' ? productos.filter(p => p.destacado) :
-    specialFilter === 'combo'     ? productos.filter(p => p.en_promo === 1) :
-    specialFilter === 'oferta'    ? productos.filter(p => p.en_promo === 2) :
-    specialFilter === 'regalo'    ? productos.filter(p => p.en_promo === 3) :
-    productos;
+    specialFilter === 'destacado' ? baseProductos.filter(p => p.destacado) :
+    specialFilter === 'combo'     ? baseProductos.filter(p => p.en_promo === 1) :
+    specialFilter === 'oferta'    ? baseProductos.filter(p => p.en_promo === 2) :
+    specialFilter === 'regalo'    ? baseProductos.filter(p => p.en_promo === 3) :
+    baseProductos;
 
   const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
 
@@ -922,7 +929,12 @@ export default function ProductosPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">Productos</h1>
-          <p className="text-sm text-zinc-400 mt-0.5">{productos.length} registrados</p>
+          <p className="text-sm text-zinc-400 mt-0.5">
+            {productos.filter(p => p.stock > 0).length} con stock
+            {productos.filter(p => p.stock <= 0).length > 0 && (
+              <span className="ml-1 text-zinc-300">· {productos.filter(p => p.stock <= 0).length} sin stock</span>
+            )}
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { openCreate(); setFotoIaOpen(true); }} className="border border-violet-200 text-violet-700 text-sm px-4 py-2 rounded-xl hover:bg-violet-50 transition-colors flex items-center gap-1.5">
@@ -970,9 +982,20 @@ export default function ProductosPage() {
           <option value="">Todas las categorías</option>
           {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
-        {(catFilter || marcaFilter || search || specialFilter) && (
+        <button
+          onClick={() => setSinStock(v => !v)}
+          className={`px-3 py-2 text-xs font-medium rounded-xl border whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            sinStock
+              ? 'bg-rose-500 text-white border-rose-500'
+              : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50'
+          }`}
+        >
+          <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="5" cy="5" r="4"/><line x1="3" y1="5" x2="7" y2="5"/></svg>
+          Sin stock
+        </button>
+        {(catFilter || marcaFilter || search || specialFilter || sinStock) && (
           <button
-            onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); setSpecialFilter(''); }}
+            onClick={() => { setSearch(''); setCatFilter(''); setMarcaFilter(''); setSpecialFilter(''); setSinStock(false); }}
             className="px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 text-zinc-500 hover:bg-zinc-50 whitespace-nowrap flex items-center gap-1"
           >
             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
@@ -1066,14 +1089,14 @@ export default function ProductosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
-                {productosFiltrados.map(p => {
+                {productosFiltrados.slice(0, visibleCount).map(p => {
                   const margenPct = p.precio_compra && p.precio_compra > 0
                     ? Math.round(((p.precio_venta - p.precio_compra) / p.precio_compra) * 100)
                     : null;
                   return (
                     <tr key={p.id} className="hover:bg-zinc-50/70 transition-colors group">
-                      {/* Thumb */}
-                      <td className="pl-3 pr-1 py-2 w-14">
+                      {/* Thumb — click abre edición */}
+                      <td className="pl-3 pr-1 py-2 w-14 cursor-pointer" onClick={() => openEdit(p)} title="Editar producto">
                         <ThumbProducto producto={p} />
                       </td>
 
@@ -1206,7 +1229,8 @@ export default function ProductosPage() {
                               setComboSearch('');
                             }}
                             title="Editar componentes de la promo"
-                            className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-800 text-xs px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors mr-1 font-medium"
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors mr-1 font-medium text-white hover:opacity-90"
+                            style={{ background: 'var(--brand-purple)' }}
                           >
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             Promo
@@ -1222,7 +1246,9 @@ export default function ProductosPage() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
                         </button>
-                        <button onClick={() => handleDelete(p.id)} className="text-rose-300 hover:text-rose-600 text-xs px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors">Eliminar</button>
+                        <button onClick={() => handleDelete(p.id)} title="Eliminar producto" className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="10" y2="10"/><line x1="10" y1="1" x2="1" y2="10"/></svg>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1243,6 +1269,17 @@ export default function ProductosPage() {
               </tbody>
             </table>
           </div>
+          {visibleCount < productosFiltrados.length && (
+            <div className="px-4 py-3 border-t border-zinc-100 text-center">
+              <button
+                onClick={() => setVisibleCount(v => v + 25)}
+                className="text-sm text-zinc-500 hover:text-zinc-800 font-medium px-6 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition-colors"
+              >
+                Cargar {Math.min(25, productosFiltrados.length - visibleCount)} más
+                <span className="ml-1.5 text-zinc-400 text-xs">({productosFiltrados.length - visibleCount} restantes)</span>
+              </button>
+            </div>
+          )}
         )}
       </div>
 
