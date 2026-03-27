@@ -67,7 +67,12 @@ services:
     # Puerto directo para debug. Comentar si no se necesita.
     # ports:
     #   - "3000:3000"
-    environment:
+    #      - WATCHPACK_POLLING=true # Crucial para que detecte cambios en Docker
+    #      - CHOKIDAR_USEPOLLING=true
+    #      - CHOKIDAR_INTERVAL=1000
+  
+  
+      environment:
       # URL relativa → nginx proxy /api/* al backend. Funciona desde cualquier IP/dominio.
       NEXT_PUBLIC_API_URL: /api
       NODE_ENV: production
