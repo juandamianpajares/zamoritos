@@ -524,7 +524,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
   const cambiarPrecio = (key: string, precio: string) => {
     const val = parseFloat(precio);
-    if (isNaN(val) || val < 0) return;
+    if (isNaN(val)) return;
     setCarrito(prev => prev.map(l => {
       if (l.key !== key) return l;
       if (l.esGranel) {
@@ -556,6 +556,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
   const confirmarVenta = () => {
     if (carrito.length === 0) return;
+    if (total <= 0) { setError('El total de la venta debe ser mayor a $0.'); return; }
     const totalAPagar = Math.max(0, total - creditoCanje);
 
     // Validar pago combinado
@@ -722,6 +723,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                 { tag: 'top10'        as TagFiltro, label: '⭐ Top 10', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400', active: '#b45309' },
                 { tag: 'fraccionadas' as TagFiltro, label: '✂ Fracc.',  cls: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400',         active: '#0284c7' },
                 { tag: 'promos'       as TagFiltro, label: '🔥 Promos', cls: 'bg-rose-50 text-rose-600 border-rose-200 hover:border-rose-400',     active: '#e11d48' },
+                { tag: 'regalos'      as TagFiltro, label: '🎁 Ajustes', cls: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 hover:border-fuchsia-400', active: '#a21caf' },
               ] as const).map(({ tag, label, cls, active }) => (
                 <button
                   key={tag}
@@ -759,7 +761,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {productosFiltrados.slice(0, renderLimit).map(p => {
-                  const agotado        = p.stock <= 0;
+                  const agotado        = p.stock <= 0 && p.en_promo !== 3;
                   const stockBajo      = !agotado && p.stock <= 5;
                   const added          = addedId === p.id;
                   const esFraccionado  = !!p.fraccionado_de;
@@ -1666,17 +1668,19 @@ const CarritoPanel = memo(function CarritoPanel({
           </div>
         ) : (
           <div className="divide-y divide-zinc-50">
-            {carrito.map(l => (
-              <div key={l.key} className="px-4 py-3 flex items-start gap-3 group hover:bg-zinc-50/50 transition-colors">
+            {carrito.map(l => {
+              const esAjusteNeg = l.precio_unitario < 0;
+              return (
+              <div key={l.key} className={`px-4 py-3 flex items-start gap-3 group transition-colors ${esAjusteNeg ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-zinc-50/50'}`}>
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-800 leading-snug line-clamp-2">{l.producto.nombre}</p>
+                  <p className={`text-sm font-medium leading-snug line-clamp-2 ${esAjusteNeg ? 'text-rose-700' : 'text-zinc-800'}`}>{l.producto.nombre}</p>
                   {/* Precio editable */}
                   {l.esGranel && l.granelKg != null ? (
                     <div className="flex items-center gap-1 mt-1.5">
                       <span className="text-xs text-zinc-400">$</span>
                       <input
-                        type="number" min={0}
+                        type="number"
                         value={l.granelPrecioKg ?? ''}
                         onChange={e => onCambiarPrecio(l.key, e.target.value)}
                         className="w-20 text-xs border border-zinc-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:border-[var(--brand-purple)] tabular-nums"
@@ -1718,7 +1722,7 @@ const CarritoPanel = memo(function CarritoPanel({
                     >+</button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold tabular-nums text-zinc-700">
+                    <span className={`text-sm font-semibold tabular-nums ${esAjusteNeg ? 'text-rose-600' : 'text-zinc-700'}`}>
                       {l.esGranel && l.granelKg != null && l.granelPrecioKg
                         ? `$${Math.round(l.granelKg * l.granelPrecioKg).toLocaleString('es-CL')}`
                         : fmt(l.cantidad * l.precio_unitario)}
@@ -1735,7 +1739,8 @@ const CarritoPanel = memo(function CarritoPanel({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

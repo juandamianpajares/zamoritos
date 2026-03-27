@@ -82,7 +82,13 @@ class VentaService
                 $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
                     && $producto->comboItems->isNotEmpty();
 
-                if ($esPromoConComponentes) {
+                $esRegaloAjuste = $producto->en_promo === \App\Models\Producto::PROMO_REGALO
+                    && $producto->comboItems->isEmpty();
+
+                if ($esRegaloAjuste) {
+                    // Producto ficticio de ajuste (ej: descuento, costo de envío): sin stock físico
+                    continue;
+                } elseif ($esPromoConComponentes) {
                     // COMBO u OFERTA: descontar stock de cada componente
                     foreach ($producto->comboItems as $item) {
                         $componente    = Producto::findOrFail($item->componente_producto_id);
@@ -135,7 +141,13 @@ class VentaService
                 $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
                     && $producto->comboItems->isNotEmpty();
 
-                if ($esPromoConComponentes) {
+                $esRegaloAjuste = $producto->en_promo === \App\Models\Producto::PROMO_REGALO
+                    && $producto->comboItems->isEmpty();
+
+                if ($esRegaloAjuste) {
+                    // Sin stock físico — nada que revertir
+                    continue;
+                } elseif ($esPromoConComponentes) {
                     foreach ($producto->comboItems as $item) {
                         $componente    = Producto::findOrFail($item->componente_producto_id);
                         $qtdComponente = $item->cantidad * $d->cantidad;
@@ -180,7 +192,12 @@ class VentaService
             $esPromoConComponentes = $producto->en_promo !== \App\Models\Producto::PROMO_NINGUNA
                 && $producto->comboItems->isNotEmpty();
 
-            if ($esPromoConComponentes) {
+            $esRegaloAjuste = $producto->en_promo === \App\Models\Producto::PROMO_REGALO
+                && $producto->comboItems->isEmpty();
+
+            if ($esRegaloAjuste) {
+                continue;
+            } elseif ($esPromoConComponentes) {
                 foreach ($producto->comboItems as $item) {
                     $componente = Producto::find($item->componente_producto_id);
                     if (!$componente) continue;
