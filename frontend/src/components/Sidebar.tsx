@@ -80,6 +80,25 @@ const DrawerIcon = () => (
   </svg>
 );
 
+const TruckBoxIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <rect x="1" y="4" width="9" height="8" rx="1" />
+    <path d="M10 6.5h2.5L14.5 9v3h-1" />
+    <circle cx="4" cy="13" r="1.5" />
+    <circle cx="12" cy="13" r="1.5" />
+    <line x1="4" y1="6.5" x2="7" y2="6.5" />
+  </svg>
+);
+
+const LedgerIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <rect x="2" y="1.5" width="12" height="13" rx="1.5" />
+    <line x1="5" y1="5" x2="11" y2="5" />
+    <line x1="5" y1="7.5" x2="11" y2="7.5" />
+    <line x1="5" y1="10" x2="8.5" y2="10" />
+  </svg>
+);
+
 interface NavLink {
   href: string;
   label: string;
@@ -102,9 +121,11 @@ const links: NavLink[] = [
   { href: '/categorias',     label: 'Categorías',     Icon: TagIcon },
   { href: '/proveedores',    label: 'Proveedores',    Icon: TruckIcon },
   { href: '/compras',        label: 'Compras',        Icon: BagIcon },
+  { href: '/pedidos',        label: 'Pedidos',        Icon: TruckBoxIcon },
   { href: '/cuentas-pagar',  label: 'Cuentas a pagar', Icon: ClockIcon },
   { href: '/stock',          label: 'Stock',          Icon: ChartIcon },
   { href: '/lotes',          label: 'Lotes',          Icon: CalendarIcon },
+  { href: '/contabilidad',   label: 'Contabilidad',   Icon: LedgerIcon },
 ];
 
 interface SidebarProps {
