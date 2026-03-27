@@ -283,12 +283,29 @@ class DashboardController extends Controller
             ->where('estado', 'confirmada')
             ->get();
 
-        $porMedioPago = $ventas
-            ->groupBy(fn($v) => $v->medio_pago ?? 'sin especificar')
-            ->map(fn($grupo, $medio) => [
+        // Sumar por medio de pago desglosando los pagos combinados
+        $acum = [];   // ['efectivo' => ['total' => X, 'cantidad' => Y], ...]
+        foreach ($ventas as $v) {
+            $medios = $v->medios_pago;   // JSON: [{medio, monto}, ...]
+            if (!empty($medios) && is_array($medios)) {
+                // Pago combinado: sumar cada porción al medio correspondiente
+                foreach ($medios as $linea) {
+                    $m = $linea['medio'] ?? 'sin especificar';
+                    $acum[$m]['total']    = ($acum[$m]['total']    ?? 0) + ($linea['monto'] ?? 0);
+                    $acum[$m]['cantidad'] = ($acum[$m]['cantidad'] ?? 0) + 1;
+                }
+            } else {
+                // Pago simple
+                $m = $v->medio_pago ?? 'sin especificar';
+                $acum[$m]['total']    = ($acum[$m]['total']    ?? 0) + $v->total;
+                $acum[$m]['cantidad'] = ($acum[$m]['cantidad'] ?? 0) + 1;
+            }
+        }
+        $porMedioPago = collect($acum)
+            ->map(fn($d, $medio) => [
                 'medio'    => $medio,
-                'total'    => round($grupo->sum('total'), 2),
-                'cantidad' => $grupo->count(),
+                'total'    => round($d['total'], 2),
+                'cantidad' => $d['cantidad'],
             ])
             ->values();
 
