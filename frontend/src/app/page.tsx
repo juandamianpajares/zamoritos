@@ -571,7 +571,7 @@ export default function DashboardPage() {
             <p className="text-sm text-zinc-300 text-center py-6">Sin ventas registradas hoy</p>
           ) : (
             <div className="space-y-0">
-              {ventasDia.ventas.slice(0, 6).map(v => (
+              {[...ventasDia.ventas].reverse().slice(0, 6).map(v => (
                 <div key={v.id} className="flex items-center justify-between py-2 border-b border-zinc-50 last:border-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-zinc-400 font-mono w-8">#{v.id}</span>

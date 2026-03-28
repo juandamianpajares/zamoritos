@@ -2327,6 +2327,13 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
   const [sicfeOpen,       setSicfeOpen]       = useState(false);
   const [devolucionVenta, setDevolucionVenta] = useState<Venta | null>(null);
   const [filtroFactura,   setFiltroFactura]   = useState('');
+  const [sortCol,         setSortCol]         = useState<'id' | 'numero_factura' | 'estado' | 'tipo_pago'>('id');
+  const [sortDir,         setSortDir]         = useState<'asc' | 'desc'>('desc');
+
+  const toggleSort = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
 
   const getParams = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -2522,12 +2529,23 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
             <p className="text-sm text-zinc-400">Sin ventas en el período</p>
           </div>
         ) : (() => {
-          const ventasFiltradas = ventas.filter(v => {
-            if (!filtroFactura) return true;
-            if (filtroFactura === '__con__') return !!v.numero_factura;
-            if (filtroFactura === '__sin__') return !v.numero_factura;
-            return (v.numero_factura ?? '').toLowerCase().includes(filtroFactura.toLowerCase());
-          });
+          const ventasFiltradas = ventas
+            .filter(v => {
+              if (!filtroFactura) return true;
+              if (filtroFactura === '__con__') return !!v.numero_factura;
+              if (filtroFactura === '__sin__') return !v.numero_factura;
+              return (v.numero_factura ?? '').toLowerCase().includes(filtroFactura.toLowerCase());
+            })
+            .sort((a, b) => {
+              let va: string | number, vb: string | number;
+              if (sortCol === 'id')             { va = a.id;             vb = b.id; }
+              else if (sortCol === 'numero_factura') { va = a.numero_factura ?? ''; vb = b.numero_factura ?? ''; }
+              else if (sortCol === 'estado')    { va = a.estado;         vb = b.estado; }
+              else                              { va = a.tipo_pago;      vb = b.tipo_pago; }
+              if (va < vb) return sortDir === 'asc' ? -1 : 1;
+              if (va > vb) return sortDir === 'asc' ? 1 : -1;
+              return 0;
+            });
           return (
           <>
             {/* Desktop table */}
@@ -2535,8 +2553,29 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                    {['#', 'Fecha', 'Factura', 'Pago', 'Medio', 'Total', 'Estado', ''].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{h}</th>
+                    {([
+                      { label: '#',       col: 'id'             },
+                      { label: 'Fecha',   col: null             },
+                      { label: 'Factura', col: 'numero_factura' },
+                      { label: 'Pago',    col: 'tipo_pago'      },
+                      { label: 'Medio',   col: null             },
+                      { label: 'Total',   col: null             },
+                      { label: 'Estado',  col: 'estado'         },
+                      { label: '',        col: null             },
+                    ] as { label: string; col: string | null }[]).map(({ label, col }) => (
+                      <th key={label} className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                        {col ? (
+                          <button
+                            onClick={() => toggleSort(col as typeof sortCol)}
+                            className="flex items-center gap-1 hover:text-zinc-600 transition-colors"
+                          >
+                            {label}
+                            <span className="text-[8px]">
+                              {sortCol === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                            </span>
+                          </button>
+                        ) : label}
+                      </th>
                     ))}
                   </tr>
                 </thead>

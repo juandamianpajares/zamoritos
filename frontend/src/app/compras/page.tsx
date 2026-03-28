@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, type Compra, type Proveedor, type Producto } from '@/lib/api';
 import Modal from '@/components/Modal';
 
@@ -19,6 +20,7 @@ const inputSm = 'w-full border border-zinc-200 rounded-lg px-2 py-1.5 text-sm fo
 const label = 'block text-xs font-medium text-zinc-500 mb-1.5';
 
 export default function ComprasPage() {
+  const searchParams = useSearchParams();
   const [compras, setCompras] = useState<Compra[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -40,7 +42,18 @@ export default function ComprasPage() {
       api.get<Compra[]>('/compras'),
       api.get<Proveedor[]>('/proveedores'),
       api.get<Producto[]>('/productos'),
-    ]).then(([c, p, pr]) => { setCompras(c); setProveedores(p); setProductos(pr); setLoading(false); });
+    ]).then(([c, p, pr]) => {
+      setCompras(c); setProveedores(p); setProductos(pr); setLoading(false);
+      const pid = searchParams.get('producto_id');
+      if (pid) {
+        const prod = (pr as Producto[]).find(x => x.id === Number(pid));
+        const pct = prod?.precio_compra && prod.precio_compra > 0
+          ? String(Math.round(((prod.precio_venta / prod.precio_compra) - 1) * 100))
+          : '';
+        setLineas([{ producto_id: pid, cantidad: '', precio_compra: '', pct_ganancia: pct, fecha_vencimiento: '' }]);
+        setModalOpen(true);
+      }
+    });
   };
 
   useEffect(() => { load(); }, []);

@@ -1237,6 +1237,15 @@ export default function ProductosPage() {
                             Promo
                           </button>
                         )}
+                        <a
+                          href={`/compras?producto_id=${p.id}`}
+                          title="Registrar compra de este producto"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors mr-1"
+                        >
+                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                          </svg>
+                        </a>
                         <button
                           onClick={() => openEdit(p)}
                           title="Editar producto"
@@ -1406,8 +1415,14 @@ export default function ProductosPage() {
             </div>
             <div>
               <label className={label}>Peso del envase</label>
-              <input type="number" step="0.001" min="0" value={form.peso} onChange={f('peso')}
-                placeholder="Ej: 22 (kg)" className={input} />
+              {editId && productos.find(p => p.id === editId)?.en_promo === 1 ? (
+                <div className={`${input} bg-zinc-50 text-zinc-400 cursor-not-allowed`}>
+                  No aplica en combos
+                </div>
+              ) : (
+                <input type="number" step="0.001" min="0" value={form.peso} onChange={f('peso')}
+                  placeholder="Ej: 22 (kg)" className={input} />
+              )}
             </div>
 
             <div>

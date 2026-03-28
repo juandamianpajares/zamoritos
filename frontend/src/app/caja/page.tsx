@@ -788,7 +788,10 @@ export default function CajaPage() {
           {/* ── Izquierda: Contador por denominación ── */}
           <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-50">
-              <h2 className="text-sm font-semibold text-zinc-700">Conteo de efectivo</h2>
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-700">Conteo de efectivo</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Ingrese el conteo en efectivo</p>
+              </div>
               <button onClick={limpiar} className="text-xs text-zinc-400 hover:text-rose-500 transition-colors">
                 Limpiar
               </button>
@@ -1046,6 +1049,37 @@ export default function CajaPage() {
 
           </div>
         </div>
+
+        {/* ── Historial de movimientos del día ── */}
+        {datos && (datos.compras.length > 0 || (datos as any).ventas?.length > 0) && (
+          <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden mt-6">
+            <div className="px-5 py-4 border-b border-zinc-50">
+              <h2 className="text-sm font-semibold text-zinc-700">Movimientos del día</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">Compras registradas · {datos.compras.length} operaciones</p>
+            </div>
+            <div className="divide-y divide-zinc-50">
+              {datos.compras.map(c => (
+                <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-700">
+                        {c.proveedor?.nombre ?? 'Sin proveedor'}
+                        {c.factura && <span className="ml-2 text-xs font-mono text-zinc-400">#{c.factura}</span>}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        {new Date(c.fecha).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        {' · '}
+                        <span className={c.tipo_pago === 'contado' ? 'text-zinc-500' : 'text-amber-600'}>{c.tipo_pago}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-rose-600">-{fmt(c.total)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       )}
 
