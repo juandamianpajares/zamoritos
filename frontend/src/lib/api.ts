@@ -33,12 +33,28 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return json as T;
 }
 
+async function reqForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    body: form,
+  });
+  if (res.status === 204) return undefined as T;
+  const json = await res.json();
+  if (!res.ok) {
+    const msg = json?.message ?? Object.values(json?.errors ?? {}).flat().join(', ') ?? 'Error';
+    throw new Error(msg as string);
+  }
+  return json as T;
+}
+
 export const api = {
-  get:    <T>(path: string)                  => req<T>('GET',    path),
-  post:   <T>(path: string, body: unknown)   => req<T>('POST',   path, body),
-  put:    <T>(path: string, body: unknown)   => req<T>('PUT',    path, body),
-  patch:  <T>(path: string, body: unknown)   => req<T>('PATCH',  path, body),
-  delete: <T>(path: string)                  => req<T>('DELETE', path),
+  get:      <T>(path: string)                  => req<T>('GET',    path),
+  post:     <T>(path: string, body: unknown)   => req<T>('POST',   path, body),
+  put:      <T>(path: string, body: unknown)   => req<T>('PUT',    path, body),
+  patch:    <T>(path: string, body: unknown)   => req<T>('PATCH',  path, body),
+  delete:   <T>(path: string)                  => req<T>('DELETE', path),
+  postForm: <T>(path: string, form: FormData)  => reqForm<T>(path, form),
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -383,4 +399,46 @@ export interface GananciaDashboard {
   ganancia_neta: number;
   margen_pct: number;
   por_proveedor: GananciaProveedorItem[];
+}
+
+// ── Clientes ──────────────────────────────────────────────────────────────────
+export interface Cliente {
+  id: number;
+  codigo: string;
+  nombre: string;
+  telefono?: string;
+  direccion?: string;
+  notas?: string;
+}
+
+// ── Pedidos ───────────────────────────────────────────────────────────────────
+export type EstadoPedido = 'pendiente' | 'confirmado' | 'enviado' | 'entregado' | 'cancelado';
+
+export interface DetallePedido {
+  id?: number;
+  producto_id?: number | null;
+  nombre_producto: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
+export interface Pedido {
+  id: number;
+  numero: string;
+  fecha: string;
+  estado: EstadoPedido;
+  costo_envio: number;
+  medio_pago?: string;
+  notas?: string;
+  subtotal: number;
+  total: number;
+  cliente: {
+    id: number;
+    codigo: string;
+    nombre: string;
+    telefono?: string;
+    direccion?: string;
+  };
+  detalles: DetallePedido[];
 }
