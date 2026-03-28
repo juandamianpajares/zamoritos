@@ -15,6 +15,9 @@ use App\Http\Controllers\Api\ProveedorController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\PagoProveedorController;
 use App\Http\Controllers\Api\VentaController;
+use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\PedidoController;
+use App\Http\Controllers\Api\ImportarClientesController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('dashboard/stats',          [DashboardController::class, 'stats']);
@@ -64,6 +67,14 @@ Route::get('stock/bajo',              [StockController::class, 'bajo']);
 Route::get('stock/balance-categorias',[StockController::class, 'balanceCategorias']);
 
 Route::get('lotes', [LoteController::class, 'index']);
+
+// Clientes
+Route::post('clientes/importar',  [ImportarClientesController::class, 'store']);
+Route::apiResource('clientes', ClienteController::class)->except(['show']);
+
+// Pedidos
+Route::patch('pedidos/{pedido}/estado', [PedidoController::class, 'cambiarEstado']);
+Route::apiResource('pedidos', PedidoController::class)->only(['index', 'store', 'show']);
 
 Route::get('ventas',                       [VentaController::class, 'index']);
 Route::post('ventas',                      [VentaController::class, 'store']);
