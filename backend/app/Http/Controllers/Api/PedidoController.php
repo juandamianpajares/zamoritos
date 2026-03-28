@@ -130,6 +130,7 @@ class PedidoController extends Controller
         $subtotal = $p->detalles->sum('subtotal');
         return [
             'id'          => $p->id,
+            'venta_id'    => $p->venta_id,
             'numero'      => $p->numero,
             'fecha'       => $p->fecha?->toDateString(),
             'estado'      => $p->estado,

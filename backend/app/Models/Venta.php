@@ -10,7 +10,7 @@ class Venta extends Model
     protected $fillable = [
         'fecha', 'tipo_pago', 'medio_pago', 'medios_pago',
         'receptor_nombre', 'receptor_rut', 'moneda',
-        'subtotal', 'descuento', 'total',
+        'subtotal', 'descuento', 'costo_envio', 'total',
         'estado', 'tipo_comprobante', 'numero_factura', 'kitfe_id',
         'usuario', 'observacion',
     ];

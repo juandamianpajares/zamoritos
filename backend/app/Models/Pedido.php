@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Pedido extends Model
 {
     protected $fillable = [
-        'numero', 'cliente_id', 'estado',
+        'venta_id', 'numero', 'cliente_id', 'estado',
         'costo_envio', 'medio_pago', 'notas', 'fecha',
+        'whatsapp_enviado', 'whatsapp_enviado_at',
     ];
 
     protected $casts = [

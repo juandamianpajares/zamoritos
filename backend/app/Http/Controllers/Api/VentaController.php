@@ -59,6 +59,10 @@ class VentaController extends Controller
             'detalles.*.producto_id'         => 'required|exists:productos,id',
             'detalles.*.cantidad'            => 'required|numeric|min:0.001',
             'detalles.*.precio_unitario'     => 'required|numeric',
+            // Con envío
+            'con_envio'                      => 'nullable|boolean',
+            'cliente_id'                     => 'nullable|exists:clientes,id',
+            'costo_envio'                    => 'nullable|numeric|min:0',
         ]);
 
         $venta = $this->ventaService->registrar($data);

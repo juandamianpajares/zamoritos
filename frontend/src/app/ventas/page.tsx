@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
-import { api, type Categoria, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
+import { api, type Categoria, type Cliente, type FraccionarResult, type Producto, type Venta, type VentasPaginado } from '@/lib/api';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
 import { useStockSubscriber, useRefetchOnFocus } from '@/hooks/useProductoSync';
@@ -230,6 +230,19 @@ function getCatStyle(nombre: string): CatStyle {
   return { idle: 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400', activeBg: 'var(--brand-purple)', icon: null };
 }
 
+// ─── Tipos de envío ──────────────────────────────────────────────────────────
+interface EnvioConfig {
+  activo:        boolean;
+  costo:         string;
+  clienteId:     string;
+  clienteBusq:   string;
+  clientes:      Cliente[];
+  onToggle:      (v: boolean) => void;
+  onCosto:       (v: string) => void;
+  onClienteId:   (v: string) => void;
+  onClienteBusq: (v: string) => void;
+}
+
 // ─── Panel POS ────────────────────────────────────────────────────────────────
 
 function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje: number; canjeMedioPago: string; onClearCanje: () => void }) {
@@ -271,6 +284,13 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [tagActivo,  setTagActivo]  = useState<TagFiltro | null>(null);
   const [renderLimit, setRenderLimit] = useState(RENDER_LIMIT);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // ── Con envío ──────────────────────────────────────────────────────────────
+  const [conEnvio,          setConEnvio]          = useState(false);
+  const [envioCosto,        setEnvioCosto]        = useState('100');
+  const [envioClienteId,    setEnvioClienteId]    = useState('');
+  const [envioClienteBusq,  setEnvioClienteBusq]  = useState('');
+  const [clientes,          setClientes]          = useState<Cliente[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const promoBusquedaRef = useRef<HTMLInputElement>(null);
 
@@ -299,6 +319,16 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     api.get<Categoria[]>('/categorias').then(setCategorias);
     searchRef.current?.focus();
   }, [recargarProductos]);
+
+  useEffect(() => {
+    if (conEnvio && clientes.length === 0) {
+      api.get<Cliente[]>('/clientes').then(setClientes).catch(() => {});
+    }
+    if (!conEnvio) {
+      setEnvioClienteId('');
+      setEnvioClienteBusq('');
+    }
+  }, [conEnvio]);
 
   useEffect(() => {
     try {
@@ -551,13 +581,28 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     try { localStorage.setItem('zamoritos_carritos', JSON.stringify(nuevos)); } catch {}
   };
 
-  const total      = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
-  const totalItems = carrito.reduce((s, l) => s + (l.esGranel ? 1 : l.cantidad), 0);
+  const total          = carrito.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0);
+  const totalItems     = carrito.reduce((s, l) => s + (l.esGranel ? 1 : l.cantidad), 0);
+  const costoEnvioNum  = conEnvio ? (parseFloat(envioCosto) || 0) : 0;
+  const totalConEnvio  = total + costoEnvioNum;
+
+  const envioConfig = {
+    activo:        conEnvio,
+    costo:         envioCosto,
+    clienteId:     envioClienteId,
+    clienteBusq:   envioClienteBusq,
+    clientes,
+    onToggle:      setConEnvio,
+    onCosto:       setEnvioCosto,
+    onClienteId:   setEnvioClienteId,
+    onClienteBusq: setEnvioClienteBusq,
+  } satisfies EnvioConfig;
 
   const confirmarVenta = () => {
     if (carrito.length === 0) return;
-    if (total <= 0) { setError('El total de la venta debe ser mayor a $0.'); return; }
-    const totalAPagar = Math.max(0, total - creditoCanje);
+    if (totalConEnvio <= 0) { setError('El total de la venta debe ser mayor a $0.'); return; }
+    if (conEnvio && !envioClienteId) { setError('Seleccioná un cliente para el envío.'); return; }
+    const totalAPagar = Math.max(0, totalConEnvio - creditoCanje);
 
     // Validar pago combinado
     if (modoPago === 'combinado') {
@@ -582,6 +627,11 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         precio_unitario: l.precio_unitario,
       })),
     };
+    if (conEnvio) {
+      body.con_envio   = true;
+      body.cliente_id  = Number(envioClienteId);
+      body.costo_envio = costoEnvioNum;
+    }
     if (modoPago === 'combinado' && pagos.length > 0) {
       body.medios_pago = pagos.map(p => ({ medio: p.medio, monto: parseFloat(p.monto) || 0 }));
     } else {
@@ -619,6 +669,10 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       setModoPago('unico');
       setPagos([]);
       setPendingBody(null);
+      setConEnvio(false);
+      setEnvioClienteId('');
+      setEnvioClienteBusq('');
+      setEnvioCosto('100');
       onClearCanje();
       recargarProductos();
     } catch (e: unknown) {
@@ -876,7 +930,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
         <div className="absolute inset-0 flex flex-col overflow-hidden">
         <CarritoPanel
           carrito={carrito}
-          total={total}
+          total={totalConEnvio}
           tipoPago={tipoPago}
           medioPago={medioPago}
           modoPago={modoPago}
@@ -896,6 +950,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onGuardar={() => { setGuardarNombre(`Carrito · ${new Date().toLocaleTimeString('es-UY', {hour:'2-digit',minute:'2-digit'})}`); setGuardarModalOpen(true); }}
           onCargar={() => setCargarModalOpen(true)}
           hayGuardados={carritoGuardados.length > 0}
+          envio={envioConfig}
         />
         </div>
       </div>
@@ -930,7 +985,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              <span className="truncate">Confirmar · {fmt(total)}</span>
+              <span className="truncate">Confirmar · {fmt(totalConEnvio)}</span>
             </>
           )}
         </button>
@@ -1103,7 +1158,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       <Modal isOpen={cartOpen} onClose={() => setCartOpen(false)} title="Carrito" size="md" noPadding>
         <CarritoPanel
           carrito={carrito}
-          total={total}
+          total={totalConEnvio}
           tipoPago={tipoPago}
           medioPago={medioPago}
           modoPago={modoPago}
@@ -1123,6 +1178,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           onGuardar={() => { setGuardarNombre(`Carrito · ${new Date().toLocaleTimeString('es-UY', {hour:'2-digit',minute:'2-digit'})}`); setGuardarModalOpen(true); }}
           onCargar={() => setCargarModalOpen(true)}
           hayGuardados={carritoGuardados.length > 0}
+          envio={envioConfig}
         />
       </Modal>
 
@@ -1570,6 +1626,7 @@ interface CarritoPanelProps {
   onGuardar:         () => void;
   onCargar:          () => void;
   hayGuardados:      boolean;
+  envio:             EnvioConfig;
 }
 
 const CarritoPanel = memo(function CarritoPanel({
@@ -1577,7 +1634,7 @@ const CarritoPanel = memo(function CarritoPanel({
   creditoCanje, onClearCanje,
   onCambiarCantidad, onCambiarPrecio, onQuitarItem, onVaciar,
   onTipoPago, onMedioPago, onModoPago, onSetPagos, onConfirmar,
-  onGuardar, onCargar, hayGuardados,
+  onGuardar, onCargar, hayGuardados, envio,
 }: CarritoPanelProps) {
   const totalItems  = carrito.reduce((s, l) => s + l.cantidad, 0);
   const totalAPagar = Math.max(0, total - creditoCanje);
@@ -1903,12 +1960,101 @@ const CarritoPanel = memo(function CarritoPanel({
           </div>
         )}
 
+        {/* Con envío */}
+        <div className={`rounded-xl border transition-colors ${envio.activo ? 'border-blue-200 bg-blue-50' : 'border-zinc-100 bg-zinc-50'} px-3 py-2 space-y-2`}>
+          <button
+            onClick={() => envio.onToggle(!envio.activo)}
+            className="w-full flex items-center justify-between text-sm"
+          >
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              Con envío
+            </span>
+            <span className={`w-9 h-5 rounded-full transition-colors relative ${envio.activo ? 'bg-blue-500' : 'bg-zinc-200'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${envio.activo ? 'left-4' : 'left-0.5'}`} />
+            </span>
+          </button>
+
+          {envio.activo && (
+            <div className="space-y-2 pt-1">
+              {/* Costo envío */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500 shrink-0">Costo envío</span>
+                <input
+                  type="number" min="0" step="10"
+                  value={envio.costo}
+                  onChange={e => envio.onCosto(e.target.value)}
+                  className="flex-1 border border-blue-200 rounded-lg px-2 py-1 text-sm text-right bg-white focus:outline-none focus:border-blue-400 tabular-nums"
+                />
+              </div>
+              {/* Cliente */}
+              <div className="relative">
+                {envio.clienteId ? (
+                  <div className="flex items-center justify-between bg-white border border-blue-200 rounded-lg px-2 py-1.5">
+                    <span className="text-xs font-semibold text-zinc-700 truncate">
+                      {envio.clientes.find(c => c.id === Number(envio.clienteId))?.nombre ?? 'Cliente'}
+                    </span>
+                    <button onClick={() => { envio.onClienteId(''); envio.onClienteBusq(''); }}
+                      className="text-zinc-300 hover:text-rose-400 ml-2 shrink-0">
+                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    value={envio.clienteBusq}
+                    onChange={e => envio.onClienteBusq(e.target.value)}
+                    placeholder="Buscar cliente..."
+                    className="w-full border border-blue-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-blue-400"
+                  />
+                )}
+                {!envio.clienteId && envio.clienteBusq.length >= 1 && (() => {
+                  const q = envio.clienteBusq.toLowerCase();
+                  const filtrados = envio.clientes.filter(c =>
+                    c.nombre.toLowerCase().includes(q) || (c.telefono ?? '').includes(q)
+                  ).slice(0, 8);
+                  return filtrados.length > 0 ? (
+                    <div className="absolute z-30 top-full left-0 right-0 mt-0.5 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                      {filtrados.map(c => (
+                        <button key={c.id} onClick={() => { envio.onClienteId(String(c.id)); envio.onClienteBusq(c.nombre); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-50 border-b border-zinc-50 last:border-0">
+                          <span className="font-medium text-zinc-800">{c.nombre}</span>
+                          {c.telefono && <span className="ml-1.5 text-zinc-400">{c.telefono}</span>}
+                          {c.direccion && <span className="ml-1.5 text-zinc-300 truncate">{c.direccion}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+              {!envio.clienteId && (
+                <p className="text-[10px] text-blue-400">El cliente debe estar registrado para hacer seguimiento del envío.</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Total */}
-        <div className="flex items-baseline justify-between py-1 px-1">
-          <span className="text-sm text-zinc-500 font-medium">{creditoCanje > 0 ? 'A pagar' : 'Total'}</span>
-          <span className="text-2xl font-bold tabular-nums text-zinc-900">
-            {fmt(creditoCanje > 0 ? totalAPagar : total)}
-          </span>
+        <div className="space-y-0.5 px-1">
+          {envio.activo && (parseFloat(envio.costo)||0) > 0 && (
+            <div className="flex justify-between text-xs text-zinc-400">
+              <span>Productos</span>
+              <span className="tabular-nums">{fmt(total)}</span>
+            </div>
+          )}
+          {envio.activo && (parseFloat(envio.costo)||0) > 0 && (
+            <div className="flex justify-between text-xs text-blue-500">
+              <span>Envío</span>
+              <span className="tabular-nums">+{fmt(parseFloat(envio.costo)||0)}</span>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between py-1">
+            <span className="text-sm text-zinc-500 font-medium">{creditoCanje > 0 ? 'A pagar' : 'Total'}</span>
+            <span className="text-2xl font-bold tabular-nums text-zinc-900">
+              {fmt(creditoCanje > 0 ? totalAPagar : total)}
+            </span>
+          </div>
         </div>
 
         {/* Botón confirmar */}

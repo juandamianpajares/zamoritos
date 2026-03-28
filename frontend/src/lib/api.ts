@@ -257,6 +257,7 @@ export interface Venta {
   moneda: string;
   subtotal: number;
   descuento: number;
+  costo_envio?: number;
   total: number;
   estado: 'confirmada' | 'anulada';
   tipo_comprobante?: string;  // Kitfe v2
@@ -425,6 +426,7 @@ export interface DetallePedido {
 
 export interface Pedido {
   id: number;
+  venta_id?: number | null;
   numero: string;
   fecha: string;
   estado: EstadoPedido;

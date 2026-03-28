@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\ComboItem;
+use App\Models\DetallePedido;
 use App\Models\DetalleVenta;
 use App\Models\MovimientoStock;
+use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\Venta;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +51,10 @@ class VentaService
                 $medioPago = $data['medio_pago'] ?? null;
             }
 
+            $costoEnvio = isset($data['con_envio']) && $data['con_envio']
+                ? (float) ($data['costo_envio'] ?? 100)
+                : 0;
+
             $venta = Venta::create([
                 'fecha'           => $data['fecha'],
                 'tipo_pago'       => $data['tipo_pago'],
@@ -58,7 +64,8 @@ class VentaService
                 'moneda'          => 'UYU',
                 'subtotal'        => $subtotal,
                 'descuento'       => 0,
-                'total'           => $subtotal,
+                'costo_envio'     => $costoEnvio,
+                'total'           => $subtotal + $costoEnvio,
                 'estado'          => 'confirmada',
                 'numero_factura'  => $data['numero_factura'] ?? null,
                 'usuario'         => $data['usuario'] ?? null,
@@ -113,6 +120,32 @@ class VentaService
                         'cantidad'    => -$d['cantidad'],
                         'referencia'  => 'venta #' . $venta->id,
                         'usuario'     => $data['usuario'] ?? null,
+                    ]);
+                }
+            }
+
+            // Si es venta con envío: crear pedido vinculado
+            if (!empty($data['con_envio']) && !empty($data['cliente_id'])) {
+                $pedido = Pedido::create([
+                    'venta_id'    => $venta->id,
+                    'numero'      => Pedido::proximoNumero(),
+                    'cliente_id'  => $data['cliente_id'],
+                    'fecha'       => $data['fecha'],
+                    'estado'      => 'pendiente',
+                    'costo_envio' => $costoEnvio,
+                    'medio_pago'  => $medioPago,
+                    'notas'       => $data['observacion'] ?? null,
+                ]);
+
+                foreach ($data['detalles'] as $d) {
+                    $prod = Producto::find($d['producto_id']);
+                    DetallePedido::create([
+                        'pedido_id'       => $pedido->id,
+                        'producto_id'     => $d['producto_id'],
+                        'nombre_producto' => $prod?->nombre ?? 'Producto',
+                        'cantidad'        => $d['cantidad'],
+                        'precio_unitario' => $d['precio_unitario'],
+                        'subtotal'        => round($d['cantidad'] * $d['precio_unitario'], 2),
                     ]);
                 }
             }
