@@ -362,6 +362,18 @@ export interface CajaDia {
   arqueo: ArqueoCaja | null;
 }
 
+export interface ArqueoHistorico {
+  fecha: string;
+  total_contado: number;
+  total_esperado: number;
+  diferencia: number;
+  fondo_cambio: number;
+  observacion?: string;
+  total_ventas: number;
+  cant_ventas: number;
+  total_compras: number;
+}
+
 export interface GananciaDashboard {
   periodo: string;
   desde: string;

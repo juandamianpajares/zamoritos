@@ -202,23 +202,31 @@ class DashboardController extends Controller
     {
         $periodo = $request->get('periodo', 'mes');
 
-        $desde = match ($periodo) {
-            'hoy'    => now()->startOfDay(),
-            'semana' => now()->startOfWeek(),
-            default  => now()->startOfMonth(),
-        };
+        // Si se pasan fechas explícitas se usan directamente (para contabilidad histórica)
+        if ($request->filled('desde') && $request->filled('hasta')) {
+            $desde = Carbon::parse($request->get('desde'))->startOfDay();
+            $hasta = Carbon::parse($request->get('hasta'))->endOfDay();
+        } else {
+            $desde = match ($periodo) {
+                'hoy'    => now()->startOfDay(),
+                'semana' => now()->startOfWeek(),
+                default  => now()->startOfMonth(),
+            };
+            $hasta = now()->endOfDay();
+        }
 
         // Total ventas confirmadas del período
         $totalVentas = Venta::where('estado', 'confirmada')
             ->where('fecha', '>=', $desde)
+            ->where('fecha', '<=', $hasta)
             ->sum('total');
 
         // Total compras del período (egresos reales)
-        $totalCompras = Compra::where('fecha', '>=', $desde)->sum('total');
+        $totalCompras = Compra::where('fecha', '>=', $desde)->where('fecha', '<=', $hasta)->sum('total');
 
         // Detalles de ventas del período con precio_compra del producto
         $detalles = DetalleVenta::whereHas('venta', fn($q) =>
-                $q->where('estado', 'confirmada')->where('fecha', '>=', $desde)
+                $q->where('estado', 'confirmada')->where('fecha', '>=', $desde)->where('fecha', '<=', $hasta)
             )
             ->with('producto:id,precio_compra')
             ->get();
@@ -364,6 +372,52 @@ class DashboardController extends Controller
         $fecha  = $request->get('fecha', now()->toDateString());
         $arqueo = ArqueoCaja::whereDate('fecha', $fecha)->first();
         return response()->json($arqueo);
+    }
+
+    /**
+     * Devuelve el historial de arqueos con resumen de ventas/compras por día.
+     * GET /dashboard/arqueos?dias=30
+     */
+    public function arqueos(Request $request): JsonResponse
+    {
+        $dias  = (int) $request->get('dias', 30);
+        $desde = now()->subDays($dias - 1)->startOfDay();
+
+        $arqueos = ArqueoCaja::where('fecha', '>=', $desde)
+            ->orderBy('fecha', 'desc')
+            ->get();
+
+        // Totales de ventas y compras por día en el rango
+        $ventasPorDia = Venta::where('estado', 'confirmada')
+            ->where('fecha', '>=', $desde)
+            ->select(DB::raw('DATE(fecha) as dia'), DB::raw('SUM(total) as total_ventas'), DB::raw('COUNT(*) as cant_ventas'))
+            ->groupBy('dia')
+            ->pluck(null, 'dia')
+            ->map(fn($r) => ['total_ventas' => (float)$r->total_ventas, 'cant_ventas' => (int)$r->cant_ventas]);
+
+        $comprasPorDia = Compra::where('tipo_pago', 'contado')
+            ->where('fecha', '>=', $desde)
+            ->select(DB::raw('DATE(fecha) as dia'), DB::raw('SUM(total) as total_compras'))
+            ->groupBy('dia')
+            ->pluck('total_compras', 'dia')
+            ->map(fn($v) => (float)$v);
+
+        $result = $arqueos->map(function ($a) use ($ventasPorDia, $comprasPorDia) {
+            $dia = substr($a->fecha, 0, 10);
+            return [
+                'fecha'          => $dia,
+                'total_contado'  => $a->total_contado,
+                'total_esperado' => $a->total_esperado,
+                'diferencia'     => $a->diferencia,
+                'fondo_cambio'   => $a->fondo_cambio,
+                'observacion'    => $a->observacion,
+                'total_ventas'   => $ventasPorDia[$dia]['total_ventas'] ?? 0,
+                'cant_ventas'    => $ventasPorDia[$dia]['cant_ventas'] ?? 0,
+                'total_compras'  => $comprasPorDia[$dia] ?? 0,
+            ];
+        });
+
+        return response()->json($result);
     }
 
     public function guardarArqueo(Request $request): JsonResponse

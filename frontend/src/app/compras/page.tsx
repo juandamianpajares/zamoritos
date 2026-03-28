@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, type Compra, type Proveedor, type Producto } from '@/lib/api';
 import Modal from '@/components/Modal';
@@ -19,7 +19,7 @@ const input = 'w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:
 const inputSm = 'w-full border border-zinc-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-zinc-400 bg-white placeholder:text-zinc-400';
 const label = 'block text-xs font-medium text-zinc-500 mb-1.5';
 
-export default function ComprasPage() {
+function ComprasPageContent() {
   const searchParams = useSearchParams();
   const [compras, setCompras] = useState<Compra[]>([]);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -605,6 +605,14 @@ Lógica de reconciliación:
         )}
       </div>
     </Modal>
+  );
+}
+
+export default function ComprasPage() {
+  return (
+    <Suspense>
+      <ComprasPageContent />
+    </Suspense>
   );
 }
 

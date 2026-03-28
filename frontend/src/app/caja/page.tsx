@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { api, BASE, STORAGE_BASE, type CajaDia, type ArqueoCaja } from '@/lib/api';
+import { api, BASE, STORAGE_BASE, type CajaDia, type ArqueoCaja, type ArqueoHistorico } from '@/lib/api';
 
 // ── Denominaciones UYU ───────────────────────────────────────────────────────
 const BILLETES  = [2000, 1000, 500, 200, 100, 50, 20];
@@ -505,9 +505,115 @@ ${arqueoRows ? `
   );
 }
 
+// ── Histórico de arqueos ──────────────────────────────────────────────────────
+
+function HistoricoCaja() {
+  const [dias, setDias] = useState(30);
+  const [data, setData] = useState<ArqueoHistorico[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<ArqueoHistorico[]>(`/dashboard/arqueos?dias=${dias}`)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [dias]);
+
+  const fmtFecha = (f: string) =>
+    new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+  const totales = data.reduce(
+    (acc, r) => ({
+      ventas: acc.ventas + r.total_ventas,
+      compras: acc.compras + r.total_compras,
+      resultado: acc.resultado + (r.total_ventas - r.total_compras),
+    }),
+    { ventas: 0, compras: 0, resultado: 0 }
+  );
+
+  return (
+    <div className="p-6 lg:p-8 max-w-5xl overflow-y-auto flex-1">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900">Histórico de caja</h1>
+          <p className="text-sm text-zinc-400 mt-0.5">Arqueos guardados por día</p>
+        </div>
+        <div className="flex gap-1 bg-zinc-100 p-1 rounded-xl">
+          {[7, 30, 90].map(d => (
+            <button key={d} onClick={() => setDias(d)}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-[9px] transition-colors ${
+                dias === d ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+              }`}>
+              {d} días
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Totales del período */}
+      {!loading && data.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <div className="bg-white rounded-2xl border border-zinc-100 px-4 py-3">
+            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-1">Ventas período</p>
+            <p className="text-xl font-bold tabular-nums text-emerald-600">{fmt(totales.ventas)}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-zinc-100 px-4 py-3">
+            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-1">Compras contado</p>
+            <p className="text-xl font-bold tabular-nums text-rose-600">{fmt(totales.compras)}</p>
+          </div>
+          <div className={`rounded-2xl border px-4 py-3 ${totales.resultado >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide mb-1">Resultado</p>
+            <p className={`text-xl font-bold tabular-nums ${totales.resultado >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{fmt(totales.resultado)}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+        {loading ? (
+          <div className="p-12 flex items-center justify-center gap-2 text-sm text-zinc-400">
+            <span className="w-4 h-4 border-2 border-zinc-200 border-t-[var(--brand-purple)] rounded-full animate-spin" />
+            Cargando…
+          </div>
+        ) : data.length === 0 ? (
+          <div className="py-16 text-center text-sm text-zinc-400">No hay arqueos guardados en los últimos {dias} días</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                  {['Fecha', 'Ventas', 'Compras', 'Contado (arqueo)', 'Esperado', 'Diferencia', 'Obs.'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map(r => {
+                  const diff = fmtDiff(r.diferencia);
+                  return (
+                    <tr key={r.fecha} className="border-b border-zinc-50 last:border-0 hover:bg-zinc-50/60 transition-colors">
+                      <td className="px-4 py-3 font-medium text-zinc-700 tabular-nums">{fmtFecha(r.fecha)}</td>
+                      <td className="px-4 py-3 tabular-nums text-emerald-600 font-semibold">{fmt(r.total_ventas)}<span className="text-zinc-300 font-normal ml-1 text-xs">({r.cant_ventas})</span></td>
+                      <td className="px-4 py-3 tabular-nums text-rose-500">{fmt(r.total_compras)}</td>
+                      <td className="px-4 py-3 tabular-nums font-semibold text-zinc-800">{fmt(r.total_contado)}</td>
+                      <td className="px-4 py-3 tabular-nums text-zinc-600">{fmt(r.total_esperado)}</td>
+                      <td className={`px-4 py-3 tabular-nums font-semibold ${diff.cls}`}>{diff.text}</td>
+                      <td className="px-4 py-3 text-xs text-zinc-400 max-w-32 truncate">{r.observacion ?? '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CajaPage() {
+  const [tab, setTab]             = useState<'hoy' | 'historico'>('hoy');
   const [fecha, setFecha]         = useState(new Date().toISOString().slice(0, 10));
   const [datos, setDatos]         = useState<CajaDia | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -731,7 +837,24 @@ export default function CajaPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1 pb-24 sm:pb-8">
+    <div className="flex flex-col h-full bg-zinc-50">
+      {/* Tabs */}
+      <div className="bg-white border-b border-zinc-100 px-6 flex gap-1 shrink-0">
+        {([{ id: 'hoy', label: 'Caja del día' }, { id: 'historico', label: 'Histórico' }] as const).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? 'border-[var(--brand-purple)] text-[var(--brand-purple)]'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'historico' && <HistoricoCaja />}
+
+      {tab === 'hoy' && <div className="p-6 lg:p-8 max-w-6xl overflow-y-auto flex-1 pb-24 sm:pb-8">
 
       <div>
 
@@ -782,7 +905,7 @@ export default function CajaPage() {
           <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" />
           Cargando...
         </div>
-      ) : (
+      ) : (<>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
           {/* ── Izquierda: Contador por denominación ── */}
@@ -1080,7 +1203,7 @@ export default function CajaPage() {
             </div>
           </div>
         )}
-
+      </>
       )}
 
       </div>{/* end print:hidden */}
@@ -1118,6 +1241,7 @@ export default function CajaPage() {
           onClose={() => setCierreOpen(false)}
         />
       )}
+      </div>}
     </div>
   );
 }

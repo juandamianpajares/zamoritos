@@ -33,7 +33,8 @@ class VentaController extends Controller
             $query->whereDate('fecha', '<=', $request->fecha_hasta);
         }
 
-        return response()->json($query->paginate(50));
+        $perPage = min((int) $request->get('per_page', 50), 500);
+        return response()->json($query->paginate($perPage));
     }
 
     public function show(Venta $venta): JsonResponse
