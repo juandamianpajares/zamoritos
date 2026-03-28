@@ -109,6 +109,29 @@ services:
     networks:
       - zamoritos
 
+  # ── Evolution API (WhatsApp) ────────────────────────────────────────────────
+  whatsapp:
+    image: atendai/evolution-api:v2.2.3
+    container_name: zamoritos_whatsapp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://zamoritos_whatsapp:8080
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: zamoritos_evo_key_2024
+      # Sin base de datos externa — usa archivos locales
+      DATABASE_ENABLED: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      DEL_INSTANCE: "false"
+      QRCODE_LIMIT: 30
+      LOG_LEVEL: ERROR
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - zamoritos
+
   # ── Cloudflare Tunnel (opcional - descomentar si se prefiere tunnel sobre port forwarding)
   # cloudflared:
   #   image: cloudflare/cloudflared:latest
@@ -128,3 +151,4 @@ volumes:
   db_data:
   frontend_node_modules:
   frontend_next:
+  evolution_instances:
