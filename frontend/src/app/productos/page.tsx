@@ -170,22 +170,26 @@ function AjusteStockModal({ producto, onClose, onDone }: { producto: Producto; o
 }
 
 // ─── Tipos importación ────────────────────────────────────────────────────────
-type ImportResult = { creados: number; actualizados: number; errores: { fila: number; error: string }[]; total_filas: number };
+type ImportResult = { creados: number; actualizados: number; errores: { fila: number; error: string }[]; total_filas: number; categorias_no_encontradas?: string[] };
 
 const COLUMNAS_EJEMPLO = `| Campo | Descripción | Ejemplo |
 |---|---|---|
 | nombre * | Nombre del producto | Lager 10kg |
 | precio_venta * | Precio de venta (entero) | 1200 |
-| unidad_medida * | unidad / kg / lt / g | unidad |
+| unidad_medida | unidad / kg / litro / gramo | unidad |
 | codigo_barras | EAN-13 o código interno | 7730918030044 |
 | marca | Nombre de marca | LAGER |
-| categoria | Nombre exacto de categoría | ALIMENTOS |
+| categoria | Nombre EXACTO de categoría (ver lista en Categorías) | ALIMENTOS |
+| precio_compra | Precio de compra (entero) | 900 |
 | peso | Peso en kg (decimal) | 10.5 |
 | fraccionable | 1 = sí, 0 = no | 0 |
 | modo_fraccion | kg (bolsas) / unidad (blisters) | kg |
 | destacado | 1 = aparece primero en POS | 0 |
+| en_promo | 0=sin promo · 1=COMBO · 2=OFERTA · 3=REGALO | 0 |
+| precio_promo | Precio especial de promo | 1000 |
 
-Precio de compra y stock → importar en Compras.`;
+⚠ categoria debe coincidir EXACTAMENTE con el nombre en el sistema.
+   Si no existe, el producto se importa sin categoría.`;
 
 // ─── Modal Detectar por Foto (IA) ────────────────────────────────────────────
 type DetectResult = { nombre?: string; marca?: string; codigo_barras?: string; peso?: number; unidad_medida?: string; categoria?: string; categoria_sugerida?: string; descripcion_breve?: string; error?: string };
@@ -378,6 +382,17 @@ function ImportarSheetsModal({ onClose, onDone }: { onClose: () => void; onDone:
               <p className="font-semibold text-emerald-800">Importación completada</p>
               <p className="text-xs text-emerald-700">✓ Creados: <strong>{resultado.creados}</strong> · Actualizados: <strong>{resultado.actualizados}</strong> · Total filas: {resultado.total_filas}</p>
             </div>
+            {(resultado.categorias_no_encontradas?.length ?? 0) > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <p className="text-xs font-semibold text-amber-700 mb-1.5">⚠ Categorías no encontradas — esos productos se importaron sin categoría:</p>
+                <div className="flex flex-wrap gap-1">
+                  {resultado.categorias_no_encontradas!.map(c => (
+                    <span key={c} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono">{c}</span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-amber-600 mt-1.5">Verificá que los nombres coincidan exactamente con los de <a href="/categorias" className="underline">Categorías</a>.</p>
+              </div>
+            )}
             {resultado.errores.length > 0 && (
               <div className="bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 max-h-40 overflow-y-auto">
                 <p className="text-xs font-semibold text-rose-700 mb-2">Errores ({resultado.errores.length}):</p>
@@ -487,7 +502,7 @@ function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         <div className="bg-zinc-50 rounded-xl p-4 text-xs text-zinc-500 space-y-1.5">
           <p className="font-semibold text-zinc-700">Formato esperado (separador <code>;</code>, primera fila = cabecera):</p>
           <p className="font-mono break-all leading-relaxed text-zinc-400">
-            codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ; precio_venta ; fraccionable ; destacado
+            codigo_barras ; nombre ; marca ; categoria ; peso ; unidad_medida ; precio_venta ; precio_compra ; fraccionable ; modo_fraccion ; destacado ; en_promo ; precio_promo
           </p>
           <ul className="list-disc list-inside space-y-0.5 mt-2">
             <li><strong>nombre</strong>, <strong>precio_venta</strong> y <strong>unidad_medida</strong> son obligatorios.</li>
@@ -540,6 +555,17 @@ function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                 <p className="text-xs text-rose-500 mt-0.5">Errores</p>
               </div>
             </div>
+            {(resultado.categorias_no_encontradas?.length ?? 0) > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <p className="text-xs font-semibold text-amber-700 mb-1.5">⚠ Categorías no encontradas — esos productos se importaron sin categoría:</p>
+                <div className="flex flex-wrap gap-1">
+                  {resultado.categorias_no_encontradas!.map(c => (
+                    <span key={c} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono">{c}</span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-amber-600 mt-1.5">Verificá que coincidan exactamente con los nombres en <a href="/categorias" className="underline">Categorías</a>.</p>
+              </div>
+            )}
             {resultado.errores.length > 0 && (
               <div className="max-h-36 overflow-y-auto space-y-1">
                 {resultado.errores.map((e, i) => (

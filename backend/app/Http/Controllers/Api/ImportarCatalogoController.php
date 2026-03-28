@@ -58,12 +58,13 @@ class ImportarCatalogoController extends Controller
         }
 
         // Cache de categorías para no hacer una query por fila
-        $catCache = Categoria::all()->keyBy(fn($c) => mb_strtolower($c->nombre));
+        $catCache = Categoria::all()->keyBy(fn($c) => mb_strtolower(trim($c->nombre)));
 
         $fila       = 1; // ya leímos la cabecera
         $creados    = 0;
         $actualizados = 0;
         $errores    = [];
+        $catNoEncontradas = [];
 
         while (($row = fgetcsv($handle, 0, $sep)) !== false) {
             $fila++;
@@ -91,10 +92,15 @@ class ImportarCatalogoController extends Controller
             $pc    = $pcRaw !== '' ? (int) round(self::normalizeDecimal($pcRaw)) : null;
 
             // Categoría
-            $catNombre = mb_strtolower($data['categoria'] ?? '');
-            $categoriaId = $catNombre && isset($catCache[$catNombre])
-                ? $catCache[$catNombre]->id
-                : null;
+            $catNombre = mb_strtolower(trim($data['categoria'] ?? ''));
+            $categoriaId = null;
+            if ($catNombre) {
+                if (isset($catCache[$catNombre])) {
+                    $categoriaId = $catCache[$catNombre]->id;
+                } else {
+                    $catNoEncontradas[$catNombre] = true;
+                }
+            }
 
             // Normalizar boolean
             $fraccionable = in_array(trim($data['fraccionable'] ?? ''), ['1', 'si', 'sí', 'true', 'yes']);
@@ -148,10 +154,11 @@ class ImportarCatalogoController extends Controller
         fclose($handle);
 
         return response()->json([
-            'creados'     => $creados,
-            'actualizados'=> $actualizados,
-            'errores'     => $errores,
-            'total_filas' => $fila - 1,
+            'creados'              => $creados,
+            'actualizados'         => $actualizados,
+            'errores'              => $errores,
+            'total_filas'          => $fila - 1,
+            'categorias_no_encontradas' => array_keys($catNoEncontradas),
         ]);
     }
 
