@@ -9,9 +9,9 @@ use Illuminate\Support\Str;
  * Estrategia de imágenes Zamoritos
  * ─────────────────────────────────
  * Estructura en storage/app/public/:
- *   productos/{slug}.jpg          → imagen principal  (800×800 max, JPG 85%)
- *   productos/thumbs/{slug}.jpg   → thumbnail         (200×200 recortado centro, JPG 75%)
- *   categorias/{slug}.jpg         → thumb categoría   (400×200 recortado centro, JPG 80%)
+ *   productos/{slug}.webp          → imagen principal  (800×800 max, WebP 85%)
+ *   productos/thumbs/{slug}.webp  → thumbnail         (200×200 recortado centro, WebP 75%)
+ *   categorias/{slug}.webp        → thumb categoría   (400×200 recortado centro, WebP 80%)
  *
  * Requisitos de imagen de entrada:
  *   - Formatos:   JPG, PNG, WebP, GIF
