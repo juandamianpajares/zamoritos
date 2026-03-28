@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { api, type Cliente, type Pedido, type EstadoPedido, type DetallePedido } from '@/lib/api';
 
 const fmt = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
@@ -21,13 +21,165 @@ function Pill({ children, color }: { children: React.ReactNode; color: string })
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${color}`}>{children}</span>;
 }
 
+// ── Icono WhatsApp ────────────────────────────────────────────────────────────
+function WaIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.855L.057 23.5a.5.5 0 0 0 .613.613l5.701-1.465A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.653-.51-5.168-1.401l-.371-.219-3.853.99.999-3.773-.228-.381A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+    </svg>
+  );
+}
+
+// ── Badge WhatsApp en lista ───────────────────────────────────────────────────
+function WaBadge({ enviado }: { enviado?: boolean | null }) {
+  if (enviado === true)  return <span title="WhatsApp enviado"    className="text-emerald-500 opacity-70"><WaIcon size={13} /></span>;
+  if (enviado === false) return <span title="WhatsApp falló"      className="text-rose-400 opacity-70"><WaIcon size={13} /></span>;
+  return null;
+}
+
+// ── Modal configurar WhatsApp (QR) ───────────────────────────────────────────
+function ModalWhatsappSetup({ onClose }: { onClose: () => void }) {
+  const [estado,   setEstado]   = useState<'idle'|'loading'|'conectado'|'error'>('idle');
+  const [qrData,   setQrData]   = useState<string | null>(null);
+  const [msg,      setMsg]      = useState('');
+  const [testTel,  setTestTel]  = useState('');
+  const [sending,  setSending]  = useState(false);
+  const [testOk,   setTestOk]   = useState<boolean | null>(null);
+
+  const checkStatus = useCallback(async () => {
+    setEstado('loading');
+    try {
+      const r = await api.get<{ habilitado: boolean; estado: any }>('/whatsapp/status');
+      if (!r.habilitado) { setEstado('error'); setMsg('WhatsApp no habilitado en el servidor.'); return; }
+      const state = r.estado?.instance?.state ?? r.estado?.state ?? 'unknown';
+      if (state === 'open') { setEstado('conectado'); setMsg(''); }
+      else { setEstado('idle'); setMsg(`Estado: ${state}`); }
+    } catch { setEstado('error'); setMsg('No se pudo conectar con el servidor WhatsApp.'); }
+  }, []);
+
+  const conectar = async () => {
+    setEstado('loading'); setQrData(null);
+    try {
+      const r = await api.post<any>('/whatsapp/conectar', {});
+      const qr = r?.qr?.base64 ?? r?.qr?.qrcode ?? null;
+      setQrData(qr);
+      setEstado('idle');
+      setMsg('Escaneá el QR con WhatsApp → Dispositivos vinculados → Vincular dispositivo');
+    } catch { setEstado('error'); setMsg('Error al obtener QR.'); }
+  };
+
+  const sendTest = async () => {
+    if (!testTel) return;
+    setSending(true); setTestOk(null);
+    try {
+      const r = await api.post<{ enviado: boolean }>('/whatsapp/test', { telefono: testTel });
+      setTestOk(r.enviado);
+    } catch { setTestOk(false); }
+    setSending(false);
+  };
+
+  useEffect(() => { checkStatus(); }, [checkStatus]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-500"><WaIcon size={18} /></span>
+            <h3 className="font-bold text-zinc-900">Configurar WhatsApp</h3>
+          </div>
+          <button onClick={onClose} className="text-zinc-300 hover:text-zinc-500">
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="15" y2="15"/><line x1="15" y1="1" x2="1" y2="15"/></svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Estado */}
+          <div className="flex items-center gap-3">
+            {estado === 'loading'   && <span className="w-3 h-3 rounded-full bg-amber-400 animate-pulse" />}
+            {estado === 'conectado' && <span className="w-3 h-3 rounded-full bg-emerald-500" />}
+            {estado === 'idle'      && <span className="w-3 h-3 rounded-full bg-zinc-300" />}
+            {estado === 'error'     && <span className="w-3 h-3 rounded-full bg-rose-400" />}
+            <span className="text-sm text-zinc-600">
+              {estado === 'loading'   && 'Verificando…'}
+              {estado === 'conectado' && 'Conectado y listo'}
+              {estado === 'idle'      && (msg || 'Desconectado')}
+              {estado === 'error'     && (msg || 'Error')}
+            </span>
+            <button onClick={checkStatus} className="ml-auto text-xs text-zinc-400 hover:text-zinc-600 underline">Actualizar</button>
+          </div>
+
+          {/* QR */}
+          {estado !== 'conectado' && (
+            <div className="text-center space-y-3">
+              {qrData ? (
+                <div>
+                  <p className="text-xs text-zinc-500 mb-2">{msg}</p>
+                  <img src={qrData.startsWith('data:') ? qrData : `data:image/png;base64,${qrData}`}
+                    alt="QR WhatsApp" className="mx-auto w-56 h-56 object-contain border border-zinc-100 rounded-xl" />
+                  <button onClick={checkStatus} className="mt-2 text-xs text-[var(--brand-purple)] hover:opacity-75 underline">
+                    Ya escaneé el QR — verificar conexión
+                  </button>
+                </div>
+              ) : (
+                <button onClick={conectar} disabled={estado === 'loading'}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50">
+                  {estado === 'loading' ? 'Cargando…' : 'Obtener QR para vincular'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Test mensaje */}
+          {estado === 'conectado' && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-zinc-500">Enviar mensaje de prueba</p>
+              <div className="flex gap-2">
+                <input value={testTel} onChange={e => setTestTel(e.target.value)}
+                  placeholder="Teléfono (ej: 099123456)"
+                  className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+                <button onClick={sendTest} disabled={!testTel || sending}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50">
+                  {sending ? '…' : 'Enviar'}
+                </button>
+              </div>
+              {testOk === true  && <p className="text-xs text-emerald-600">Mensaje enviado correctamente.</p>}
+              {testOk === false && <p className="text-xs text-rose-500">No se pudo enviar. Verificá el número.</p>}
+            </div>
+          )}
+
+          <p className="text-xs text-zinc-400 bg-zinc-50 rounded-xl px-3 py-2">
+            Los clientes recibirán un mensaje automático cuando cambie el estado de su pedido. El teléfono del cliente debe estar cargado.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 border-t border-zinc-100">
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-600 hover:bg-zinc-50">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Modal detalle pedido ──────────────────────────────────────────────────────
 function ModalDetalle({ pedido, onClose, onAvanzar }: {
   pedido: Pedido;
   onClose: () => void;
-  onAvanzar: (id: number, e: EstadoPedido) => void;
+  onAvanzar: (id: number, e: EstadoPedido, enviarWa?: boolean) => void;
 }) {
   const cfg = ESTADO_CFG[pedido.estado];
+  const [sendingWa, setSendingWa] = useState(false);
+  const [waOk,      setWaOk]      = useState<boolean | null>(null);
+
+  const enviarWaManual = async () => {
+    setSendingWa(true); setWaOk(null);
+    try {
+      const r = await api.patch<Pedido>(`/pedidos/${pedido.id}/estado`, { estado: pedido.estado, enviar_whatsapp: true });
+      setWaOk(r.whatsapp_enviado ?? false);
+    } catch { setWaOk(false); }
+    setSendingWa(false);
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -79,6 +231,29 @@ function ModalDetalle({ pedido, onClose, onAvanzar }: {
               <span className="font-medium">Nota: </span>{pedido.notas}
             </div>
           )}
+
+          {/* WhatsApp status */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {pedido.whatsapp_enviado === true && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                <WaIcon size={12} /> Notificado por WhatsApp
+              </span>
+            )}
+            {pedido.whatsapp_enviado === false && (
+              <span className="flex items-center gap-1.5 text-xs text-rose-500 bg-rose-50 px-3 py-1.5 rounded-full">
+                <WaIcon size={12} /> WhatsApp falló
+              </span>
+            )}
+            {pedido.cliente.telefono && (
+              <button onClick={enviarWaManual} disabled={sendingWa}
+                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-emerald-600 disabled:opacity-50 ml-auto">
+                <WaIcon size={12} />
+                {sendingWa ? 'Enviando…' : 'Enviar WhatsApp ahora'}
+              </button>
+            )}
+            {waOk === true  && <span className="text-xs text-emerald-600">✓ Enviado</span>}
+            {waOk === false && <span className="text-xs text-rose-500">✗ Falló</span>}
+          </div>
         </div>
         {cfg.next && (
           <div className="px-5 py-4 border-t border-zinc-100 flex gap-2">
@@ -458,6 +633,8 @@ export default function PedidosPage() {
   const [selec,       setSelec]       = useState<Pedido | null>(null);
   const [modalNuevo,  setModalNuevo]  = useState(false);
   const [modalImport, setModalImport] = useState(false);
+  const [modalWa,     setModalWa]     = useState(false);
+  const [waConectado, setWaConectado] = useState<boolean | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -478,6 +655,16 @@ export default function PedidosPage() {
   };
 
   useEffect(() => { load(); }, [filtro, busq]);
+
+  // Check WhatsApp connection status on mount
+  useEffect(() => {
+    api.get<{ habilitado: boolean; estado: any }>('/whatsapp/status')
+      .then(r => {
+        const state = r.estado?.instance?.state ?? r.estado?.state ?? 'unknown';
+        setWaConectado(r.habilitado && state === 'open');
+      })
+      .catch(() => setWaConectado(false));
+  }, []);
 
   const avanzar = async (id: number, estado: EstadoPedido) => {
     try {
@@ -506,6 +693,15 @@ export default function PedidosPage() {
           <button onClick={() => setModalImport(true)}
             className="px-3 py-1.5 rounded-xl text-sm font-medium border border-zinc-200 text-zinc-600 hover:bg-zinc-50">
             Importar clientes
+          </button>
+          <button onClick={() => setModalWa(true)} title="Configurar WhatsApp"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
+              waConectado === true
+                ? 'border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                : 'border-zinc-200 text-zinc-400 hover:bg-zinc-50'
+            }`}>
+            <WaIcon size={14} />
+            {waConectado === true ? 'Activo' : 'WhatsApp'}
           </button>
           <button onClick={() => setModalNuevo(true)}
             className="px-4 py-1.5 rounded-xl text-sm font-semibold bg-[var(--brand-purple)] text-white hover:opacity-90">
@@ -558,6 +754,7 @@ export default function PedidosPage() {
                     <p className="text-sm font-semibold text-zinc-800">{p.cliente.nombre}</p>
                     <Pill color={cfg.pill}>{cfg.label}</Pill>
                     <span className="text-xs font-mono text-zinc-300">{p.numero}</span>
+                    <WaBadge enviado={p.whatsapp_enviado} />
                   </div>
                   {p.cliente.direccion && <p className="text-xs text-zinc-400 truncate">{p.cliente.direccion}</p>}
                   <p className="text-xs text-zinc-300 mt-0.5">{p.detalles.length} línea{p.detalles.length !== 1 ? 's' : ''} · {fmtDate(p.fecha)}</p>
@@ -596,6 +793,10 @@ export default function PedidosPage() {
           onClose={() => setModalImport(false)}
           onImportado={() => api.get<Cliente[]>('/clientes').then(setClientes).catch(() => {})}
         />
+      )}
+
+      {modalWa && (
+        <ModalWhatsappSetup onClose={() => setModalWa(false)} />
       )}
     </div>
   );

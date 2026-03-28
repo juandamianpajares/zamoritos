@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'whatsapp' => [
+        'enabled'      => env('WHATSAPP_ENABLED', false),
+        'api_url'      => env('WHATSAPP_API_URL', ''),
+        'api_key'      => env('WHATSAPP_API_KEY', ''),
+        'instance'     => env('WHATSAPP_INSTANCE', 'zamoritos'),
+        'country_code' => env('WHATSAPP_COUNTRY_CODE', '598'),
+        'tienda_nombre'=> env('TIENDA_NOMBRE', 'Zamoritos'),
+    ],
+
 ];

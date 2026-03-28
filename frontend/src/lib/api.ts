@@ -431,6 +431,8 @@ export interface Pedido {
   costo_envio: number;
   medio_pago?: string;
   notas?: string;
+  whatsapp_enviado?: boolean | null;
+  whatsapp_enviado_at?: string | null;
   subtotal: number;
   total: number;
   cliente: {

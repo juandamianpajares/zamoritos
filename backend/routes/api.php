@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\VentaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PedidoController;
 use App\Http\Controllers\Api\ImportarClientesController;
+use App\Http\Controllers\Api\WhatsappController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('dashboard/stats',          [DashboardController::class, 'stats']);
@@ -75,6 +76,12 @@ Route::apiResource('clientes', ClienteController::class)->except(['show']);
 // Pedidos
 Route::patch('pedidos/{pedido}/estado', [PedidoController::class, 'cambiarEstado']);
 Route::apiResource('pedidos', PedidoController::class)->only(['index', 'store', 'show']);
+
+// WhatsApp
+Route::get('whatsapp/status',   [WhatsappController::class, 'status']);
+Route::get('whatsapp/qr',       [WhatsappController::class, 'qr']);
+Route::post('whatsapp/conectar',[WhatsappController::class, 'conectar']);
+Route::post('whatsapp/test',    [WhatsappController::class, 'test']);
 
 Route::get('ventas',                       [VentaController::class, 'index']);
 Route::post('ventas',                      [VentaController::class, 'store']);

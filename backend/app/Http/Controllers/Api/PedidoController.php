@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DetallePedido;
 use App\Models\Pedido;
 use App\Models\Producto;
+use App\Services\WhatsappService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -95,10 +96,31 @@ class PedidoController extends Controller
     public function cambiarEstado(Request $request, Pedido $pedido): JsonResponse
     {
         $data = $request->validate([
-            'estado' => 'required|in:pendiente,confirmado,enviado,entregado,cancelado',
+            'estado'           => 'required|in:pendiente,confirmado,enviado,entregado,cancelado',
+            'enviar_whatsapp'  => 'nullable|boolean',
         ]);
+
         $pedido->update(['estado' => $data['estado']]);
-        return response()->json($this->formatear($pedido->load('cliente', 'detalles.producto')));
+        $pedido->load('cliente', 'detalles.producto');
+
+        $pedidoArr    = $this->formatear($pedido);
+        $enviarWa     = $data['enviar_whatsapp'] ?? true;
+        $waEnviado    = null;
+
+        if ($enviarWa) {
+            $whatsapp  = app(WhatsappService::class);
+            $waEnviado = $whatsapp->notificarCambioEstado($pedidoArr, $data['estado']);
+
+            $pedido->update([
+                'whatsapp_enviado'    => $waEnviado,
+                'whatsapp_enviado_at' => $waEnviado ? now() : null,
+            ]);
+        }
+
+        return response()->json(array_merge($pedidoArr, [
+            'whatsapp_enviado'    => $pedido->whatsapp_enviado,
+            'whatsapp_enviado_at' => $pedido->whatsapp_enviado_at,
+        ]));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -113,9 +135,11 @@ class PedidoController extends Controller
             'estado'      => $p->estado,
             'costo_envio' => $p->costo_envio,
             'medio_pago'  => $p->medio_pago,
-            'notas'       => $p->notas,
-            'subtotal'    => round($subtotal, 2),
-            'total'       => round($subtotal + $p->costo_envio, 2),
+            'notas'               => $p->notas,
+            'whatsapp_enviado'    => $p->whatsapp_enviado,
+            'whatsapp_enviado_at' => $p->whatsapp_enviado_at,
+            'subtotal'            => round($subtotal, 2),
+            'total'               => round($subtotal + $p->costo_envio, 2),
             'cliente'     => [
                 'id'        => $p->cliente?->id,
                 'codigo'    => $p->cliente?->codigo,
