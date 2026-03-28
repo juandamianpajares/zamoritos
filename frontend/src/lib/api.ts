@@ -16,6 +16,12 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
   if (res.status === 204) return undefined as T;
 
+  const ct = res.headers.get('Content-Type') ?? '';
+  if (!ct.includes('application/json')) {
+    const text = await res.text();
+    throw new Error(`El servidor devolvió una respuesta inesperada (HTTP ${res.status}). Verificá los logs del backend.\n${text.slice(0, 300)}`);
+  }
+
   const json = await res.json();
   if (!res.ok) {
     const msg =
