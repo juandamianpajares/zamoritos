@@ -73,7 +73,7 @@ const MEDIO_COLOR: Record<string, string> = {
   sicfe: 'bg-zinc-100 text-zinc-500',
 };
 
-const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
+const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 // ─── Placeholder helpers ───────────────────────────────────────────────────────

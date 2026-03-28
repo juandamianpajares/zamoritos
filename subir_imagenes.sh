@@ -8,12 +8,12 @@
 #   sudo apt install curl jq
 #
 # Uso:
-#   ./subir_imagenes.sh                    # usa localhost:8000
+#   ./subir_imagenes.sh                    # usa localhost:80 (nginx)
 #   ./subir_imagenes.sh http://mi-api.com  # URL del backend sin /api
 #
 # Para forzar resubida aunque el producto ya tenga foto: FORZAR=1 ./subir_imagenes.sh
 
-API_BASE="${1:-http://localhost:8000}/api"
+API_BASE="${1:-http://localhost}/api"
 FORZAR="${FORZAR:-0}"
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

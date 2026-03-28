@@ -586,7 +586,7 @@ function ImportarProveedoresModal({ onClose, onDone }: { onClose: () => void; on
   const [errorMsg,  setErrorMsg]  = useState('');
   const [showFmt,   setShowFmt]   = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const apiBase  = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+  const apiBase  = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
 
   const importar = async () => {
     if (!archivo) return;

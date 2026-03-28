@@ -5,7 +5,7 @@ import { api, type Categoria, type Producto } from '@/lib/api';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
 
-const BASE_URL    = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+const BASE_URL    = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
 const BASE_STORAGE = BASE_URL.replace('/api', '/storage');
 function fotoUrl(f: string) { return `${BASE_STORAGE}/${f}`; }
 

@@ -6,7 +6,7 @@ import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
 import { useStockPublisher } from '@/hooks/useProductoSync';
 
-const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace('/api', '/storage');
+const BASE_STORAGE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api').replace('/api', '/storage');
 function fotoUrl(foto: string) { return `${BASE_STORAGE}/${foto}`; }
 
 function efectivaFoto(p: Producto, preferThumb = false): string | null {
@@ -353,7 +353,7 @@ function ImportarSheetsModal({ onClose, onDone }: { onClose: () => void; onDone:
     if (!url.trim()) return;
     setLoading(true); setError('');
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
       const res = await fetch(`${apiBase}/productos/importar-sheets`, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -464,7 +464,7 @@ function ImportarCsvModal({ onClose, onDone }: { onClose: () => void; onDone: ()
     const fd = new FormData();
     fd.append('archivo', archivo);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
       const res = await fetch(`${apiBase}/productos/importar`, {
         method: 'POST',
         headers: { Accept: 'application/json' },
@@ -591,7 +591,7 @@ function ImportarImagenesModal({ onClose, onDone }: { onClose: () => void; onDon
     const fd = new FormData();
     for (let i = 0; i < archivos.length; i++) fd.append('fotos[]', archivos[i]);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
       const res = await fetch(`${apiBase}/imagenes/importar`, {
         method: 'POST',
         headers: { Accept: 'application/json' },
@@ -893,7 +893,7 @@ export default function ProductosPage() {
         const fd = new FormData();
         fd.append('foto', fotoFile);
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'}/productos/${saved.id}/foto`,
+          `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api'}/productos/${saved.id}/foto`,
           { method: 'POST', headers: { Accept: 'application/json' }, body: fd }
         );
       }

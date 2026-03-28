@@ -1,4 +1,4 @@
-export const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
+export const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost/api';
 
 /** URL base del servidor (sin /api) — para construir rutas de /storage */
 export const STORAGE_BASE = BASE.startsWith('http')
