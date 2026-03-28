@@ -1,150 +1,69 @@
 #!/bin/bash
-# Sube imágenes de productos al backend vía API.
+# Copia imágenes de imagenes_productos/ al servidor y las procesa con artisan.
 #
-# COMBOS: busca imagen por barcode (ej: 7730900660259-C.png → producto barcode 7730900660259C)
-# EXCEL:  busca imagen por nombre del producto (filename sin extensión = nombre del producto)
+# Convención: cada imagen debe llamarse con el código de barras del producto.
+#   Ej: 7730918030044.webp  /  7730918030044.jpg
 #
-# Requisitos: curl, jq
-#   sudo apt install curl jq
+# Requisitos: ssh y scp sin contraseña hacia juan@localhost (WSL Debian)
 #
 # Uso:
-#   ./subir_imagenes.sh                    # usa localhost:80 (nginx)
-#   ./subir_imagenes.sh http://mi-api.com  # URL del backend sin /api
-#
-# Para forzar resubida aunque el producto ya tenga foto: FORZAR=1 ./subir_imagenes.sh
+#   ./subir_imagenes.sh
+#   FORZAR=1 ./subir_imagenes.sh     # reemplaza fotos ya existentes
+#   DRYRUN=1 ./subir_imagenes.sh     # muestra matches sin modificar nada
 
-API_BASE="${1:-http://localhost}/api"
+SSH_HOST="juan@localhost"
+DEST_DIR="${DEST_DIR:-/mnt/c/Users/Juan/Documents/repos/zamoritos/imagenes-entrada}"
+CONTAINER="zamoritos_backend"
 FORZAR="${FORZAR:-0}"
+DRYRUN="${DRYRUN:-0}"
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIR_EXCEL="${DIR_SCRIPT}/imagenes_productos/EXCEL"
-DIR_COMBOS="${DIR_SCRIPT}/imagenes_productos/COMBOS"
-
-OK=0; SKIP=0; ERR=0
+DIR_IMAGENES="${DIR_SCRIPT}/imagenes_productos"
 
 GREEN='\033[0;32m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; NC='\033[0m'
 
-# ── Verificar dependencias ─────────────────────────────────────────────────────
-for cmd in curl jq; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo -e "${RED}ERROR: '$cmd' no instalado. Instalá con: sudo apt install curl jq${NC}"
-    exit 1
+echo "=== Subida de imágenes de productos ==="
+echo "  Origen:  $DIR_IMAGENES"
+echo "  Destino: ${SSH_HOST}:${DEST_DIR}"
+echo ""
+
+# ── Verificar directorio local ────────────────────────────────────────────────
+if [ ! -d "$DIR_IMAGENES" ]; then
+  echo -e "${RED}ERROR: no existe el directorio $DIR_IMAGENES${NC}"
+  exit 1
+fi
+
+ARCHIVOS=$(find "$DIR_IMAGENES" -maxdepth 1 -type f \
+  \( -iname "*.webp" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) | sort)
+
+if [ -z "$ARCHIVOS" ]; then
+  echo -e "${YELLOW}No se encontraron imágenes en $DIR_IMAGENES${NC}"
+  exit 0
+fi
+
+TOTAL=$(echo "$ARCHIVOS" | wc -l)
+echo "  $TOTAL imágenes encontradas."
+echo ""
+
+# ── Crear directorio destino y copiar imágenes ────────────────────────────────
+echo "Copiando al servidor..."
+ssh "$SSH_HOST" "mkdir -p '$DEST_DIR'"
+
+echo "$ARCHIVOS" | while IFS= read -r archivo; do
+  scp -q "$archivo" "${SSH_HOST}:${DEST_DIR}/"
+  if [ $? -eq 0 ]; then
+    echo -e "  ${GREEN}OK${NC}  $(basename "$archivo")"
+  else
+    echo -e "  ${RED}ERR${NC} $(basename "$archivo")"
   fi
 done
 
-echo "=== Subida de imágenes de productos ==="
-echo "  API: $API_BASE"
 echo ""
 
-# ── Cargar productos ───────────────────────────────────────────────────────────
-echo "Obteniendo productos..."
-PRODUCTOS=$(curl -sf "${API_BASE}/productos")
-if [ -z "$PRODUCTOS" ] || echo "$PRODUCTOS" | jq -e 'type == "object" and has("message")' &>/dev/null; then
-  echo -e "${RED}ERROR: No se pudo conectar a ${API_BASE}/productos${NC}"
-  exit 1
-fi
-TOTAL_PROD=$(echo "$PRODUCTOS" | jq 'length')
-echo "  $TOTAL_PROD productos cargados."
-echo ""
+# ── Ejecutar artisan dentro del contenedor ────────────────────────────────────
+ARTISAN_FLAGS=""
+[ "$FORZAR" = "1" ] && ARTISAN_FLAGS="$ARTISAN_FLAGS --force"
+[ "$DRYRUN" = "1" ] && ARTISAN_FLAGS="$ARTISAN_FLAGS --dry-run"
 
-# ── Subir imagen a un producto ─────────────────────────────────────────────────
-subir_imagen() {
-  local producto_id="$1"
-  local archivo="$2"
-  local nombre_display="$3"
-  local tiene_foto="$4"
-
-  if [ "$FORZAR" = "0" ] && [ -n "$tiene_foto" ]; then
-    echo -e "  ${YELLOW}SKIP${NC}  $nombre_display (ya tiene foto)"
-    SKIP=$((SKIP+1))
-    return
-  fi
-
-  local respuesta
-  respuesta=$(curl -sf -X POST "${API_BASE}/productos/${producto_id}/foto" \
-    -F "foto=@${archivo}")
-
-  if echo "$respuesta" | jq -e '.id' &>/dev/null; then
-    echo -e "  ${GREEN}OK${NC}    $nombre_display"
-    OK=$((OK+1))
-  else
-    echo -e "  ${RED}ERROR${NC} $nombre_display"
-    ERR=$((ERR+1))
-  fi
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PARTE 1: COMBOS
-# 7730900660259-C.png → busca producto con codigo_barras = "7730900660259C"
-# ══════════════════════════════════════════════════════════════════════════════
-if [ -d "$DIR_COMBOS" ]; then
-  echo "─── COMBOS ───────────────────────────────────────────────────────────"
-  while IFS= read -r archivo; do
-    bname=$(basename "$archivo")
-    sin_ext="${bname%.*}"
-    # "7730900660259-C" → barcode base antes del guion
-    barcode_base="${sin_ext%-*}"
-    barcode_combo="${barcode_base}C"
-
-    # Buscar por barcode combo (barcode + C)
-    producto=$(echo "$PRODUCTOS" | jq -r --arg bc "$barcode_combo" \
-      'first(.[] | select(.codigo_barras == $bc)) // empty')
-
-    # Fallback: buscar por barcode base
-    if [ -z "$producto" ]; then
-      producto=$(echo "$PRODUCTOS" | jq -r --arg bc "$barcode_base" \
-        'first(.[] | select(.codigo_barras == $bc)) // empty')
-    fi
-
-    if [ -z "$producto" ]; then
-      echo -e "  ${YELLOW}N/F${NC}   $bname → barcode '$barcode_combo' no encontrado"
-      ERR=$((ERR+1))
-    else
-      pid=$(echo "$producto" | jq -r '.id')
-      pnombre=$(echo "$producto" | jq -r '.nombre')
-      pfoto=$(echo "$producto" | jq -r '.foto // empty')
-      subir_imagen "$pid" "$archivo" "$pnombre" "$pfoto"
-    fi
-  done < <(find "$DIR_COMBOS" -maxdepth 1 -type f \( -iname "*-C.*" -o -iname "*-O.*" \))
-  echo ""
-fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PARTE 2: EXCEL
-# "ADULTO LB.webp" → busca producto cuyo nombre coincida con "ADULTO LB"
-# ══════════════════════════════════════════════════════════════════════════════
-if [ -d "$DIR_EXCEL" ]; then
-  echo "─── EXCEL ────────────────────────────────────────────────────────────"
-  while IFS= read -r archivo; do
-    bname=$(basename "$archivo")
-    nombre_archivo="${bname%.*}"
-    nombre_lower=$(echo "$nombre_archivo" | tr '[:upper:]' '[:lower:]')
-
-    # Match exacto por nombre
-    producto=$(echo "$PRODUCTOS" | jq -r --arg nm "$nombre_lower" \
-      'first(.[] | select((.nombre | ascii_downcase) == $nm)) // empty')
-
-    # Match parcial (el nombre del producto contiene el nombre del archivo)
-    if [ -z "$producto" ]; then
-      producto=$(echo "$PRODUCTOS" | jq -r --arg nm "$nombre_lower" \
-        'first(.[] | select((.nombre | ascii_downcase) | contains($nm))) // empty')
-    fi
-
-    if [ -z "$producto" ]; then
-      echo -e "  ${YELLOW}N/F${NC}   $bname"
-    else
-      pid=$(echo "$producto" | jq -r '.id')
-      pnombre=$(echo "$producto" | jq -r '.nombre')
-      pfoto=$(echo "$producto" | jq -r '.foto // empty')
-      subir_imagen "$pid" "$archivo" "$pnombre" "$pfoto"
-    fi
-  done < <(find "$DIR_EXCEL" -maxdepth 1 -type f \
-    \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.jfif" \) | sort)
-  echo ""
-fi
-
-echo "═══════════════════════════════════"
-echo "  Subidas:  $OK"
-echo "  Saltadas: $SKIP  (ya tenían foto)"
-echo "  Errores:  $ERR"
-echo "═══════════════════════════════════"
+echo "Procesando imágenes en el contenedor..."
+ssh "$SSH_HOST" "docker exec $CONTAINER php artisan imagenes:organizar /var/imagenes $ARTISAN_FLAGS"

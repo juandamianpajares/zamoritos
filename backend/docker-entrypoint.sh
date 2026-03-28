@@ -50,7 +50,8 @@ sed -i "s|^# DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME:-zamoritos}|; s|^DB_USERNA
 sed -i "s|^# DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD:-zamoritos_secret}|; s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD:-zamoritos_secret}|" .env
 
 # ── Directorios y permisos necesarios antes de composer ───────────────────
-mkdir -p bootstrap/cache storage/framework/{sessions,views,cache} storage/logs
+mkdir -p bootstrap/cache storage/framework/{sessions,views,cache} storage/logs \
+         storage/app/public/productos/thumbs storage/app/public/categorias
 chmod -R 775 bootstrap/cache storage
 
 # ── Generar clave temporal si no existe (antes de composer, que dispara package:discover) ──
