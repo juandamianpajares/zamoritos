@@ -120,8 +120,10 @@ services:
       SERVER_URL: http://zamoritos_whatsapp:8080
       AUTHENTICATION_TYPE: apikey
       AUTHENTICATION_API_KEY: zamoritos_evo_key_2024
-      # Sin base de datos externa — usa archivos locales
-      DATABASE_ENABLED: "false"
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: mysql
+      DATABASE_CONNECTION_URI: "mysql://zamoritos:zamoritos_secret@db:3306/evolution"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
       CACHE_REDIS_ENABLED: "false"
       CACHE_LOCAL_ENABLED: "true"
       DEL_INSTANCE: "false"
@@ -129,6 +131,9 @@ services:
       LOG_LEVEL: ERROR
     volumes:
       - evolution_instances:/evolution/instances
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - zamoritos
 
