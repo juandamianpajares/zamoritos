@@ -36,7 +36,8 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
-      APP_URL: http://zamoritos.com 
+      APP_URL: http://zamoritos.com
+      APP_TIMEZONE: America/Montevideo
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306

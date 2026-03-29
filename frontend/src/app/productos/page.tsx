@@ -1527,6 +1527,7 @@ export default function ProductosPage() {
               </div>
             )}
           </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4 border-t border-zinc-100">
             <button type="button" onClick={() => setModalOpen(false)}

@@ -614,7 +614,7 @@ function HistoricoCaja() {
 
 export default function CajaPage() {
   const [tab, setTab]             = useState<'hoy' | 'historico'>('hoy');
-  const [fecha, setFecha]         = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha]         = useState(new Date().toLocaleDateString('en-CA'));
   const [datos, setDatos]         = useState<CajaDia | null>(null);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);

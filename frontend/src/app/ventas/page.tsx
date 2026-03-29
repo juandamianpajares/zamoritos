@@ -265,8 +265,8 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   const [kgPicker, setKgPicker] = useState<{ producto: Producto; kg: string; precio: string; modo: 'kg' | 'g' } | null>(null);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [nroFactura, setNroFactura] = useState('');
-  const [lastFacturaNum, setLastFacturaNum] = useState(0);
-  const [facturaPadLen, setFacturaPadLen] = useState(6);
+  const [lastANum, setLastANum] = useState(0);
+  const [lastNNum, setLastNNum] = useState(0);
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [promoBusqueda, setPromoBusqueda] = useState('');
@@ -301,16 +301,11 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
   // Cargar último número de factura para auto-sugerir el próximo
   useEffect(() => {
     api.get<VentasPaginado>('/ventas').then(r => {
-      const entries = r.data
-        .map(v => v.numero_factura ?? '')
-        .filter(Boolean)
-        .map(s => ({ s, n: parseInt(s.replace(/\D/g, ''), 10) }))
-        .filter(({ n }) => !isNaN(n) && n > 0);
-      if (entries.length > 0) {
-        const best = entries.reduce((a, b) => b.n > a.n ? b : a);
-        setLastFacturaNum(best.n);
-        setFacturaPadLen(Math.max(best.s.length, 4));
-      }
+      const numeros = r.data.map(v => v.numero_factura ?? '').filter(Boolean);
+      const aEntries = numeros.filter(s => s.startsWith('A')).map(s => parseInt(s.slice(1), 10)).filter(n => !isNaN(n));
+      const nEntries = numeros.filter(s => s.startsWith('N')).map(s => parseInt(s.slice(1), 10)).filter(n => !isNaN(n));
+      if (aEntries.length > 0) setLastANum(Math.max(...aEntries));
+      if (nEntries.length > 0) setLastNNum(Math.max(...nEntries));
     }).catch(() => {});
   }, []);
 
@@ -619,7 +614,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
 
     // Armar body pendiente y abrir modal de factura
     const body: Record<string, unknown> = {
-      fecha:     new Date().toISOString().slice(0, 10),
+      fecha:     new Date().toLocaleDateString('en-CA'),
       tipo_pago: tipoPago,
       detalles:  carrito.map(l => ({
         producto_id:     l.producto.id,
@@ -639,7 +634,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
     }
     if (creditoCanje > 0) body.credito_devolucion = creditoCanje;
     setPendingBody(body);
-    setNroFactura(String(lastFacturaNum + 1).padStart(facturaPadLen, '0'));
+    setNroFactura('A' + String(lastANum + 1).padStart(6, '0'));
     setShowFacturaModal(true);
   };
 
@@ -654,9 +649,9 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
       await api.post<Venta>('/ventas', body);
       if (nroFact && nroFact !== '0') {
         const n = parseInt(nroFact.replace(/\D/g, ''), 10);
-        if (!isNaN(n) && n > lastFacturaNum) {
-          setLastFacturaNum(n);
-          setFacturaPadLen(Math.max(nroFact.length, facturaPadLen));
+        if (!isNaN(n)) {
+          if (nroFact.startsWith('A')) setLastANum(prev => Math.max(prev, n));
+          else if (nroFact.startsWith('N')) setLastNNum(prev => Math.max(prev, n));
         }
       }
       const alerts = carrito
@@ -862,7 +857,7 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
                             <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500 text-white shadow-sm">COMBO</span>
                           )}
                           {esFraccionado && !esCombo && (
-                            <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-white shadow-sm">FRAC.</span>
+                            <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-sm">✂ FRACCIONADO</span>
                           )}
                           {esVentaKg && !esFraccionado && !esCombo && (
                             <span className="absolute top-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500 text-white shadow-sm">⚖ KG</span>
@@ -1401,49 +1396,50 @@ function POSPanel({ creditoCanje, canjeMedioPago, onClearCanje }: { creditoCanje
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
             <div>
               <h2 className="text-base font-bold text-zinc-900">¿Número de factura?</h2>
-              <p className="text-xs text-zinc-400 mt-0.5">Ingresá el número o dejá en 0 si no tiene.</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Con factura: <strong>A</strong>000001 · Sin factura: <strong>N</strong>000001 (se asigna automático)</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
+                  const prefix = nroFactura.charAt(0).match(/[AN]/i) ? nroFactura.charAt(0).toUpperCase() : 'A';
                   const n = parseInt(nroFactura.replace(/\D/g, ''), 10);
-                  if (!isNaN(n) && n > 1) setNroFactura(String(n - 1).padStart(nroFactura.length, '0'));
+                  if (!isNaN(n) && n > 1) setNroFactura(prefix + String(n - 1).padStart(6, '0'));
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-lg font-bold transition-colors flex-shrink-0"
               >−</button>
               <input
                 type="text"
-                inputMode="numeric"
                 autoFocus
                 value={nroFactura}
-                onChange={e => setNroFactura(e.target.value)}
+                onChange={e => setNroFactura(e.target.value.toUpperCase())}
                 onKeyDown={e => { if (e.key === 'Enter') ejecutarVenta(nroFactura); }}
-                placeholder="Ej: 000123"
-                className="flex-1 px-4 py-3 text-sm text-center border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors"
+                placeholder="Ej: A000123"
+                className="flex-1 px-4 py-3 text-sm text-center border border-zinc-200 rounded-xl focus:outline-none focus:border-[var(--brand-purple)] transition-colors font-mono"
               />
               <button
                 type="button"
                 onClick={() => {
+                  const prefix = nroFactura.charAt(0).match(/[AN]/i) ? nroFactura.charAt(0).toUpperCase() : 'A';
                   const n = parseInt(nroFactura.replace(/\D/g, ''), 10);
-                  if (!isNaN(n)) setNroFactura(String(n + 1).padStart(nroFactura.length, '0'));
+                  if (!isNaN(n)) setNroFactura(prefix + String(n + 1).padStart(6, '0'));
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-lg font-bold transition-colors flex-shrink-0"
               >+</button>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => ejecutarVenta('0')}
+                onClick={() => ejecutarVenta('N' + String(lastNNum + 1).padStart(6, '0'))}
                 className="flex-1 py-3 text-sm font-medium rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
               >
-                Sin factura
+                Sin factura · N{String(lastNNum + 1).padStart(6, '0')}
               </button>
               <button
                 onClick={() => ejecutarVenta(nroFactura)}
                 className="flex-1 py-3 text-sm font-bold rounded-xl text-white transition-colors"
                 style={{ background: 'var(--brand-teal)' }}
               >
-                Confirmar
+                Con factura
               </button>
             </div>
           </div>
@@ -2473,7 +2469,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
   const [sicfeOpen,       setSicfeOpen]       = useState(false);
   const [devolucionVenta, setDevolucionVenta] = useState<Venta | null>(null);
   const [filtroFactura,   setFiltroFactura]   = useState('');
-  const [sortCol,         setSortCol]         = useState<'id' | 'numero_factura' | 'estado' | 'tipo_pago'>('id');
+  const [sortCol,         setSortCol]         = useState<'id' | 'numero_factura' | 'estado' | 'tipo_pago' | 'fecha'>('id');
   const [sortDir,         setSortDir]         = useState<'asc' | 'desc'>('desc');
 
   const toggleSort = (col: typeof sortCol) => {
@@ -2482,15 +2478,15 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
   };
 
   const getParams = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('en-CA');
     const d = new Date();
     const weekStart = new Date(d);
     weekStart.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
     const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
     switch (periodo) {
       case 'hoy':    return `?fecha_desde=${today}&fecha_hasta=${today}`;
-      case 'semana': return `?fecha_desde=${weekStart.toISOString().slice(0,10)}&fecha_hasta=${today}`;
-      case 'mes':    return `?fecha_desde=${monthStart.toISOString().slice(0,10)}&fecha_hasta=${today}`;
+      case 'semana': return `?fecha_desde=${weekStart.toLocaleDateString('en-CA')}&fecha_hasta=${today}`;
+      case 'mes':    return `?fecha_desde=${monthStart.toLocaleDateString('en-CA')}&fecha_hasta=${today}`;
       default:       return '';
     }
   };
@@ -2685,6 +2681,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
             .sort((a, b) => {
               let va: string | number, vb: string | number;
               if (sortCol === 'id')             { va = a.id;             vb = b.id; }
+              else if (sortCol === 'fecha')     { va = a.fecha ?? '';    vb = b.fecha ?? ''; }
               else if (sortCol === 'numero_factura') { va = a.numero_factura ?? ''; vb = b.numero_factura ?? ''; }
               else if (sortCol === 'estado')    { va = a.estado;         vb = b.estado; }
               else                              { va = a.tipo_pago;      vb = b.tipo_pago; }
@@ -2701,7 +2698,7 @@ function HistorialPanel({ onIniciarCanje }: { onIniciarCanje: (amt: number, medi
                   <tr className="border-b border-zinc-100 bg-zinc-50/50">
                     {([
                       { label: '#',       col: 'id'             },
-                      { label: 'Fecha',   col: null             },
+                      { label: 'Fecha',   col: 'fecha'          },
                       { label: 'Factura', col: 'numero_factura' },
                       { label: 'Pago',    col: 'tipo_pago'      },
                       { label: 'Medio',   col: null             },
