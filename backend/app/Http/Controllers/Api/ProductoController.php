@@ -274,7 +274,7 @@ class ProductoController extends Controller
         $unidadFrac   = $modo === 'unidad' ? 'unidad' : 'kg';
         $cantPorEnv   = $producto->peso ?? 1;            // kg por bolsa  ó  pastillas por caja
         $unidadesAlta = round($data['cantidad_bolsas'] * $cantPorEnv, 3);
-        $codigoFrac   = rtrim($producto->codigo_barras ?? '', '*') . '-F';
+        $codigoFrac   = rtrim($producto->codigo_barras ?? '', '*') . 'F';
 
         $labelEnvase  = $modo === 'unidad' ? 'caja(s)/envase(s)' : 'bolsa(s)';
         $labelUnidad  = $modo === 'unidad' ? 'unidades'           : 'kg';
@@ -294,7 +294,7 @@ class ProductoController extends Controller
                     'stock'          => 0,
                     'activo'         => true,
                     'fraccionado_de' => $producto->id,
-                    'fraccionable'   => true,
+                    'fraccionable'   => false,
                 ]
             );
 
@@ -303,7 +303,7 @@ class ProductoController extends Controller
                 'precio_venta'   => $data['precio_fraccionado'],
                 'unidad_medida'  => $unidadFrac,
                 'fraccionado_de' => $producto->id,
-                'fraccionable'   => true,
+                'fraccionable'   => false,
             ]);
 
             $producto->decrement('stock', $data['cantidad_bolsas']);

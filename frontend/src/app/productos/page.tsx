@@ -50,7 +50,7 @@ const emptyForm = {
   nombre: '', codigo_barras: '', marca: '', categoria_id: '',
   unidad_medida: 'unidad', peso: '', precio_venta: '',
   fraccionable: false, modo_fraccion: 'kg' as 'kg' | 'unidad', destacado: false,
-  foto_url: '',
+  foto_url: '', fraccionado_de: null as number | null,
 };
 
 // Genera preview de thumbnail (200×200 crop centrado, igual que el server)
@@ -842,6 +842,7 @@ export default function ProductosPage() {
       modo_fraccion: p.modo_fraccion ?? 'kg',
       destacado: !!p.destacado,
       foto_url: p.foto_url ?? '',
+      fraccionado_de: p.fraccionado_de ?? null,
     });
     setError('');
     setFotoFile(null);
@@ -1476,6 +1477,15 @@ export default function ProductosPage() {
           </div>
 
           {/* ── Fraccionable ── */}
+          {form.fraccionado_de ? (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl px-4 py-3 flex items-center gap-2">
+              <span className="text-amber-600 text-lg">✂</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-700">Producto FRACCIONADO</p>
+                <p className="text-xs text-amber-600">Este producto es un fraccionado — no se puede volver a fraccionar.</p>
+              </div>
+            </div>
+          ) : (
           <div className="border border-zinc-100 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3">
               <div>
