@@ -11,6 +11,7 @@ class Pedido extends Model
     protected $fillable = [
         'venta_id', 'numero', 'cliente_id', 'estado',
         'costo_envio', 'medio_pago', 'notas', 'fecha',
+        'tipo_cancelacion', 'saldo_faltante',
         'whatsapp_enviado', 'whatsapp_enviado_at',
     ];
 

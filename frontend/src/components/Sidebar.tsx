@@ -99,6 +99,15 @@ const LedgerIcon = () => (
   </svg>
 );
 
+const UsersIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 16 16">
+    <circle cx="6" cy="5" r="2.5" />
+    <path d="M1 14c0-2.76 2.24-5 5-5s5 2.24 5 5" />
+    <path d="M11 3.5a2.5 2.5 0 0 1 0 5" />
+    <path d="M15 14c0-2.21-1.79-4-4-4" />
+  </svg>
+);
+
 interface NavLink {
   href: string;
   label: string;
@@ -121,6 +130,7 @@ const links: NavLink[] = [
   { href: '/categorias',     label: 'Categorías',     Icon: TagIcon },
   { href: '/proveedores',    label: 'Proveedores',    Icon: TruckIcon },
   { href: '/compras',        label: 'Compras',        Icon: BagIcon },
+  { href: '/clientes',       label: 'Clientes',       Icon: UsersIcon },
   { href: '/pedidos',        label: 'Pedidos',        Icon: TruckBoxIcon },
   { href: '/cuentas-pagar',  label: 'Cuentas a pagar', Icon: ClockIcon },
   { href: '/stock',          label: 'Stock',          Icon: ChartIcon },

@@ -34,8 +34,16 @@ class ClienteController extends Controller
             'notas'     => 'nullable|string|max:1000',
         ]);
 
-        $data['codigo'] = Cliente::proximoCodigo();
+        // Si el teléfono ya existe, actualizar en lugar de crear
+        if (!empty($data['telefono'])) {
+            $existente = Cliente::where('telefono', $data['telefono'])->first();
+            if ($existente) {
+                $existente->update($data);
+                return response()->json($existente);
+            }
+        }
 
+        $data['codigo'] = Cliente::proximoCodigo();
         $cliente = Cliente::create($data);
         return response()->json($cliente, 201);
     }

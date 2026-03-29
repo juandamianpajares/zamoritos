@@ -96,11 +96,22 @@ class PedidoController extends Controller
     public function cambiarEstado(Request $request, Pedido $pedido): JsonResponse
     {
         $data = $request->validate([
-            'estado'           => 'required|in:pendiente,confirmado,enviado,entregado,cancelado',
-            'enviar_whatsapp'  => 'nullable|boolean',
+            'estado'            => 'required|in:pendiente,preparando,confirmado,sin_facturar,enviado,entregado,cancelado',
+            'enviar_whatsapp'   => 'nullable|boolean',
+            'tipo_cancelacion'  => 'nullable|in:anulacion,devolucion,cancelado_entrega',
         ]);
 
-        $pedido->update(['estado' => $data['estado']]);
+        $update = ['estado' => $data['estado']];
+
+        if (!empty($data['tipo_cancelacion'])) {
+            $update['tipo_cancelacion'] = $data['tipo_cancelacion'];
+            if ($data['tipo_cancelacion'] === 'cancelado_entrega') {
+                $subtotal = $pedido->detalles->sum('subtotal');
+                $update['saldo_faltante'] = round($subtotal + $pedido->costo_envio, 2);
+            }
+        }
+
+        $pedido->update($update);
         $pedido->load('cliente', 'detalles.producto');
 
         $pedidoArr    = $this->formatear($pedido);
@@ -137,6 +148,8 @@ class PedidoController extends Controller
             'costo_envio' => $p->costo_envio,
             'medio_pago'  => $p->medio_pago,
             'notas'               => $p->notas,
+            'tipo_cancelacion'    => $p->tipo_cancelacion,
+            'saldo_faltante'      => $p->saldo_faltante,
             'whatsapp_enviado'    => $p->whatsapp_enviado,
             'whatsapp_enviado_at' => $p->whatsapp_enviado_at,
             'subtotal'            => round($subtotal, 2),

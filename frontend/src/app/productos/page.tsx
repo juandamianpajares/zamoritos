@@ -762,6 +762,7 @@ export default function ProductosPage() {
   const [fotoFile,     setFotoFile]     = useState<File | null>(null);
   const [fotoPreview,  setFotoPreview]  = useState<string | null>(null);
   const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const [deletingFoto, setDeletingFoto] = useState(false);
   const [ajusteP,      setAjusteP]      = useState<Producto | null>(null);
   const [notifLoading, setNotifLoading] = useState<number | null>(null);
   const [scanning,     setScanning]     = useState(false);
@@ -825,7 +826,7 @@ export default function ProductosPage() {
     specialFilter === 'regalo'    ? baseProductos.filter(p => p.en_promo === 3) :
     baseProductos;
 
-  const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); };
+  const resetFoto = () => { setFotoFile(null); setFotoPreview(null); setThumbPreview(null); setDeletingFoto(false); };
 
   const openCreate = () => {
     setEditId(null); setForm({ ...emptyForm }); setError(''); setScanError('');
@@ -1400,13 +1401,46 @@ export default function ProductosPage() {
                   />
                 </div>
                 {fotoPreview && (
-                  <button
-                    type="button"
-                    onClick={() => { resetFoto(); setForm(p => ({ ...p, foto_url: '' })); if (fileRef.current) fileRef.current.value = ''; }}
-                    className="text-xs text-rose-400 hover:text-rose-600 transition-colors"
-                  >
-                    Quitar imagen
-                  </button>
+                  <div className="flex gap-2 items-center">
+                    {fotoFile ? (
+                      // New file selected — just cancel the selection
+                      <button
+                        type="button"
+                        onClick={() => { resetFoto(); if (fileRef.current) fileRef.current.value = ''; }}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+                      >
+                        Cancelar selección
+                      </button>
+                    ) : editId ? (
+                      // Editing existing product with saved foto → delete from server
+                      <button
+                        type="button"
+                        disabled={deletingFoto}
+                        onClick={async () => {
+                          if (!confirm('¿Eliminar la imagen guardada del servidor?')) return;
+                          setDeletingFoto(true);
+                          try {
+                            await api.delete(`/productos/${editId}/foto`);
+                            resetFoto();
+                            setForm(p => ({ ...p, foto_url: '' }));
+                            setProductos(prev => prev.map(p => p.id === editId ? { ...p, foto: undefined, thumb: undefined, foto_url: undefined, thumb_url: undefined } : p));
+                          } catch { /* ignore */ }
+                          setDeletingFoto(false);
+                        }}
+                        className="text-xs text-rose-400 hover:text-rose-600 transition-colors disabled:opacity-50"
+                      >
+                        {deletingFoto ? 'Eliminando…' : 'Eliminar imagen'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { resetFoto(); setForm(p => ({ ...p, foto_url: '' })); if (fileRef.current) fileRef.current.value = ''; }}
+                        className="text-xs text-rose-400 hover:text-rose-600 transition-colors"
+                      >
+                        Quitar imagen
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

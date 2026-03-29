@@ -8,12 +8,17 @@ const fmtDate = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('es-
 
 // ── Configuración de estados ──────────────────────────────────────────────────
 const ESTADO_CFG: Record<EstadoPedido, { label: string; pill: string; dot: string; next?: EstadoPedido; nextLabel?: string }> = {
-  pendiente:  { label: 'Pendiente',  pill: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-400',   next: 'confirmado', nextLabel: 'Confirmar' },
-  confirmado: { label: 'Confirmado', pill: 'bg-blue-100 text-blue-700',      dot: 'bg-blue-400',    next: 'enviado',    nextLabel: 'Marcar enviado' },
-  enviado:    { label: 'Enviado',    pill: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-400',  next: 'entregado',  nextLabel: 'Confirmar entrega' },
-  entregado:  { label: 'Entregado', pill: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  cancelado:  { label: 'Cancelado', pill: 'bg-zinc-100 text-zinc-500',       dot: 'bg-zinc-300'     },
+  pendiente:    { label: 'Pendiente',    pill: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-400',    next: 'preparando',   nextLabel: 'Preparar' },
+  preparando:   { label: 'Preparando',  pill: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-400',   next: 'sin_facturar', nextLabel: 'Listo p/ entregar' },
+  sin_facturar: { label: 'Sin facturar',pill: 'bg-yellow-100 text-yellow-700',  dot: 'bg-yellow-400',   next: 'enviado',      nextLabel: 'Marcar enviado' },
+  confirmado:   { label: 'Confirmado',  pill: 'bg-blue-100 text-blue-700',      dot: 'bg-blue-400',     next: 'enviado',      nextLabel: 'Marcar enviado' },
+  enviado:      { label: 'Enviado',     pill: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-400',   next: 'entregado',    nextLabel: 'Confirmar entrega' },
+  entregado:    { label: 'Entregado',   pill: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500' },
+  cancelado:    { label: 'Cancelado',   pill: 'bg-zinc-100 text-zinc-500',      dot: 'bg-zinc-300' },
 };
+
+// Estados que al cancelar requieren el diálogo de tipo de cancelación
+const ESTADOS_CON_CANCELACION: EstadoPedido[] = ['preparando','sin_facturar','enviado'];
 
 const MEDIOS = ['efectivo','tarjeta','transferencia','oca','master','anda','cabal','otro'];
 
@@ -162,15 +167,72 @@ function ModalWhatsappSetup({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Modal cancelación ─────────────────────────────────────────────────────────
+type TipoCancelacion = 'anulacion' | 'devolucion' | 'cancelado_entrega';
+
+function ModalCancelacion({ pedido, onClose, onConfirm }: {
+  pedido: Pedido;
+  onClose: () => void;
+  onConfirm: (tipo: TipoCancelacion) => void;
+}) {
+  const [tipo, setTipo] = useState<TipoCancelacion | null>(null);
+
+  const opciones: { value: TipoCancelacion; label: string; desc: string; color: string }[] = [
+    { value: 'anulacion',        label: 'Anular pedido',           desc: 'Se revierte stock y se deja sin efecto', color: 'border-rose-300 bg-rose-50 text-rose-700' },
+    { value: 'devolucion',       label: 'Devolución',              desc: 'El cliente devuelve la mercadería', color: 'border-amber-300 bg-amber-50 text-amber-700' },
+    { value: 'cancelado_entrega',label: 'Canceló la entrega',      desc: `Genera saldo faltante "${fmt(pedido.total)}" — Pedido retirado por el cliente`, color: 'border-blue-300 bg-blue-50 text-blue-700' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-zinc-900">¿Cómo proceder con {pedido.numero}?</h2>
+          <p className="text-xs text-zinc-400 mt-1">El pedido estaba en estado <strong>{ESTADO_CFG[pedido.estado]?.label}</strong>.</p>
+        </div>
+
+        <div className="space-y-2">
+          {opciones.map(op => (
+            <button
+              key={op.value}
+              type="button"
+              onClick={() => setTipo(op.value)}
+              className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                tipo === op.value ? op.color + ' border-opacity-100' : 'border-zinc-200 hover:border-zinc-300'
+              }`}
+            >
+              <p className="text-sm font-semibold">{op.label}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">{op.desc}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-colors">Volver</button>
+          <button
+            onClick={() => tipo && onConfirm(tipo)}
+            disabled={!tipo}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-zinc-900 text-white disabled:opacity-40 hover:bg-zinc-800 transition-colors"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Modal detalle pedido ──────────────────────────────────────────────────────
 function ModalDetalle({ pedido, onClose, onAvanzar }: {
   pedido: Pedido;
   onClose: () => void;
-  onAvanzar: (id: number, e: EstadoPedido, enviarWa?: boolean) => void;
+  onAvanzar: (id: number, e: EstadoPedido, tipoCancelacion?: TipoCancelacion) => void;
 }) {
   const cfg = ESTADO_CFG[pedido.estado];
-  const [sendingWa, setSendingWa] = useState(false);
-  const [waOk,      setWaOk]      = useState<boolean | null>(null);
+  const [sendingWa,    setSendingWa]    = useState(false);
+  const [waOk,         setWaOk]         = useState<boolean | null>(null);
+  const [cancelDialog, setCancelDialog] = useState(false);
 
   const enviarWaManual = async () => {
     setSendingWa(true); setWaOk(null);
@@ -181,6 +243,7 @@ function ModalDetalle({ pedido, onClose, onAvanzar }: {
     setSendingWa(false);
   };
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
@@ -261,14 +324,34 @@ function ModalDetalle({ pedido, onClose, onAvanzar }: {
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[var(--brand-purple)] text-white hover:opacity-90">
               {cfg.nextLabel}
             </button>
-            <button onClick={() => { onAvanzar(pedido.id, 'cancelado'); onClose(); }}
+            <button
+              onClick={() => {
+                if (ESTADOS_CON_CANCELACION.includes(pedido.estado)) {
+                  setCancelDialog(true);
+                } else {
+                  onAvanzar(pedido.id, 'cancelado');
+                  onClose();
+                }
+              }}
               className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-zinc-200 text-zinc-500 hover:border-rose-200 hover:text-rose-600">
-              Cancelar
+              Cancelar pedido
             </button>
           </div>
         )}
       </div>
     </div>
+    {cancelDialog && (
+      <ModalCancelacion
+        pedido={pedido}
+        onClose={() => setCancelDialog(false)}
+        onConfirm={(tipo) => {
+          onAvanzar(pedido.id, 'cancelado', tipo);
+          setCancelDialog(false);
+          onClose();
+        }}
+      />
+    )}
+    </>
   );
 }
 
@@ -666,9 +749,11 @@ export default function PedidosPage() {
       .catch(() => setWaConectado(false));
   }, []);
 
-  const avanzar = async (id: number, estado: EstadoPedido) => {
+  const avanzar = async (id: number, estado: EstadoPedido, tipoCancelacion?: TipoCancelacion) => {
     try {
-      const updated = await api.patch<Pedido>(`/pedidos/${id}/estado`, { estado });
+      const body: Record<string, unknown> = { estado };
+      if (tipoCancelacion) body.tipo_cancelacion = tipoCancelacion;
+      const updated = await api.patch<Pedido>(`/pedidos/${id}/estado`, body);
       setPedidos(prev => prev.map(p => p.id === id ? updated : p));
     } catch { /* silent */ }
   };

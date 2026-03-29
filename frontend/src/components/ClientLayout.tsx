@@ -12,6 +12,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/categorias':     'Categorías',
   '/proveedores':    'Proveedores',
   '/compras':        'Compras',
+  '/clientes':       'Clientes',
+  '/pedidos':        'Pedidos',
   '/cuentas-pagar':  'Cuentas a pagar',
   '/stock':          'Stock',
   '/lotes':          'Lotes',

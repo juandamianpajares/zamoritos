@@ -43,6 +43,7 @@ Route::post('productos/importar-sheets',      [ImportarCatalogoController::class
 Route::apiResource('productos', ProductoController::class);
 Route::post('productos/{producto}/fraccionar',        [ProductoController::class, 'fraccionar']);
 Route::post('productos/{producto}/foto',              [ProductoController::class, 'uploadFoto']);
+Route::delete('productos/{producto}/foto',            [ProductoController::class, 'deleteFoto']);
 Route::patch('productos/{producto}/notificacion-stock',[ProductoController::class, 'toggleNotificacion']);
 Route::patch('productos/{producto}/destacado',         [ProductoController::class, 'toggleDestacado']);
 Route::put('productos/{producto}/combo-items',         [ProductoController::class, 'setComboItems']);

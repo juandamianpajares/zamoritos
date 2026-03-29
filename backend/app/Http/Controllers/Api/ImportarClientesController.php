@@ -44,9 +44,10 @@ class ImportarClientesController extends Controller
             return response()->json(['error' => 'Columna "nombre" no encontrada.'], 422);
         }
 
-        $creados   = 0;
-        $omitidos  = 0;
-        $errores   = [];
+        $creados      = 0;
+        $actualizados = 0;
+        $omitidos     = 0;
+        $errores      = [];
 
         DB::beginTransaction();
         try {
@@ -54,29 +55,43 @@ class ImportarClientesController extends Controller
                 $nombre = trim($row[$iNombre] ?? '');
                 if ($nombre === '') { $omitidos++; continue; }
 
-                $telefono  = $iTelefono  !== false ? trim($row[$iTelefono]  ?? '') : null;
-                $direccion = $iDireccion !== false ? trim($row[$iDireccion] ?? '') : null;
-                $notas     = $iNotas     !== false ? trim($row[$iNotas]     ?? '') : null;
+                $telefono  = $iTelefono  !== false ? (trim($row[$iTelefono]  ?? '') ?: null) : null;
+                $direccion = $iDireccion !== false ? (trim($row[$iDireccion] ?? '') ?: null) : null;
+                $notas     = $iNotas     !== false ? (trim($row[$iNotas]     ?? '') ?: null) : null;
                 $codigo    = $iCodigo    !== false ? trim($row[$iCodigo]    ?? '') : '';
 
-                // Si el código viene y ya existe → omitir
+                // Buscar existente por código → por teléfono → nuevo
+                $existente = null;
+
                 if ($codigo !== '') {
-                    if (Cliente::where('codigo', $codigo)->exists()) {
-                        $omitidos++;
-                        continue;
-                    }
-                } else {
-                    $codigo = Cliente::proximoCodigo();
+                    $existente = Cliente::where('codigo', $codigo)->first();
                 }
 
-                Cliente::create([
-                    'codigo'    => $codigo,
-                    'nombre'    => $nombre,
-                    'telefono'  => $telefono  ?: null,
-                    'direccion' => $direccion ?: null,
-                    'notas'     => $notas     ?: null,
-                ]);
-                $creados++;
+                if (!$existente && $telefono) {
+                    $existente = Cliente::where('telefono', $telefono)->first();
+                }
+
+                if ($existente) {
+                    $existente->update([
+                        'nombre'    => $nombre,
+                        'telefono'  => $telefono,
+                        'direccion' => $direccion,
+                        'notas'     => $notas,
+                    ]);
+                    $actualizados++;
+                } else {
+                    if ($codigo === '') {
+                        $codigo = Cliente::proximoCodigo();
+                    }
+                    Cliente::create([
+                        'codigo'    => $codigo,
+                        'nombre'    => $nombre,
+                        'telefono'  => $telefono,
+                        'direccion' => $direccion,
+                        'notas'     => $notas,
+                    ]);
+                    $creados++;
+                }
             }
 
             DB::commit();
@@ -86,9 +101,10 @@ class ImportarClientesController extends Controller
         }
 
         return response()->json([
-            'creados'  => $creados,
-            'omitidos' => $omitidos,
-            'errores'  => $errores,
+            'creados'      => $creados,
+            'actualizados' => $actualizados,
+            'omitidos'     => $omitidos,
+            'errores'      => $errores,
         ]);
     }
 }

@@ -250,6 +250,16 @@ class ProductoController extends Controller
         return response()->json($producto->fresh(['categoria', 'promoProducto']));
     }
 
+    public function deleteFoto(Producto $producto): JsonResponse
+    {
+        if ($producto->foto)  Storage::disk('public')->delete($producto->foto);
+        if ($producto->thumb) Storage::disk('public')->delete($producto->thumb);
+
+        $producto->update(['foto' => null, 'thumb' => null]);
+
+        return response()->json($producto->fresh(['categoria', 'promoProducto']));
+    }
+
     /**
      * Fracciona una bolsa/envase en unidades menores.
      *

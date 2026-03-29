@@ -413,7 +413,7 @@ export interface Cliente {
 }
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
-export type EstadoPedido = 'pendiente' | 'confirmado' | 'enviado' | 'entregado' | 'cancelado';
+export type EstadoPedido = 'pendiente' | 'preparando' | 'confirmado' | 'sin_facturar' | 'enviado' | 'entregado' | 'cancelado';
 
 export interface DetallePedido {
   id?: number;
@@ -433,6 +433,8 @@ export interface Pedido {
   costo_envio: number;
   medio_pago?: string;
   notas?: string;
+  tipo_cancelacion?: 'anulacion' | 'devolucion' | 'cancelado_entrega' | null;
+  saldo_faltante?: number;
   whatsapp_enviado?: boolean | null;
   whatsapp_enviado_at?: string | null;
   subtotal: number;
