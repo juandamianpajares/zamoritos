@@ -119,7 +119,7 @@ services:
     environment:
       SERVER_URL: http://zamoritos_whatsapp:8080
       AUTHENTICATION_TYPE: apikey
-      AUTHENTICATION_API_KEY: e5658cadc1a4e6fcf227205ad3faf4b0
+      AUTHENTICATION_API_KEY: 42260a9295a3fae4b0e791326f39ccbb
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: mysql
       DATABASE_CONNECTION_URI: "mysql://zamoritos:zamoritos_secret@db:3306/evolution"
